@@ -23,7 +23,7 @@ export default function ShopPage() {
           {PRODUCTS.map((p) => (
             <div key={p.id} style={card}>
               {p.badge && <span style={badge}>{p.badge}</span>}
-              <Link href={`/product/${p.id}`} style={imgWrap}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} /></Link>
+              <Link href={`/product/${p.id}`} style={imgWrap}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} /></Link>
               <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>{p.name}</Link>
               <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' }}>{p.tagline}</div>
               <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>

@@ -1,15 +1,32 @@
 import React from 'react';
 
+const fillStyle = { width: '100%', height: '100%', display: 'block', objectFit: 'cover', transition: 'opacity 0.6s ease' };
+
 // Renders real product photography when available, falling back to a CSS/SVG
 // stand-in (a VEIL tin, an inverted tin, or a puff) for products without one.
-export default function ProductVisual({ id = 'original', width = 150, image, alt }) {
+// When a second image is supplied, auto-cycles between the two (used on
+// collection/grid cards, not the single-image product detail view).
+export default function ProductVisual({ id = 'original', width = 150, image, image2, alt }) {
+  const [showSecond, setShowSecond] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!image2) return;
+    const iv = setInterval(() => setShowSecond((s) => !s), 2500);
+    return () => clearInterval(iv);
+  }, [image2]);
+
   if (image) {
     return (
-      <img
-        src={image}
-        alt={alt || id}
-        style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
-      />
+      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <img src={image} alt={alt || id} style={{ ...fillStyle, opacity: showSecond ? 0 : 1 }} />
+        {image2 && (
+          <img
+            src={image2}
+            alt={alt || id}
+            style={{ ...fillStyle, position: 'absolute', top: 0, left: 0, opacity: showSecond ? 1 : 0 }}
+          />
+        )}
+      </div>
     );
   }
   if (id === 'puff' || id === 'ritual-set') {

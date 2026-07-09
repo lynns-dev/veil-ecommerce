@@ -70,7 +70,7 @@ export default function HomePage() {
             {featured.map((p) => (
               <div key={p.id} className="col-item" style={pcard}>
                 {p.badge && <span style={badge}>{p.badge}</span>}
-                <div style={pimg}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
+                <div style={pimg}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
                 <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
                 <div style={pnotes}>{p.tagline}</div>
                 <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
@@ -251,7 +251,7 @@ export default function HomePage() {
 }
 
 const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.white, background: T.ink, padding: '14px 20px', borderBottom: `1px solid ${T.dline}`, overflow: 'hidden' };
-const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '80px 40px 90px', display: 'grid', gap: 50, alignItems: 'center' };
+const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '36px 40px 90px', display: 'grid', gap: 50, alignItems: 'center' };
 const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
 const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
 const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 30 };

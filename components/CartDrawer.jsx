@@ -1,5 +1,6 @@
 import React from 'react';
 import { T, S } from '../lib/theme';
+import ProductVisual from './ProductVisual';
 
 export default function CartDrawer({ cart, open, onClose, remove, setQty, total, loading, checkout }) {
   return (
@@ -28,13 +29,18 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           {cart.length === 0 && <p style={{ color: T.soft, fontSize: 14 }}>Your cart is empty.</p>}
           {cart.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '18px 0', borderBottom: `1px solid ${T.line}` }}>
-              <div>
-                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 20 }}>{item.name}</div>
-                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>${item.price} · {item.size}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
-                  <button onClick={() => setQty(item.id, item.quantity - 1)} style={qtyBtn}>−</button>
-                  <span style={{ fontSize: 13 }}>{item.quantity}</span>
-                  <button onClick={() => setQty(item.id, item.quantity + 1)} style={qtyBtn}>+</button>
+              <div style={{ display: 'flex', gap: 14 }}>
+                <div style={itemImg}>
+                  <ProductVisual id={item.id} image={item.image} alt={item.name} width={56} />
+                </div>
+                <div>
+                  <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 20 }}>{item.name}</div>
+                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>${item.price} · {item.size}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                    <button onClick={() => setQty(item.id, item.quantity - 1)} style={qtyBtn}>−</button>
+                    <span style={{ fontSize: 13 }}>{item.quantity}</span>
+                    <button onClick={() => setQty(item.id, item.quantity + 1)} style={qtyBtn}>+</button>
+                  </div>
                 </div>
               </div>
               <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, alignSelf: 'flex-start' }}>Remove</button>
@@ -66,4 +72,10 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
 const qtyBtn = {
   width: 26, height: 26, border: `1px solid ${T.line}`, background: 'transparent',
   cursor: 'pointer', fontSize: 14, lineHeight: 1, color: '#16140F',
+};
+
+const itemImg = {
+  width: 56, height: 56, flexShrink: 0, overflow: 'hidden',
+  background: T.paper, border: `1px solid ${T.line}`,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
