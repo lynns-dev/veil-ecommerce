@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
+import Marquee from '../components/Marquee';
+import Footer from '../components/Footer';
 import { T, S } from '../lib/theme';
 
 export default function SuccessPage() {
@@ -13,6 +15,8 @@ export default function SuccessPage() {
         <p style={{ color: T.soft, fontSize: 16, marginBottom: 34 }}>We’ve received your order and sent a confirmation to your email. Complimentary shipping is on us.</p>
         <Link href="/" style={S.btnOutline}>Return home</Link>
       </section>
+      <Marquee />
+      <Footer />
     </div>
   );
 }

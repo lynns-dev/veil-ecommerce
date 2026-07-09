@@ -2,8 +2,27 @@ import React from 'react';
 import Link from 'next/link';
 import { T, S } from '../lib/theme';
 import ProductVisual from './ProductVisual';
+import { getProductById } from '../lib/products';
 
-export default function CartDrawer({ cart, open, onClose, remove, setQty, total }) {
+const FREE_SHIP_AT = 50;
+const FREE_GIFT_AT = 70;
+
+export default function CartDrawer({ cart, open, onClose, remove, setQty, total, add }) {
+  const puff = getProductById('puff');
+  const hasPuff = cart.some((i) => i.id === 'puff');
+  const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
+
+  const progressPct = Math.min(100, (total / FREE_GIFT_AT) * 100);
+  const shipMarkerPct = (FREE_SHIP_AT / FREE_GIFT_AT) * 100;
+  let progressMessage;
+  if (total >= FREE_GIFT_AT) {
+    progressMessage = 'You’ve unlocked free shipping and a free scented tassel gift.';
+  } else if (total >= FREE_SHIP_AT) {
+    progressMessage = `Free shipping unlocked — add $${(FREE_GIFT_AT - total).toFixed(2)} more for a free scented tassel gift.`;
+  } else {
+    progressMessage = `Add $${(FREE_SHIP_AT - total).toFixed(2)} more for free shipping.`;
+  }
+
   return (
     <>
       <div
@@ -21,10 +40,20 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total 
           display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span style={S.label}>Your cart</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: T.ink }}>×</button>
         </div>
+
+        {cart.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <p style={{ fontSize: 12, color: T.ink, marginBottom: 8 }}>{progressMessage}</p>
+            <div style={progressTrack}>
+              <div style={{ ...progressFill, width: `${progressPct}%` }} />
+              <div style={{ ...progressMarker, left: `${shipMarkerPct}%` }} />
+            </div>
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {cart.length === 0 && <p style={{ color: T.soft, fontSize: 14 }}>Your cart is empty.</p>}
@@ -47,12 +76,28 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total 
               <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, alignSelf: 'flex-start' }}>Remove</button>
             </div>
           ))}
+
+          {puff && !hasPuff && cart.length > 0 && (
+            <div style={upsellCard}>
+              <div style={itemImg}>
+                <ProductVisual id="puff" image={puff.image} alt={puff.name} width={44} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13 }}>{puff.name}</div>
+                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
+                  <span style={{ textDecoration: 'line-through', marginRight: 6 }}>${puff.price}</span>
+                  ${puffPrice.toFixed(2)} · 10% off
+                </div>
+              </div>
+              <button onClick={() => add({ ...puff, price: puffPrice }, 1)} style={upsellAddBtn}>Add</button>
+            </div>
+          )}
         </div>
 
         <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 20, marginTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
             <span style={S.label}>Total</span>
-            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${total}</span>
+            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${total.toFixed(2)}</span>
           </div>
           <Link
             href="/checkout"
@@ -61,9 +106,6 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total 
           >
             Checkout
           </Link>
-          <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', marginTop: 14 }}>
-            Complimentary shipping over $50
-          </p>
         </div>
       </aside>
     </>
@@ -79,4 +121,17 @@ const itemImg = {
   width: 56, height: 56, flexShrink: 0, overflow: 'hidden',
   background: T.paper, border: `1px solid ${T.line}`,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
+const progressTrack = { position: 'relative', height: 4, background: T.paper, marginTop: 2 };
+const progressFill = { position: 'absolute', top: 0, left: 0, bottom: 0, background: T.ink, transition: 'width .3s ease' };
+const progressMarker = { position: 'absolute', top: -3, bottom: -3, width: 2, background: T.white, boxShadow: `0 0 0 1px ${T.ink}` };
+
+const upsellCard = {
+  display: 'flex', alignItems: 'center', gap: 14, padding: '16px 0',
+  borderBottom: `1px solid ${T.line}`, borderTop: `1px dashed ${T.line}`,
+};
+const upsellAddBtn = {
+  fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', border: `1px solid ${T.ink}`,
+  background: 'none', padding: '8px 14px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0,
 };

@@ -3,6 +3,8 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
+import Marquee from '../components/Marquee';
+import Footer from '../components/Footer';
 import { getFeaturedProducts, getProductById } from '../lib/products';
 import { useCart } from '../lib/useCart';
 import { T, S } from '../lib/theme';
@@ -208,15 +210,8 @@ export default function HomePage() {
         </form>
       </section>
 
-      <footer style={footer}>
-        <div style={{ ...S.wrap, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 18 }}>
-          <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22 }}>VEIL</span>
-          <div style={{ display: 'flex', gap: 24, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft }}>
-            <Link href="/shop">Shop</Link><a href="#notes">Scent</a><a href="#reviews">Reviews</a>
-          </div>
-          <small style={{ width: '100%', color: T.soft, fontSize: 11, marginTop: 12 }}>Poudre de corps parfumée · Concept build — product visuals are illustrative; ratings &amp; reviews are placeholders.</small>
-        </div>
-      </footer>
+      <Marquee />
+      <Footer />
 
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
 
@@ -281,4 +276,3 @@ const ncol = { padding: '38px 14px' };
 const ritGrid = { display: 'grid', gap: 44, marginTop: 54 };
 const newsForm = { display: 'flex', maxWidth: 420, margin: '0 auto', borderBottom: `1px solid ${T.ink}` };
 const newsInput = { flex: 1, height: 48, border: 'none', background: 'transparent', color: T.ink, padding: '0 4px', fontSize: 14, fontFamily: T.sans, outline: 'none' };
-const footer = { borderTop: `1px solid ${T.line}`, padding: '50px 0' };

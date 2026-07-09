@@ -66,7 +66,7 @@ const styles = {
     borderBottom: `1px solid ${T.line}`,
   },
   nav: {
-    maxWidth: T.maxw, margin: '0 auto', padding: '24px 40px',
+    maxWidth: T.maxw, margin: '0 auto', padding: '14px 40px',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   },
   side: { display: 'flex', gap: 30, flex: 1, alignItems: 'center' },
