@@ -25,8 +25,8 @@ export default function ProductPage({ product }) {
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
       <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '30px 40px 90px' }}>
         <Link href="/shop" style={{ ...S.label, display: 'inline-block', marginBottom: 30 }}>← Back to shop</Link>
-        <div style={grid}>
-          <div style={imgSide}><ProductVisual id={product.id} width={230} /></div>
+        <div className="pdp-grid" style={grid}>
+          <div style={imgSide}><ProductVisual id={product.id} image={product.image} alt={product.name} width={230} /></div>
           <div>
             {product.badge && <span style={{ ...S.label, display: 'block', marginBottom: 14 }}>{product.badge}</span>}
             <h1 style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(34px,4.4vw,54px)', lineHeight: 1.02 }}>{product.name}</h1>
@@ -55,9 +55,16 @@ export default function ProductPage({ product }) {
         </div>
       </section>
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
+
+      <style jsx>{`
+        .pdp-grid { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 680px) {
+          .pdp-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
     </div>
   );
 }
 
-const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'start' };
-const imgSide = { background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}` };
+const grid = { display: 'grid', gap: 60, alignItems: 'start' };
+const imgSide = { background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, overflow: 'hidden' };

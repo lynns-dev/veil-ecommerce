@@ -1,7 +1,17 @@
 import React from 'react';
 
-// CSS/SVG stand-in for product photography — a VEIL tin, an inverted tin, or a puff.
-export default function ProductVisual({ id = 'original', width = 150 }) {
+// Renders real product photography when available, falling back to a CSS/SVG
+// stand-in (a VEIL tin, an inverted tin, or a puff) for products without one.
+export default function ProductVisual({ id = 'original', width = 150, image, alt }) {
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={alt || id}
+        style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
+      />
+    );
+  }
   if (id === 'puff' || id === 'ritual-set') {
     return (
       <svg width={width} viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

@@ -19,11 +19,11 @@ export default function ShopPage() {
       </section>
 
       <section style={{ ...S.wrap, paddingBottom: 100 }}>
-        <div style={grid}>
+        <div className="shop-grid" style={grid}>
           {PRODUCTS.map((p) => (
             <div key={p.id} style={card}>
               {p.badge && <span style={badge}>{p.badge}</span>}
-              <Link href={`/product/${p.id}`} style={imgWrap}><ProductVisual id={p.id} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} /></Link>
+              <Link href={`/product/${p.id}`} style={imgWrap}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} /></Link>
               <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>{p.name}</Link>
               <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' }}>{p.tagline}</div>
               <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
@@ -34,12 +34,19 @@ export default function ShopPage() {
       </section>
 
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
+
+      <style jsx>{`
+        .shop-grid { grid-template-columns: repeat(3, 1fr); }
+        @media (max-width: 680px) {
+          .shop-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
     </div>
   );
 }
 
-const grid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: `1px solid ${T.line}`, borderBottom: 'none' };
+const grid = { display: 'grid', border: `1px solid ${T.line}`, borderBottom: 'none' };
 const card = { padding: '44px 30px', textAlign: 'center', position: 'relative', borderBottom: `1px solid ${T.line}`, borderLeft: `1px solid ${T.line}` };
 const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
-const imgWrap = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 };
+const imgWrap = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, overflow: 'hidden' };
 const add = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };

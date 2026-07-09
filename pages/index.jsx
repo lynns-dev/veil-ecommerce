@@ -17,7 +17,7 @@ export default function HomePage() {
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
       {/* HERO */}
-      <section style={hero}>
+      <section className="hero-grid" style={hero}>
         <div>
           <span style={{ ...S.label, display: 'block', marginBottom: 26 }}>Poudre de corps parfumée</span>
           <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
@@ -28,7 +28,13 @@ export default function HomePage() {
             <a href="#notes" style={S.link}>The scent</a>
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center' }}><ProductVisual id="original" width={200} /></div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <img
+            src="/images/veil-model-one.png"
+            alt="VEIL — poudre de corps parfumée"
+            style={{ width: '100%', maxWidth: 460, height: 'auto', display: 'block' }}
+          />
+        </div>
       </section>
 
       {/* HONEST MATH */}
@@ -36,8 +42,8 @@ export default function HomePage() {
         <div style={{ ...S.wrap, textAlign: 'center' }}>
           <p style={S.label}>The honest math</p>
           <h2 style={{ ...S.h2, marginTop: 12 }}>Same scent. <span style={S.it}>Less the markup.</span></h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginTop: 46, border: `1px solid ${T.line}`, textAlign: 'left' }}>
-            <div style={vcell}>
+          <div className="hm-grid" style={{ display: 'grid', marginTop: 46, border: `1px solid ${T.line}`, textAlign: 'left' }}>
+            <div className="hm-cell" style={vcell}>
               <div style={vtag}>Luxury perfume</div>
               <div style={vbig}>$150–300</div>
               <ul style={vlist}>
@@ -46,7 +52,7 @@ export default function HomePage() {
                 ))}
               </ul>
             </div>
-            <div style={{ ...vcell, borderLeft: `1px solid ${T.line}`, background: T.ink, color: T.white }}>
+            <div className="hm-cell" style={{ ...vcell, background: T.ink, color: T.white }}>
               <div style={{ ...vtag, color: 'rgba(252,251,247,0.6)' }}>One jar of VEIL</div>
               <div style={{ ...vbig, color: T.white }}>$45</div>
               <ul style={vlist}>
@@ -64,11 +70,11 @@ export default function HomePage() {
         <div style={{ ...S.wrap, textAlign: 'center' }}>
           <p style={S.label}>The collection</p>
           <h2 style={{ ...S.h2, marginTop: 12 }}>A scent wardrobe, <span style={S.it}>softly told.</span></h2>
-          <div style={colGrid}>
-            {featured.map((p, i) => (
-              <div key={p.id} style={{ ...pcard, borderLeft: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+          <div className="col-grid" style={colGrid}>
+            {featured.map((p) => (
+              <div key={p.id} className="col-item" style={pcard}>
                 {p.badge && <span style={badge}>{p.badge}</span>}
-                <div style={pimg}><ProductVisual id={p.id} width={p.id === 'ritual-set' ? 130 : 104} /></div>
+                <div style={pimg}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
                 <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
                 <div style={pnotes}>{p.tagline}</div>
                 <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
@@ -90,13 +96,13 @@ export default function HomePage() {
             <div style={{ color: T.ink, letterSpacing: '3px', fontSize: 14, margin: '6px 0 4px' }}>★★★★★</div>
             <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>2,143 reviews · 97% recommend</div>
           </div>
-          <div style={revGrid}>
+          <div className="rev-grid" style={revGrid}>
             {[
               ['★★★★★', '“Three people leaned in at dinner to ask what I was wearing. Still there at midnight.”', 'Renata M. — Verified'],
               ['★★★★★', '“Layered it for a wedding — eleven hours later mine was the only scent still going.”', 'Joanne T. — Verified'],
               ['★★★★', '“Close-to-skin by design, not a room-filler. For a soft personal trail, it’s flawless.”', 'Dana P. — Verified'],
             ].map(([st, quote, who], i) => (
-              <div key={i} style={{ ...rev, borderLeft: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+              <div key={i} className="rev-item" style={rev}>
                 <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 14 }}>{st}</div>
                 <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19, lineHeight: 1.4, marginBottom: 16 }}>{quote}</p>
                 <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{who}</cite>
@@ -112,9 +118,9 @@ export default function HomePage() {
         <div style={S.wrap}>
           <p style={{ ...S.label, color: 'rgba(252,251,247,0.6)' }}>The composition</p>
           <h2 style={{ ...S.h2, color: T.white, marginTop: 12 }}>Built in layers, <span style={S.it}>unfolding slowly.</span></h2>
-          <div style={ncols}>
+          <div className="notes-grid" style={ncols}>
             {[['Top', 'Bergamot', 'Citrus zest'], ['Heart', 'Jasmine', 'Soft floral petals'], ['Base', 'Hinoki · Santal', 'Warm vanilla']].map(([k, a, b], i) => (
-              <div key={i} style={{ ...ncol, borderLeft: i === 0 ? 'none' : `1px solid ${T.dline}` }}>
+              <div key={i} className="notes-item" style={ncol}>
                 <div style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(252,251,247,0.55)', marginBottom: 14 }}>{k}</div>
                 <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, lineHeight: 1.5 }}>{a}<br />{b}</div>
               </div>
@@ -128,7 +134,7 @@ export default function HomePage() {
         <div style={{ ...S.wrap, textAlign: 'center' }}>
           <p style={S.label}>The ritual</p>
           <h2 style={{ ...S.h2, marginTop: 12 }}>Three soft motions.</h2>
-          <div style={ritGrid}>
+          <div className="rit-grid" style={ritGrid}>
             {[['i', 'After the bath', 'Press the puff into the powder. Scent lives best on warm, clean skin.'],
               ['ii', 'Sweep where you’re noticed', 'Collarbones, shoulders, the backs of the knees. A veil, not a coat.'],
               ['iii', 'Carry it through the day', 'Wear alone, or layer over perfume to extend it.']].map(([n, h, p], i) => (
@@ -164,12 +170,41 @@ export default function HomePage() {
       </footer>
 
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
+
+      <style jsx>{`
+        .hero-grid { grid-template-columns: 1fr 1fr; }
+        .hm-grid { grid-template-columns: 1fr 1fr; }
+        .hm-cell + .hm-cell { border-left: 1px solid ${T.line}; }
+        .col-grid { grid-template-columns: repeat(3, 1fr); }
+        .col-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
+        .rev-grid { grid-template-columns: repeat(3, 1fr); }
+        .rev-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
+        .notes-grid { grid-template-columns: repeat(3, 1fr); }
+        .notes-item:nth-child(n + 2) { border-left: 1px solid ${T.dline}; }
+        .rit-grid { grid-template-columns: repeat(3, 1fr); }
+
+        @media (max-width: 680px) {
+          .hero-grid { grid-template-columns: 1fr; }
+          .hm-grid { grid-template-columns: 1fr; }
+          .hm-cell + .hm-cell { border-left: none; border-top: 1px solid ${T.line}; }
+          .col-grid { grid-template-columns: 1fr; }
+          .col-item { border-left: none; }
+          .col-item:nth-child(n + 2) { border-top: 1px solid ${T.line}; }
+          .rev-grid { grid-template-columns: 1fr; }
+          .rev-item { border-left: none; }
+          .rev-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
+          .notes-grid { grid-template-columns: 1fr; }
+          .notes-item { border-left: none; }
+          .notes-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.dline}; }
+          .rit-grid { grid-template-columns: 1fr; gap: 34px; }
+        }
+      `}</style>
     </div>
   );
 }
 
 const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.soft, padding: '14px 20px', borderBottom: `1px solid ${T.line}` };
-const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '80px 40px 90px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 50, alignItems: 'center' };
+const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '80px 40px 90px', display: 'grid', gap: 50, alignItems: 'center' };
 const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
 const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
 const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 30 };
@@ -179,17 +214,17 @@ const vtag = { fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase'
 const vbig = { fontFamily: T.serif, fontWeight: 300, fontSize: 46, lineHeight: 1, marginBottom: 18 };
 const vlist = { listStyle: 'none', fontSize: 14, color: T.soft };
 const vli = { padding: '8px 0' };
-const colGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', marginTop: 50, border: `1px solid ${T.line}` };
+const colGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
 const pcard = { padding: '40px 30px', textAlign: 'center', position: 'relative' };
 const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
-const pimg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 };
+const pimg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, overflow: 'hidden' };
 const pnotes = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' };
 const padd = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };
-const revGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: `1px solid ${T.line}`, marginTop: 48 };
+const revGrid = { display: 'grid', border: `1px solid ${T.line}`, marginTop: 48 };
 const rev = { padding: '34px 30px', textAlign: 'left' };
-const ncols = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };
+const ncols = { display: 'grid', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };
 const ncol = { padding: '38px 14px' };
-const ritGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 44, marginTop: 54 };
+const ritGrid = { display: 'grid', gap: 44, marginTop: 54 };
 const newsForm = { display: 'flex', maxWidth: 420, margin: '0 auto', borderBottom: `1px solid ${T.ink}` };
 const newsInput = { flex: 1, height: 48, border: 'none', background: 'transparent', color: T.ink, padding: '0 4px', fontSize: 14, fontFamily: T.sans, outline: 'none' };
 const footer = { borderTop: `1px solid ${T.line}`, padding: '50px 0' };
