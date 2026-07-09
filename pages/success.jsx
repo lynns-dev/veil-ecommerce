@@ -32,7 +32,7 @@ const styles = {
     minHeight: '100vh',
     backgroundColor: '#FCFBF7',
     color: '#16140F',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: '"Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     display: 'flex',
     flexDirection: 'column',
   },
