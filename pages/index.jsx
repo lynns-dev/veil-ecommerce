@@ -3,17 +3,41 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
-import { PRODUCTS, getFeaturedProducts } from '../lib/products';
+import { getFeaturedProducts, getProductById } from '../lib/products';
 import { useCart } from '../lib/useCart';
 import { T, S } from '../lib/theme';
+
+const BANNER_MESSAGES = ['Free shipping $50+', '15% off with code VEIL15'];
 
 export default function HomePage() {
   const c = useCart();
   const featured = getFeaturedProducts();
+  const violette = getProductById('violette');
+  const [bannerIndex, setBannerIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setBannerIndex((i) => (i + 1) % BANNER_MESSAGES.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div>
-      <div style={announce}>Complimentary shipping over $50 — one jar equals the wear of a full perfume bottle</div>
+      <div style={announce}>
+        <div
+          style={{
+            display: 'flex',
+            width: `${BANNER_MESSAGES.length * 100}%`,
+            transform: `translateX(-${(100 / BANNER_MESSAGES.length) * bannerIndex}%)`,
+            transition: 'transform 0.6s ease',
+          }}
+        >
+          {BANNER_MESSAGES.map((msg, i) => (
+            <span key={i} style={{ width: `${100 / BANNER_MESSAGES.length}%` }}>{msg}</span>
+          ))}
+        </div>
+      </div>
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
       {/* HERO */}
@@ -36,6 +60,48 @@ export default function HomePage() {
           />
         </div>
       </section>
+
+      {/* COLLECTION */}
+      <section id="shop" style={band}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The collection</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>A scent wardrobe, <span style={S.it}>softly told.</span></h2>
+          <div className="col-grid" style={colGrid}>
+            {featured.map((p) => (
+              <div key={p.id} className="col-item" style={pcard}>
+                {p.badge && <span style={badge}>{p.badge}</span>}
+                <div style={pimg}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
+                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
+                <div style={pnotes}>{p.tagline}</div>
+                <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
+                <button style={padd} onClick={() => c.add(p)}>Add</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 40 }}><Link href="/shop" style={S.link}>View all</Link></div>
+        </div>
+      </section>
+
+      {/* NEW SCENT — VIOLETTE AMBRÉE */}
+      {violette && (
+        <section style={{ ...band, borderTop: `1px solid ${T.line}` }}>
+          <div className="new-scent-grid" style={newScentGrid}>
+            <div style={newScentImg}>
+              <img
+                src="/images/violette-scent.png"
+                alt="Violette Ambrée — pear, plum, lily of the valley, violet, amber, warm woods"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+            <div>
+              <p style={S.label}>New scent</p>
+              <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Violette Ambrée<span style={S.it}>, just arrived.</span></h2>
+              <p style={{ color: T.soft, fontSize: 15, margin: '18px 0 26px', maxWidth: '42ch' }}>{violette.description}</p>
+              <Link href={`/product/${violette.id}`} style={S.btnFill}>Shop Violette Ambrée</Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* HONEST MATH */}
       <section style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
@@ -62,27 +128,6 @@ export default function HomePage() {
               </ul>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* COLLECTION */}
-      <section id="shop" style={band}>
-        <div style={{ ...S.wrap, textAlign: 'center' }}>
-          <p style={S.label}>The collection</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>A scent wardrobe, <span style={S.it}>softly told.</span></h2>
-          <div className="col-grid" style={colGrid}>
-            {featured.map((p) => (
-              <div key={p.id} className="col-item" style={pcard}>
-                {p.badge && <span style={badge}>{p.badge}</span>}
-                <div style={pimg}><ProductVisual id={p.id} image={p.image} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
-                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
-                <div style={pnotes}>{p.tagline}</div>
-                <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
-                <button style={padd} onClick={() => c.add(p)}>Add</button>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 40 }}><Link href="/shop" style={S.link}>View all</Link></div>
         </div>
       </section>
 
@@ -175,8 +220,9 @@ export default function HomePage() {
         .hero-grid { grid-template-columns: 1fr 1fr; }
         .hm-grid { grid-template-columns: 1fr 1fr; }
         .hm-cell + .hm-cell { border-left: 1px solid ${T.line}; }
-        .col-grid { grid-template-columns: repeat(3, 1fr); }
+        .col-grid { grid-template-columns: repeat(4, 1fr); }
         .col-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
+        .new-scent-grid { grid-template-columns: 1fr 1fr; }
         .rev-grid { grid-template-columns: repeat(3, 1fr); }
         .rev-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
         .notes-grid { grid-template-columns: repeat(3, 1fr); }
@@ -190,6 +236,7 @@ export default function HomePage() {
           .col-grid { grid-template-columns: 1fr; }
           .col-item { border-left: none; }
           .col-item:nth-child(n + 2) { border-top: 1px solid ${T.line}; }
+          .new-scent-grid { grid-template-columns: 1fr; gap: 34px; }
           .rev-grid { grid-template-columns: 1fr; }
           .rev-item { border-left: none; }
           .rev-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
@@ -203,7 +250,7 @@ export default function HomePage() {
   );
 }
 
-const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.soft, padding: '14px 20px', borderBottom: `1px solid ${T.line}` };
+const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.white, background: T.ink, padding: '14px 20px', borderBottom: `1px solid ${T.dline}`, overflow: 'hidden' };
 const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '80px 40px 90px', display: 'grid', gap: 50, alignItems: 'center' };
 const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
 const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
@@ -215,6 +262,8 @@ const vbig = { fontFamily: T.serif, fontWeight: 300, fontSize: 46, lineHeight: 1
 const vlist = { listStyle: 'none', fontSize: 14, color: T.soft };
 const vli = { padding: '8px 0' };
 const colGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
+const newScentGrid = { ...S.wrap, display: 'grid', gap: 60, alignItems: 'center' };
+const newScentImg = { aspectRatio: '4/5', overflow: 'hidden', border: `1px solid ${T.line}` };
 const pcard = { padding: '40px 30px', textAlign: 'center', position: 'relative' };
 const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
 const pimg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, overflow: 'hidden' };
