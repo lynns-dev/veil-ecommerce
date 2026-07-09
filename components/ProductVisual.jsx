@@ -4,20 +4,18 @@ const fillStyle = { width: '100%', height: '100%', display: 'block', objectFit: 
 
 // Renders real product photography when available, falling back to a CSS/SVG
 // stand-in (a VEIL tin, an inverted tin, or a puff) for products without one.
-// When a second image is supplied, auto-cycles between the two (used on
+// When a second image is supplied, swaps to it on hover (used on
 // collection/grid cards, not the single-image product detail view).
 export default function ProductVisual({ id = 'original', width = 150, image, image2, alt }) {
   const [showSecond, setShowSecond] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!image2) return;
-    const iv = setInterval(() => setShowSecond((s) => !s), 2500);
-    return () => clearInterval(iv);
-  }, [image2]);
-
   if (image) {
     return (
-      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        style={{ position: 'relative', width: '100%', height: '100%' }}
+        onMouseEnter={() => image2 && setShowSecond(true)}
+        onMouseLeave={() => image2 && setShowSecond(false)}
+      >
         <img src={image} alt={alt || id} style={{ ...fillStyle, opacity: showSecond ? 0 : 1 }} />
         {image2 && (
           <img

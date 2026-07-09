@@ -22,12 +22,16 @@ export default function ShopPage() {
         <div className="shop-grid" style={grid}>
           {PRODUCTS.map((p) => (
             <div key={p.id} style={card}>
-              {p.badge && <span style={badge}>{p.badge}</span>}
-              <Link href={`/product/${p.id}`} style={imgWrap}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} /></Link>
-              <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>{p.name}</Link>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' }}>{p.tagline}</div>
-              <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
-              <button style={add} onClick={() => c.add(p)}>Add to cart</button>
+              <Link href={`/product/${p.id}`} style={imgWrap}>
+                {p.badge && <span style={badge}>{p.badge}</span>}
+                <ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} />
+              </Link>
+              <div style={cardText}>
+                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>{p.name}</Link>
+                <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' }}>{p.tagline}</div>
+                <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
+                <button style={add} onClick={() => c.add(p)}>Add to cart</button>
+              </div>
             </div>
           ))}
         </div>
@@ -46,7 +50,8 @@ export default function ShopPage() {
 }
 
 const grid = { display: 'grid', border: `1px solid ${T.line}`, borderBottom: 'none' };
-const card = { padding: '44px 30px', textAlign: 'center', position: 'relative', borderBottom: `1px solid ${T.line}`, borderLeft: `1px solid ${T.line}` };
-const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
-const imgWrap = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, overflow: 'hidden' };
+const card = { textAlign: 'center', borderBottom: `1px solid ${T.line}`, borderLeft: `1px solid ${T.line}` };
+const badge = { position: 'absolute', top: 14, left: 14, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft, background: 'rgba(252,251,247,0.9)', padding: '4px 8px', zIndex: 1 };
+const imgWrap = { position: 'relative', aspectRatio: '1/1', display: 'block', overflow: 'hidden', width: '100%' };
+const cardText = { padding: '20px 30px 44px' };
 const add = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };

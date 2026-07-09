@@ -28,7 +28,13 @@ const BENEFITS = [
 // Drop video files into public/videos and add entries here (or per-product,
 // if you'd rather curate which reels show on which page) to populate the
 // reel carousel below. Section is hidden entirely while this is empty.
-const REEL_VIDEOS = [];
+const REEL_VIDEOS = [
+  { src: '/videos/A_woman_in_her_early_40s_in_a__Seedance_20_58180.mp4' },
+  { src: '/videos/Heres_the_clean_copy-paste_ver_Seedance_20_Fast_24635.mp4' },
+  { src: '/videos/RAW_IPHONE_FOOTAGE_vertical_91_Seedance_20_Fast_48648.mp4' },
+  { src: '/videos/Raw_iPhone_vertical_916_multip_Seedance_20_Fast_48184.mp4' },
+  { src: '/videos/VEIL_ADS_In_a_direct-to-consumer_style_a_woman_with_dark_b2adepH-.mp4' },
+];
 
 const FAQS = [
   ['Will it stain clothing?', 'No — the featherlight powder presses into skin and brushes off fabric easily.'],
@@ -64,6 +70,12 @@ export default function ProductPage({ product }) {
   const [quantity, setQuantity] = React.useState(1);
   const [openSection, setOpenSection] = React.useState('scent-story');
   const [openFaq, setOpenFaq] = React.useState(null);
+  const images = React.useMemo(() => [product?.image, product?.image2].filter(Boolean), [product]);
+  const [activeImage, setActiveImage] = React.useState(images[0] || '');
+
+  React.useEffect(() => {
+    setActiveImage(images[0] || '');
+  }, [images]);
 
   if (router.isFallback || !product) return null;
 
@@ -87,8 +99,29 @@ export default function ProductPage({ product }) {
       {/* MAIN */}
       <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '0 40px 90px' }}>
         <div className="pdp-grid" style={grid}>
-          <div style={imgSide}>
-            <ProductVisual id={product.id} image={product.image} alt={product.name} width={230} />
+          <div className="pdp-gallery" style={gallery}>
+            <div style={imgSide}>
+              {activeImage ? (
+                <img src={activeImage} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <ProductVisual id={product.id} width={230} />
+              )}
+            </div>
+            {images.length > 1 && (
+              <div className="thumb-col" style={thumbCol}>
+                {images.map((src, i) => (
+                  <button
+                    key={src}
+                    onClick={() => setActiveImage(src)}
+                    style={{ ...thumbBtn, borderColor: activeImage === src ? T.ink : T.line }}
+                    aria-label={`Show image ${i + 1}`}
+                    aria-current={activeImage === src}
+                  >
+                    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={infoCol}>
@@ -111,6 +144,30 @@ export default function ProductPage({ product }) {
             </div>
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
+
+            <div style={{ marginTop: 24 }}>
+              {product.notes && (
+                <AccordionRow title="Scent story" open={openSection === 'scent-story'} onToggle={() => toggleSection('scent-story')}>
+                  {Object.entries(product.notes).map(([k, v]) => (
+                    <div key={k} style={noteRow}>
+                      <span style={noteKey}>{k}</span>
+                      <span style={noteVal}>{v}</span>
+                    </div>
+                  ))}
+                </AccordionRow>
+              )}
+              <AccordionRow title="How to use" open={openSection === 'how-to-use'} onToggle={() => toggleSection('how-to-use')}>
+                {HOW_TO_USE.map(([h, p], i) => (
+                  <div key={i} style={{ marginBottom: i < HOW_TO_USE.length - 1 ? 18 : 0 }}>
+                    <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 17, marginBottom: 4 }}>{h}</div>
+                    <p style={{ fontSize: 13, color: T.soft, margin: 0 }}>{p}</p>
+                  </div>
+                ))}
+              </AccordionRow>
+              <AccordionRow title="Ingredients" open={openSection === 'ingredients'} onToggle={() => toggleSection('ingredients')}>
+                <p style={{ fontSize: 14, color: T.soft, margin: 0 }}>{INGREDIENTS}</p>
+              </AccordionRow>
+            </div>
           </div>
         </div>
       </section>
@@ -120,33 +177,6 @@ export default function ProductPage({ product }) {
         <div style={narrowWrap}>
           <p style={S.label}>The scent, in full</p>
           <p style={narrative}>{product.longDescription}</p>
-        </div>
-      </section>
-
-      {/* ACCORDION */}
-      <section style={{ paddingBottom: 100 }}>
-        <div style={narrowWrap}>
-          {product.notes && (
-            <AccordionRow title="Scent story" open={openSection === 'scent-story'} onToggle={() => toggleSection('scent-story')}>
-              {Object.entries(product.notes).map(([k, v]) => (
-                <div key={k} style={noteRow}>
-                  <span style={noteKey}>{k}</span>
-                  <span style={noteVal}>{v}</span>
-                </div>
-              ))}
-            </AccordionRow>
-          )}
-          <AccordionRow title="How to use" open={openSection === 'how-to-use'} onToggle={() => toggleSection('how-to-use')}>
-            {HOW_TO_USE.map(([h, p], i) => (
-              <div key={i} style={{ marginBottom: i < HOW_TO_USE.length - 1 ? 18 : 0 }}>
-                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 17, marginBottom: 4 }}>{h}</div>
-                <p style={{ fontSize: 13, color: T.soft, margin: 0 }}>{p}</p>
-              </div>
-            ))}
-          </AccordionRow>
-          <AccordionRow title="Ingredients" open={openSection === 'ingredients'} onToggle={() => toggleSection('ingredients')}>
-            <p style={{ fontSize: 14, color: T.soft, margin: 0 }}>{INGREDIENTS}</p>
-          </AccordionRow>
         </div>
       </section>
 
@@ -217,8 +247,10 @@ export default function ProductPage({ product }) {
               {related.map((p) => (
                 <Link key={p.id} href={`/product/${p.id}`} className="related-item" style={relatedCard}>
                   <div style={relatedImg}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={104} /></div>
-                  <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18 }}>{p.name}</div>
-                  <div style={{ fontSize: 13, color: T.soft, marginTop: 4 }}>${p.price}</div>
+                  <div style={relatedText}>
+                    <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18 }}>{p.name}</div>
+                    <div style={{ fontSize: 13, color: T.soft, marginTop: 4 }}>${p.price}</div>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -234,8 +266,11 @@ export default function ProductPage({ product }) {
         .related-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
         .reel-track { scroll-snap-type: x mandatory; }
         .reel-item { scroll-snap-align: start; flex: 0 0 calc((100% - 40px) / 3); }
+        .thumb-col { flex-direction: column; }
         @media (max-width: 680px) {
           .pdp-grid { grid-template-columns: 1fr; }
+          .pdp-gallery { flex-direction: column; }
+          .thumb-col { flex-direction: row; }
           .related-grid { grid-template-columns: 1fr; }
           .related-item { border-left: none; }
           .related-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
@@ -247,7 +282,10 @@ export default function ProductPage({ product }) {
 }
 
 const grid = { display: 'grid', gap: 60, alignItems: 'start' };
-const imgSide = { background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, overflow: 'hidden' };
+const gallery = { display: 'flex', gap: 14 };
+const imgSide = { background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, overflow: 'hidden', flex: 1, minWidth: 0 };
+const thumbCol = { display: 'flex', gap: 10, flexShrink: 0 };
+const thumbBtn = { width: 64, height: 64, padding: 0, border: '1px solid', cursor: 'pointer', overflow: 'hidden', background: 'none', flexShrink: 0 };
 const infoCol = { position: 'sticky', top: 110 };
 const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(34px,4.4vw,54px)', lineHeight: 1.02, marginBottom: 10 };
 const pdpTagline = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, marginBottom: 14 };
@@ -277,8 +315,9 @@ const benefitRow = { display: 'flex', gap: 24, padding: '28px 0', borderTop: `1p
 const benefitNum = { fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 20, color: T.soft, flex: '0 0 40px' };
 
 const relatedGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
-const relatedCard = { padding: '40px 30px', textAlign: 'center', display: 'block', textDecoration: 'none', color: 'inherit' };
-const relatedImg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, overflow: 'hidden' };
+const relatedCard = { textAlign: 'center', display: 'block', textDecoration: 'none', color: 'inherit' };
+const relatedImg = { aspectRatio: '1/1', display: 'block', width: '100%', overflow: 'hidden' };
+const relatedText = { padding: '16px 20px 40px' };
 
 const reelTrack = { display: 'flex', gap: 20, overflowX: 'auto', marginTop: 44, paddingBottom: 6 };
 const reelItem = { aspectRatio: '9/16', objectFit: 'cover', background: T.paper, border: `1px solid ${T.line}` };

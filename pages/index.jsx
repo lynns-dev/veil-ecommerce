@@ -69,12 +69,16 @@ export default function HomePage() {
           <div className="col-grid" style={colGrid}>
             {featured.map((p) => (
               <div key={p.id} className="col-item" style={pcard}>
-                {p.badge && <span style={badge}>{p.badge}</span>}
-                <div style={pimg}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} /></div>
-                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
-                <div style={pnotes}>{p.tagline}</div>
-                <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
-                <button style={padd} onClick={() => c.add(p)}>Add</button>
+                <Link href={`/product/${p.id}`} style={pimg}>
+                  {p.badge && <span style={badge}>{p.badge}</span>}
+                  <ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} />
+                </Link>
+                <div style={pcardText}>
+                  <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
+                  <div style={pnotes}>{p.tagline}</div>
+                  <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
+                  <button style={padd} onClick={() => c.add(p)}>Add</button>
+                </div>
               </div>
             ))}
           </div>
@@ -264,9 +268,10 @@ const vli = { padding: '8px 0' };
 const colGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
 const newScentGrid = { ...S.wrap, display: 'grid', gap: 60, alignItems: 'center' };
 const newScentImg = { aspectRatio: '4/5', overflow: 'hidden', border: `1px solid ${T.line}` };
-const pcard = { padding: '40px 30px', textAlign: 'center', position: 'relative' };
-const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
-const pimg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, overflow: 'hidden' };
+const pcard = { textAlign: 'center' };
+const badge = { position: 'absolute', top: 14, left: 14, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft, background: 'rgba(252,251,247,0.9)', padding: '4px 8px', zIndex: 1 };
+const pimg = { position: 'relative', aspectRatio: '1/1', display: 'block', overflow: 'hidden', width: '100%' };
+const pcardText = { padding: '20px 30px 40px' };
 const pnotes = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' };
 const padd = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };
 const revGrid = { display: 'grid', border: `1px solid ${T.line}`, marginTop: 48 };
