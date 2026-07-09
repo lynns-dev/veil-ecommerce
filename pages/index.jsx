@@ -1,547 +1,195 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
+import CartDrawer from '../components/CartDrawer';
+import ProductVisual from '../components/ProductVisual';
 import { PRODUCTS, getFeaturedProducts } from '../lib/products';
-import { loadStripe } from '@stripe/stripe-js';
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+import { useCart } from '../lib/useCart';
+import { T, S } from '../lib/theme';
 
 export default function HomePage() {
-  const [cart, setCart] = useState([]);
-  const [showCart, setShowCart] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const c = useCart();
   const featured = getFeaturedProducts();
 
-  const addToCart = (product) => {
-    setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.id === product.id);
-      if (existing) {
-        return prevCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prevCart, { ...product, quantity: 1 }];
-    });
-  };
-
-  const removeFromCart = (productId) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
-  };
-
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId ? { ...item, quantity } : item
-      )
-    );
-  };
-
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  const handleCheckout = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cart }),
-      });
-
-      const { sessionId } = await response.json();
-      const stripe = await stripePromise;
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-
-      if (error) {
-        console.error('Redirect error:', error);
-        alert('Checkout failed. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Checkout failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div style={styles.container}>
-      <Header cartCount={cart.length} onCartClick={() => setShowCart(!showCart)} />
+    <div>
+      <div style={announce}>Complimentary shipping over $50 — one jar equals the wear of a full perfume bottle</div>
+      <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
-      {/* Hero Section */}
-      <section style={styles.hero}>
-        <div style={styles.heroContent}>
-          <h2 style={styles.heroHeading}>Wear it <em style={{ fontStyle: 'italic' }}>for yourself</em> first.</h2>
-          <p style={styles.heroSubtitle}>A featherlight perfume powder that melts into skin with a soft-focus finish — and a veil of scent noticed only by those who lean in close.</p>
-          <Link href="/shop">
-            <button style={styles.heroButton}>Shop the collection</button>
-          </Link>
+      {/* HERO */}
+      <section style={hero}>
+        <div>
+          <span style={{ ...S.label, display: 'block', marginBottom: 26 }}>Poudre de corps parfumée</span>
+          <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
+          <p style={heroSub}>A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.</p>
+          <div style={hrate}><span style={{ letterSpacing: '2px', color: T.ink }}>★★★★★</span> 4.9 · 2,143 reviews</div>
+          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button style={S.btnFill} onClick={() => c.add(featured[0])}>Shop — $45</button>
+            <a href="#notes" style={S.link}>The scent</a>
+          </div>
         </div>
-        <div style={styles.heroDivider}></div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}><ProductVisual id="original" width={200} /></div>
       </section>
 
-      {/* Main Content with Cart Sidebar */}
-      <div style={styles.mainWrapper}>
-        <main style={styles.main}>
-          {/* Why VEIL Section */}
-          <section style={styles.whySection}>
-            <div style={styles.whyContent}>
-              <h3 style={styles.sectionTitle}>Why VEIL</h3>
-              <div style={styles.whyDivider}></div>
-              <p style={styles.whyText}>Perfume, <em style={{ fontStyle: 'italic' }}>reimagined</em> as a ritual.</p>
-              <p style={styles.whyDescription}>VEIL is a modern take on fragrance: a weightless powder infused with scent, designed to be applied directly to the skin. One jar equals the wear of a full perfume bottle — without the projection, without the heaviness, without the price.</p>
+      {/* HONEST MATH */}
+      <section style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The honest math</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Same scent. <span style={S.it}>Less the markup.</span></h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginTop: 46, border: `1px solid ${T.line}`, textAlign: 'left' }}>
+            <div style={vcell}>
+              <div style={vtag}>Luxury perfume</div>
+              <div style={vbig}>$150–300</div>
+              <ul style={vlist}>
+                {['One bottle', 'Scents you and the whole room', 'Fades by afternoon', 'Sits on top of the skin'].map((x, i) => (
+                  <li key={i} style={{ ...vli, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>{x}</li>
+                ))}
+              </ul>
             </div>
-          </section>
+            <div style={{ ...vcell, borderLeft: `1px solid ${T.line}`, background: T.ink, color: T.white }}>
+              <div style={{ ...vtag, color: 'rgba(252,251,247,0.6)' }}>One jar of VEIL</div>
+              <div style={{ ...vbig, color: T.white }}>$45</div>
+              <ul style={vlist}>
+                {['The wear of a full bottle', 'Intimate, close-to-skin', 'Pressed in — holds all day', 'Melts in, soft-focus finish'].map((x, i) => (
+                  <li key={i} style={{ ...vli, color: 'rgba(252,251,247,0.78)', borderTop: i === 0 ? 'none' : `1px solid ${T.dline}` }}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
 
-          {/* Featured Products */}
-          <section style={styles.featuredSection}>
-            <h3 style={styles.sectionTitle}>The collection</h3>
-            <div style={styles.whyDivider}></div>
-            <div style={styles.productGrid}>
-              {featured.map((product) => (
-                <Link key={product.id} href={`/product/${product.id}`} style={{ textDecoration: 'none' }}>
-                  <article style={styles.productCard}>
-                    <div style={styles.productImage}>
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        style={{ width: '100%', height: '280px', objectFit: 'cover', display: 'block' }}
-                        onError={(e) => {
-                          e.target.src = 'https://via.placeholder.com/280?text=' + product.name;
-                        }}
-                      />
-                    </div>
-                    <div style={styles.productInfo}>
-                      <h4 style={styles.productName}>{product.name}</h4>
-                      <p style={styles.productPrice}>${product.price}</p>
-                    </div>
-                  </article>
-                </Link>
-              ))}
-            </div>
-            <div style={styles.viewAllContainer}>
-              <Link href="/shop">
-                <button style={styles.viewAllButton}>View all products</button>
-              </Link>
-            </div>
-          </section>
-
-          {/* Value Proposition */}
-          <section style={styles.valueSection}>
-            <h3 style={styles.sectionTitle}>The honest math</h3>
-            <div style={styles.whyDivider}></div>
-            <div style={styles.comparisonTable}>
-              <div style={styles.comparisonRow}>
-                <div style={styles.comparisonCol}>
-                  <p style={styles.comparisonLabel}>Luxury perfume</p>
-                  <p style={styles.comparisonPrice}>$150–300</p>
-                  <ul style={styles.comparisonList}>
-                    <li>One bottle</li>
-                    <li>Scents you and the whole room</li>
-                    <li>Fades by afternoon</li>
-                    <li>Sits on top of the skin</li>
-                  </ul>
-                </div>
-                <div style={styles.comparisonCol}>
-                  <p style={styles.comparisonLabel}>One jar of VEIL</p>
-                  <p style={styles.comparisonPrice}>$45</p>
-                  <ul style={styles.comparisonList}>
-                    <li>The wear of a full bottle</li>
-                    <li>Intimate, close-to-skin</li>
-                    <li>Pressed in — holds all day</li>
-                    <li>Melts in, soft-focus finish</li>
-                  </ul>
-                </div>
+      {/* COLLECTION */}
+      <section id="shop" style={band}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The collection</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>A scent wardrobe, <span style={S.it}>softly told.</span></h2>
+          <div style={colGrid}>
+            {featured.map((p, i) => (
+              <div key={p.id} style={{ ...pcard, borderLeft: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+                {p.badge && <span style={badge}>{p.badge}</span>}
+                <div style={pimg}><ProductVisual id={p.id} width={p.id === 'ritual-set' ? 130 : 104} /></div>
+                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
+                <div style={pnotes}>{p.tagline}</div>
+                <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
+                <button style={padd} onClick={() => c.add(p)}>Add</button>
               </div>
-            </div>
-          </section>
-        </main>
+            ))}
+          </div>
+          <div style={{ marginTop: 40 }}><Link href="/shop" style={S.link}>View all</Link></div>
+        </div>
+      </section>
 
-        {/* Cart Sidebar */}
-        {showCart && (
-          <aside style={styles.cartSidebar}>
-            <div style={styles.cartHeader}>
-              <h2 style={styles.cartTitle}>Your cart</h2>
-              <button onClick={() => setShowCart(false)} style={styles.closeCart}>✕</button>
-            </div>
-            <div style={styles.sidebarDivider}></div>
+      {/* REVIEWS */}
+      <section id="reviews" style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The verdict</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Worn close, <span style={S.it}>adored quietly.</span></h2>
+          <div style={{ marginTop: 42 }}>
+            <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>4.9</div>
+            <div style={{ color: T.ink, letterSpacing: '3px', fontSize: 14, margin: '6px 0 4px' }}>★★★★★</div>
+            <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>2,143 reviews · 97% recommend</div>
+          </div>
+          <div style={revGrid}>
+            {[
+              ['★★★★★', '“Three people leaned in at dinner to ask what I was wearing. Still there at midnight.”', 'Renata M. — Verified'],
+              ['★★★★★', '“Layered it for a wedding — eleven hours later mine was the only scent still going.”', 'Joanne T. — Verified'],
+              ['★★★★', '“Close-to-skin by design, not a room-filler. For a soft personal trail, it’s flawless.”', 'Dana P. — Verified'],
+            ].map(([st, quote, who], i) => (
+              <div key={i} style={{ ...rev, borderLeft: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+                <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 14 }}>{st}</div>
+                <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19, lineHeight: 1.4, marginBottom: 16 }}>{quote}</p>
+                <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{who}</cite>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 10, color: T.soft, marginTop: 24, letterSpacing: '0.04em' }}>Sample reviews shown — connect a verified-review app before launch.</p>
+        </div>
+      </section>
 
-            {cart.length === 0 ? (
-              <p style={styles.emptyCart}>Your cart is empty</p>
-            ) : (
-              <>
-                <div style={styles.cartItems}>
-                  {cart.map((item) => (
-                    <div key={item.id} style={styles.cartItem}>
-                      <div style={styles.cartItemInfo}>
-                        <p style={styles.cartItemName}>{item.name}</p>
-                        <p style={styles.cartItemMeta}>${item.price} × {item.quantity}</p>
-                      </div>
-                      <div style={styles.cartItemControls}>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          style={styles.quantityButton}
-                        >
-                          −
-                        </button>
-                        <span style={styles.quantity}>{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          style={styles.quantityButton}
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          style={styles.removeButton}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {/* NOTES */}
+      <section id="notes" style={{ ...band, background: T.ink, color: T.white, textAlign: 'center' }}>
+        <div style={S.wrap}>
+          <p style={{ ...S.label, color: 'rgba(252,251,247,0.6)' }}>The composition</p>
+          <h2 style={{ ...S.h2, color: T.white, marginTop: 12 }}>Built in layers, <span style={S.it}>unfolding slowly.</span></h2>
+          <div style={ncols}>
+            {[['Top', 'Bergamot', 'Citrus zest'], ['Heart', 'Jasmine', 'Soft floral petals'], ['Base', 'Hinoki · Santal', 'Warm vanilla']].map(([k, a, b], i) => (
+              <div key={i} style={{ ...ncol, borderLeft: i === 0 ? 'none' : `1px solid ${T.dline}` }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(252,251,247,0.55)', marginBottom: 14 }}>{k}</div>
+                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, lineHeight: 1.5 }}>{a}<br />{b}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                <div style={styles.cartSummary}>
-                  <div style={styles.totalRow}>
-                    <span>Subtotal</span>
-                    <span>${total.toFixed(2)}</span>
-                  </div>
-                  <button
-                    onClick={handleCheckout}
-                    disabled={loading}
-                    style={styles.checkoutButton}
-                  >
-                    {loading ? 'Processing...' : 'Checkout'}
-                  </button>
-                </div>
-              </>
-            )}
-          </aside>
-        )}
-      </div>
+      {/* RITUAL */}
+      <section style={band}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The ritual</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Three soft motions.</h2>
+          <div style={ritGrid}>
+            {[['i', 'After the bath', 'Press the puff into the powder. Scent lives best on warm, clean skin.'],
+              ['ii', 'Sweep where you’re noticed', 'Collarbones, shoulders, the backs of the knees. A veil, not a coat.'],
+              ['iii', 'Carry it through the day', 'Wear alone, or layer over perfume to extend it.']].map(([n, h, p], i) => (
+              <div key={i}>
+                <div style={{ fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 26 }}>{n}</div>
+                <h4 style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, margin: '12px 0 6px' }}>{h}</h4>
+                <p style={{ fontSize: 13, color: T.soft, maxWidth: '30ch', margin: '0 auto' }}>{p}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-      {/* Footer */}
-      <footer style={styles.footer}>
-        <p style={styles.footerText}>Complimentary shipping over $50 · Powered by Stripe</p>
+      {/* NEWSLETTER */}
+      <section style={{ ...band, textAlign: 'center', borderTop: `1px solid ${T.line}` }}>
+        <p style={S.label}>The list</p>
+        <h2 style={{ ...S.h2, marginTop: 12 }}>A language of scent, <span style={S.it}>told softly.</span></h2>
+        <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 15% off your first order.</p>
+        <form style={newsForm} onSubmit={(e) => e.preventDefault()}>
+          <input type="email" placeholder="Email address" aria-label="email" style={newsInput} />
+          <button type="submit" style={{ background: 'none', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Subscribe</button>
+        </form>
+      </section>
+
+      <footer style={footer}>
+        <div style={{ ...S.wrap, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 18 }}>
+          <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22 }}>VEIL</span>
+          <div style={{ display: 'flex', gap: 24, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft }}>
+            <Link href="/shop">Shop</Link><a href="#notes">Scent</a><a href="#reviews">Reviews</a>
+          </div>
+          <small style={{ width: '100%', color: T.soft, fontSize: 11, marginTop: 12 }}>Poudre de corps parfumée · Concept build — product visuals are illustrative; ratings &amp; reviews are placeholders.</small>
+        </div>
       </footer>
+
+      <CartDrawer {...c} onClose={() => c.setOpen(false)} />
     </div>
   );
 }
 
-const styles = {
-  container: {
-    minHeight: '100vh',
-    backgroundColor: '#FCFBF7',
-    color: '#16140F',
-    fontFamily: '"Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  hero: {
-    padding: '80px 40px',
-    textAlign: 'center',
-    borderBottom: '1px solid rgba(22, 20, 15, 0.08)',
-  },
-  heroContent: {
-    maxWidth: '800px',
-    margin: '0 auto 40px',
-  },
-  heroHeading: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '56px',
-    fontWeight: '300',
-    margin: '0 0 20px 0',
-    lineHeight: '1.2',
-  },
-  heroSubtitle: {
-    fontSize: '16px',
-    color: '#544E46',
-    margin: '0 0 40px 0',
-    lineHeight: '1.6',
-  },
-  heroButton: {
-    padding: '14px 40px',
-    backgroundColor: '#16140F',
-    color: '#FCFBF7',
-    border: 'none',
-    borderRadius: '2px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: '500',
-    letterSpacing: '0.04em',
-    textTransform: 'lowercase',
-  },
-  heroDivider: {
-    width: '40px',
-    height: '1px',
-    backgroundColor: 'rgba(22, 20, 15, 0.13)',
-    margin: '0 auto',
-  },
-  mainWrapper: {
-    flex: 1,
-    display: 'flex',
-    maxWidth: '1400px',
-    width: '100%',
-    margin: '0 auto',
-    padding: '60px 40px',
-    gap: '60px',
-  },
-  main: {
-    flex: 1,
-  },
-  whySection: {
-    marginBottom: '80px',
-  },
-  sectionTitle: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '32px',
-    fontWeight: '300',
-    margin: '0 0 16px 0',
-  },
-  whyDivider: {
-    width: '40px',
-    height: '1px',
-    backgroundColor: 'rgba(22, 20, 15, 0.13)',
-    marginBottom: '24px',
-  },
-  whyText: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '24px',
-    fontWeight: '300',
-    margin: '0 0 20px 0',
-    color: '#16140F',
-  },
-  whyDescription: {
-    fontSize: '14px',
-    color: '#544E46',
-    lineHeight: '1.7',
-    margin: '0',
-  },
-  featuredSection: {
-    marginBottom: '80px',
-  },
-  productGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '40px',
-    marginBottom: '40px',
-  },
-  productCard: {
-    cursor: 'pointer',
-  },
-  productImage: {
-    width: '100%',
-    height: '280px',
-    backgroundColor: '#EFEAE1',
-    overflow: 'hidden',
-    marginBottom: '20px',
-  },
-  productInfo: {
-    textAlign: 'center',
-  },
-  productName: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '16px',
-    fontWeight: '300',
-    margin: '0 0 8px 0',
-    color: '#16140F',
-  },
-  productPrice: {
-    fontSize: '14px',
-    color: '#8A7E6E',
-    margin: '0',
-  },
-  viewAllContainer: {
-    textAlign: 'center',
-  },
-  viewAllButton: {
-    padding: '14px 40px',
-    backgroundColor: '#16140F',
-    color: '#FCFBF7',
-    border: 'none',
-    borderRadius: '2px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: '500',
-    letterSpacing: '0.04em',
-    textTransform: 'lowercase',
-  },
-  valueSection: {
-    marginBottom: '80px',
-  },
-  comparisonTable: {
-    marginTop: '40px',
-  },
-  comparisonRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '60px',
-  },
-  comparisonCol: {
-    padding: '28px',
-    backgroundColor: '#FBF8F2',
-    borderRadius: '2px',
-  },
-  comparisonLabel: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '16px',
-    fontWeight: '300',
-    margin: '0 0 8px 0',
-    color: '#16140F',
-  },
-  comparisonPrice: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '20px',
-    fontWeight: '400',
-    margin: '0 0 20px 0',
-    color: '#16140F',
-  },
-  comparisonList: {
-    fontSize: '13px',
-    color: '#544E46',
-    margin: '0',
-    paddingLeft: '20px',
-    lineHeight: '1.8',
-  },
-  cartSidebar: {
-    width: '320px',
-    backgroundColor: '#FBF8F2',
-    padding: '32px 28px',
-    borderRadius: '2px',
-    height: 'fit-content',
-    position: 'sticky',
-    top: '100px',
-    border: '1px solid rgba(22, 20, 15, 0.08)',
-  },
-  cartHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cartTitle: {
-    fontFamily: '"Fraunces", serif',
-    fontSize: '18px',
-    fontWeight: '300',
-    margin: '0',
-    color: '#16140F',
-  },
-  closeCart: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    fontSize: '18px',
-    cursor: 'pointer',
-    color: '#16140F',
-    padding: '0',
-  },
-  sidebarDivider: {
-    width: '100%',
-    height: '1px',
-    backgroundColor: 'rgba(22, 20, 15, 0.08)',
-    margin: '16px 0 20px 0',
-  },
-  emptyCart: {
-    color: '#8A7E6E',
-    fontSize: '13px',
-    textAlign: 'center',
-    padding: '40px 0',
-  },
-  cartItems: {
-    marginBottom: '28px',
-    maxHeight: '400px',
-    overflowY: 'auto',
-  },
-  cartItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingBottom: '16px',
-    marginBottom: '16px',
-    borderBottom: '1px solid rgba(22, 20, 15, 0.08)',
-  },
-  cartItemInfo: {
-    flex: 1,
-    marginRight: '12px',
-  },
-  cartItemName: {
-    fontFamily: '"Fraunces", serif',
-    margin: '0',
-    fontWeight: '300',
-    color: '#16140F',
-    fontSize: '13px',
-    lineHeight: '1.4',
-  },
-  cartItemMeta: {
-    margin: '8px 0 0 0',
-    color: '#8A7E6E',
-    fontSize: '12px',
-  },
-  cartItemControls: {
-    display: 'flex',
-    gap: '6px',
-    alignItems: 'center',
-  },
-  quantityButton: {
-    width: '28px',
-    height: '28px',
-    border: '1px solid rgba(22, 20, 15, 0.13)',
-    backgroundColor: 'transparent',
-    color: '#16140F',
-    cursor: 'pointer',
-    borderRadius: '2px',
-    fontSize: '13px',
-  },
-  quantity: {
-    width: '28px',
-    textAlign: 'center',
-    fontSize: '12px',
-  },
-  removeButton: {
-    width: '28px',
-    height: '28px',
-    border: '1px solid rgba(22, 20, 15, 0.13)',
-    backgroundColor: 'transparent',
-    color: '#16140F',
-    cursor: 'pointer',
-    fontSize: '12px',
-    borderRadius: '2px',
-  },
-  cartSummary: {
-    paddingTop: '20px',
-    borderTop: '1px solid rgba(22, 20, 15, 0.08)',
-  },
-  totalRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '20px',
-    fontSize: '13px',
-  },
-  checkoutButton: {
-    width: '100%',
-    padding: '14px',
-    backgroundColor: '#16140F',
-    color: '#FCFBF7',
-    border: 'none',
-    borderRadius: '2px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: '500',
-    letterSpacing: '0.04em',
-    textTransform: 'lowercase',
-  },
-  footer: {
-    backgroundColor: '#16140F',
-    color: '#EFEAE1',
-    padding: '40px',
-    textAlign: 'center',
-    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-  },
-  footerText: {
-    fontSize: '12px',
-    margin: '0',
-    letterSpacing: '0.04em',
-  },
-};
+const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.soft, padding: '14px 20px', borderBottom: `1px solid ${T.line}` };
+const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '80px 40px 90px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 50, alignItems: 'center' };
+const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
+const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
+const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 30 };
+const band = { padding: '100px 0' };
+const vcell = { padding: '46px 44px' };
+const vtag = { fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.soft, marginBottom: 18 };
+const vbig = { fontFamily: T.serif, fontWeight: 300, fontSize: 46, lineHeight: 1, marginBottom: 18 };
+const vlist = { listStyle: 'none', fontSize: 14, color: T.soft };
+const vli = { padding: '8px 0' };
+const colGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', marginTop: 50, border: `1px solid ${T.line}` };
+const pcard = { padding: '40px 30px', textAlign: 'center', position: 'relative' };
+const badge = { position: 'absolute', top: 18, left: 18, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft };
+const pimg = { aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 };
+const pnotes = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' };
+const padd = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };
+const revGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: `1px solid ${T.line}`, marginTop: 48 };
+const rev = { padding: '34px 30px', textAlign: 'left' };
+const ncols = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };
+const ncol = { padding: '38px 14px' };
+const ritGrid = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 44, marginTop: 54 };
+const newsForm = { display: 'flex', maxWidth: 420, margin: '0 auto', borderBottom: `1px solid ${T.ink}` };
+const newsInput = { flex: 1, height: 48, border: 'none', background: 'transparent', color: T.ink, padding: '0 4px', fontSize: 14, fontFamily: T.sans, outline: 'none' };
+const footer = { borderTop: `1px solid ${T.line}`, padding: '50px 0' };
