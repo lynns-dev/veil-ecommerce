@@ -4,10 +4,12 @@ const fillStyle = { width: '100%', height: '100%', display: 'block', objectFit: 
 
 // Renders real product photography when available, falling back to a CSS/SVG
 // stand-in (a VEIL tin, an inverted tin, or a puff) for products without one.
-// When a second image is supplied, swaps to it on hover (used on
-// collection/grid cards, not the single-image product detail view).
-export default function ProductVisual({ id = 'original', width = 150, image, image2, alt }) {
+// Accepts an `images` array; when a second image exists, swaps to it on
+// hover (used on collection/grid cards, not the single-image PDP gallery,
+// which reads the full array itself for its thumbnail strip).
+export default function ProductVisual({ id = 'original', width = 150, images, alt }) {
   const [showSecond, setShowSecond] = React.useState(false);
+  const [image, image2] = images || [];
 
   if (image) {
     return (

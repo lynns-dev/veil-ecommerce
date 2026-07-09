@@ -83,7 +83,7 @@ export default function ProductPage({ product }) {
   const [openFaq, setOpenFaq] = React.useState(null);
   const [purchaseType, setPurchaseType] = React.useState('onetime');
   const [openStory, setOpenStory] = React.useState(null);
-  const images = React.useMemo(() => [product?.image, product?.image2].filter(Boolean), [product]);
+  const images = React.useMemo(() => product?.images || [], [product]);
   const [activeImage, setActiveImage] = React.useState(images[0] || '');
 
   React.useEffect(() => {
@@ -113,12 +113,12 @@ export default function ProductPage({ product }) {
     <div style={{ paddingBottom: 76 }}>
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
-      <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '30px 40px 0' }}>
+      <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '22px 40px 0' }}>
         <Link href="/shop" style={{ ...S.label, display: 'inline-block', marginBottom: 30 }}>← Back to shop</Link>
       </section>
 
       {/* MAIN */}
-      <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '0 40px 90px' }}>
+      <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '0 40px 60px' }}>
         <div className="pdp-grid" style={grid}>
           <div className="pdp-gallery" style={gallery}>
             <div style={imgSide}>
@@ -188,7 +188,7 @@ export default function ProductPage({ product }) {
 
             {trio && product.id !== 'scent-trio' && (
               <div style={trioCard}>
-                <div style={trioVisual}><ProductVisual id="scent-trio" width={54} /></div>
+                <div style={trioVisual}><ProductVisual id="scent-trio" images={trio.images} alt={trio.name} width={54} /></div>
                 <div style={{ flex: 1 }}>
                   <div style={S.label}>Save with sets</div>
                   <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, marginTop: 4 }}>{trio.name}</div>
@@ -360,7 +360,7 @@ export default function ProductPage({ product }) {
             <div className="related-grid" style={relatedGrid}>
               {related.map((p) => (
                 <Link key={p.id} href={`/product/${p.id}`} className="related-item" style={relatedCard}>
-                  <div style={relatedImg}><ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={104} /></div>
+                  <div style={relatedImg}><ProductVisual id={p.id} images={p.images} alt={p.name} width={104} /></div>
                   <div style={relatedText}>
                     <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18 }}>{p.name}</div>
                     <div style={{ fontSize: 13, color: T.soft, marginTop: 4 }}>${p.price}</div>
@@ -458,8 +458,8 @@ const trioAddBtn = {
   borderBottom: `1px solid ${T.ink}`, padding: '0 0 4px', cursor: 'pointer', fontFamily: T.sans,
 };
 
-const band = { padding: '100px 0' };
-const narrowBand = { padding: '70px 0' };
+const band = { padding: '64px 0' };
+const narrowBand = { padding: '48px 0' };
 const narrowWrap = { maxWidth: 720, margin: '0 auto', padding: '0 40px' };
 const narrative = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(20px,2.4vw,26px)', lineHeight: 1.5, marginTop: 16 };
 

@@ -29,13 +29,13 @@ export default function ShopPage() {
         </div>
       </section>
 
-      <section style={{ ...S.wrap, padding: '80px 0 100px' }}>
+      <section style={{ ...S.wrap, padding: '50px 0 64px' }}>
         <div className="shop-grid" style={grid}>
           {PRODUCTS.filter((p) => p.id !== 'scent-trio').map((p) => (
             <div key={p.id} style={card}>
               <Link href={`/product/${p.id}`} style={imgWrap}>
                 {p.badge && <span style={badge}>{p.badge}</span>}
-                <ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} />
+                <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} />
               </Link>
               <div style={cardText}>
                 <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 22 }}>{p.name}</Link>

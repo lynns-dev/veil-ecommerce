@@ -61,7 +61,7 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '18px 0', borderBottom: `1px solid ${T.line}` }}>
               <div style={{ display: 'flex', gap: 14 }}>
                 <div style={itemImg}>
-                  <ProductVisual id={item.id} image={item.image} alt={item.name} width={56} />
+                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={56} />
                 </div>
                 <div>
                   <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 20 }}>{item.name}</div>
@@ -80,7 +80,7 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           {puff && !hasPuff && cart.length > 0 && (
             <div style={upsellCard}>
               <div style={itemImg}>
-                <ProductVisual id="puff" image={puff.image} alt={puff.name} width={44} />
+                <ProductVisual id="puff" images={puff.images} alt={puff.name} width={44} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13 }}>{puff.name}</div>

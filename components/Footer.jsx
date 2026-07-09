@@ -20,4 +20,4 @@ export default function Footer() {
   );
 }
 
-const footer = { borderTop: `1px solid ${T.line}`, padding: '50px 0' };
+const footer = { borderTop: `1px solid ${T.line}`, padding: '36px 0' };

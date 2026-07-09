@@ -242,7 +242,7 @@ export default function CheckoutPage() {
             {cart.map((item) => (
               <div key={item.id} style={summaryItem}>
                 <div style={summaryImgWrap}>
-                  <ProductVisual id={item.id} image={item.image} alt={item.name} width={48} />
+                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
                   <span style={qtyBadge}>{item.quantity}</span>
                 </div>
                 <div style={{ flex: 1 }}>

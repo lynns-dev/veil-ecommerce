@@ -73,7 +73,7 @@ export default function HomePage() {
               <div key={p.id} className="col-item" style={pcard}>
                 <Link href={`/product/${p.id}`} style={pimg}>
                   {p.badge && <span style={badge}>{p.badge}</span>}
-                  <ProductVisual id={p.id} image={p.image} image2={p.image2} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} />
+                  <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} />
                 </Link>
                 <div style={pcardText}>
                   <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
@@ -220,7 +220,6 @@ export default function HomePage() {
         .hm-grid { grid-template-columns: 1fr 1fr; }
         .hm-cell + .hm-cell { border-left: 1px solid ${T.line}; }
         .col-grid { grid-template-columns: repeat(4, 1fr); }
-        .col-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
         .new-scent-grid { grid-template-columns: 1fr 1fr; }
         .rev-grid { grid-template-columns: repeat(3, 1fr); }
         .rev-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
@@ -233,8 +232,6 @@ export default function HomePage() {
           .hm-grid { grid-template-columns: 1fr; }
           .hm-cell + .hm-cell { border-left: none; border-top: 1px solid ${T.line}; }
           .col-grid { grid-template-columns: 1fr; }
-          .col-item { border-left: none; }
-          .col-item:nth-child(n + 2) { border-top: 1px solid ${T.line}; }
           .new-scent-grid { grid-template-columns: 1fr; gap: 34px; }
           .rev-grid { grid-template-columns: 1fr; }
           .rev-item { border-left: none; }
@@ -250,17 +247,17 @@ export default function HomePage() {
 }
 
 const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.white, background: T.ink, padding: '14px 20px', borderBottom: `1px solid ${T.dline}`, overflow: 'hidden' };
-const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '36px 40px 90px', display: 'grid', gap: 50, alignItems: 'center' };
+const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '36px 40px 60px', display: 'grid', gap: 50, alignItems: 'center' };
 const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
 const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
 const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 30 };
-const band = { padding: '100px 0' };
+const band = { padding: '64px 0' };
 const vcell = { padding: '46px 44px' };
 const vtag = { fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.soft, marginBottom: 18 };
 const vbig = { fontFamily: T.serif, fontWeight: 300, fontSize: 46, lineHeight: 1, marginBottom: 18 };
 const vlist = { listStyle: 'none', fontSize: 14, color: T.soft };
 const vli = { padding: '8px 0' };
-const colGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
+const colGrid = { display: 'grid', marginTop: 50, gap: 40 };
 const newScentGrid = { ...S.wrap, display: 'grid', gap: 60, alignItems: 'center' };
 const newScentImg = { aspectRatio: '4/5', overflow: 'hidden', border: `1px solid ${T.line}` };
 const pcard = { textAlign: 'center' };
