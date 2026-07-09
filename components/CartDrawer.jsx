@@ -1,8 +1,9 @@
 import React from 'react';
+import Link from 'next/link';
 import { T, S } from '../lib/theme';
 import ProductVisual from './ProductVisual';
 
-export default function CartDrawer({ cart, open, onClose, remove, setQty, total, loading, checkout }) {
+export default function CartDrawer({ cart, open, onClose, remove, setQty, total }) {
   return (
     <>
       <div
@@ -53,13 +54,13 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
             <span style={S.label}>Total</span>
             <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${total}</span>
           </div>
-          <button
-            onClick={checkout}
-            disabled={cart.length === 0 || loading}
-            style={{ ...S.btnFill, width: '100%', justifyContent: 'center', opacity: cart.length === 0 ? 0.4 : 1 }}
+          <Link
+            href="/checkout"
+            onClick={(e) => cart.length === 0 && e.preventDefault()}
+            style={{ ...S.btnFill, width: '100%', justifyContent: 'center', opacity: cart.length === 0 ? 0.4 : 1, textAlign: 'center' }}
           >
-            {loading ? 'Redirecting…' : 'Checkout'}
-          </button>
+            Checkout
+          </Link>
           <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', marginTop: 14 }}>
             Complimentary shipping over $50
           </p>

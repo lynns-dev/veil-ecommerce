@@ -265,7 +265,7 @@ export default function ProductPage({ product }) {
         .related-grid { grid-template-columns: repeat(4, 1fr); }
         .related-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
         .reel-track { scroll-snap-type: x mandatory; }
-        .reel-item { scroll-snap-align: start; flex: 0 0 calc((100% - 40px) / 3); }
+        .reel-item { scroll-snap-align: start; flex: 0 0 22%; }
         .thumb-col { flex-direction: column; }
         @media (max-width: 680px) {
           .pdp-grid { grid-template-columns: 1fr; }
@@ -320,4 +320,4 @@ const relatedImg = { aspectRatio: '1/1', display: 'block', width: '100%', overfl
 const relatedText = { padding: '16px 20px 40px' };
 
 const reelTrack = { display: 'flex', gap: 20, overflowX: 'auto', marginTop: 44, paddingBottom: 6 };
-const reelItem = { aspectRatio: '9/16', objectFit: 'cover', background: T.paper, border: `1px solid ${T.line}` };
+const reelItem = { aspectRatio: '9/16', objectFit: 'cover', background: T.paper, border: `1px solid ${T.line}`, minWidth: 0 };
