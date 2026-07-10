@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
+import { DISCOUNTS } from '../lib/discounts';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -52,8 +53,10 @@ export default function CheckoutPage() {
   const [shipping, setShipping] = React.useState(emptyAddress);
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(emptyAddress);
-  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
+  const [card, setCard] = React.useState({ firstName: '', lastName: '', number: '', expiry: '', cvc: '' });
   const [discountCode, setDiscountCode] = React.useState('');
+  const [appliedDiscount, setAppliedDiscount] = React.useState(null);
+  const [discountMessage, setDiscountMessage] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -63,9 +66,25 @@ export default function CheckoutPage() {
   }, [hydrated, cart.length, router]);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 6;
-  const grandTotal = total + shippingCost;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
+  const codeDiscountAmount = !appliedDiscount
+    ? 0
+    : appliedDiscount.type === 'percent'
+    ? Math.round(total * (appliedDiscount.value / 100) * 100) / 100
+    : Math.min(appliedDiscount.value, total);
+  const grandTotal = Math.max(total - codeDiscountAmount, 0) + shippingCost;
+
+  const handleApplyDiscount = () => {
+    const match = DISCOUNTS.find((d) => d.code.toLowerCase() === discountCode.trim().toLowerCase());
+    if (match) {
+      setAppliedDiscount(match);
+      setDiscountMessage(`Code "${match.code}" applied.`);
+    } else {
+      setAppliedDiscount(null);
+      setDiscountMessage(discountCode.trim() ? 'That code isn’t valid.' : '');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -80,7 +99,7 @@ export default function CheckoutPage() {
           expMonth,
           expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
           cvc: card.cvc,
-          name: card.name,
+          name: `${card.firstName} ${card.lastName}`.trim(),
           street: billingAddress.address,
           city: billingAddress.city,
           region: billingAddress.state,
@@ -196,11 +215,27 @@ export default function CheckoutPage() {
               <h2 style={sectionTitle}>Payment</h2>
               <span style={{ fontSize: 11, color: T.soft }}>All transactions are secure and encrypted.</span>
             </div>
+            <div className="row-2">
+              <input
+                placeholder="First name"
+                value={card.firstName}
+                onChange={(e) => setCard({ ...card, firstName: e.target.value })}
+                style={input}
+                required
+              />
+              <input
+                placeholder="Last name"
+                value={card.lastName}
+                onChange={(e) => setCard({ ...card, lastName: e.target.value })}
+                style={input}
+                required
+              />
+            </div>
             <input
               placeholder="Card number"
               value={card.number}
               onChange={(e) => setCard({ ...card, number: e.target.value })}
-              style={input}
+              style={{ ...input, marginTop: 12 }}
               inputMode="numeric"
               required
             />
@@ -227,13 +262,6 @@ export default function CheckoutPage() {
                 required
               />
             </div>
-            <input
-              placeholder="Name on card"
-              value={card.name}
-              onChange={(e) => setCard({ ...card, name: e.target.value })}
-              style={{ ...input, marginTop: 12 }}
-              required
-            />
             <label style={checkboxLabel}>
               <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
               Use shipping address as billing address
@@ -269,15 +297,22 @@ export default function CheckoutPage() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
             <input
               placeholder="Discount code"
               value={discountCode}
-              onChange={(e) => setDiscountCode(e.target.value)}
+              onChange={(e) => {
+                setDiscountCode(e.target.value);
+                if (appliedDiscount) setAppliedDiscount(null);
+                setDiscountMessage('');
+              }}
               style={{ ...input, flex: 1 }}
             />
-            <button type="button" style={S.btnOutline}>Apply</button>
+            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
           </div>
+          {discountMessage && (
+            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginBottom: 12 }}>{discountMessage}</p>
+          )}
 
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Subtotal</span>
@@ -287,6 +322,12 @@ export default function CheckoutPage() {
             <div style={summaryRow}>
               <span style={{ color: T.soft }}>Discount</span>
               <span>−${discountTotal.toFixed(2)}</span>
+            </div>
+          )}
+          {codeDiscountAmount > 0 && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
+              <span>−${codeDiscountAmount.toFixed(2)}</span>
             </div>
           )}
           <div style={summaryRow}>
@@ -310,6 +351,15 @@ export default function CheckoutPage() {
         .summary-toggle { display: none; }
         .checkout-grid { grid-template-columns: 1fr 1fr; }
         .order-summary { display: block; }
+        @media (min-width: 861px) {
+          .order-summary {
+            position: sticky;
+            top: 24px;
+            align-self: start;
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+          }
+        }
         @media (max-width: 860px) {
           .checkout-grid { grid-template-columns: 1fr; }
           .summary-toggle { display: flex; }

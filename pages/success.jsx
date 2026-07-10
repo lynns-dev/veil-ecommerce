@@ -12,7 +12,7 @@ export default function SuccessPage() {
       <section style={{ maxWidth: 640, margin: '0 auto', padding: '120px 40px', textAlign: 'center' }}>
         <p style={S.label}>Thank you</p>
         <h1 style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(38px,5vw,60px)', margin: '16px 0 20px' }}>Your ritual is <span style={S.it}>on its way.</span></h1>
-        <p style={{ color: T.soft, fontSize: 16, marginBottom: 34 }}>We’ve received your order and sent a confirmation to your email. Complimentary shipping is on us.</p>
+        <p style={{ color: T.soft, fontSize: 16, marginBottom: 34 }}>We’ve received your order and sent a confirmation to your email.</p>
         <Link href="/" style={S.btnOutline}>Return home</Link>
       </section>
       <Marquee />

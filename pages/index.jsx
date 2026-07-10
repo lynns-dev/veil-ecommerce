@@ -86,7 +86,7 @@ export default function HomePage() {
                   <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
                   <div style={pnotes}>{p.tagline}</div>
                   <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
-                  <button style={padd} onClick={() => c.add(p)}>Add</button>
+                  <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => c.add(p)}>Add to cart</button>
                 </div>
               </div>
             ))}
@@ -284,7 +284,6 @@ const badge = { position: 'absolute', top: 14, left: 14, fontSize: 9, letterSpac
 const pimg = { position: 'relative', aspectRatio: '1/1', display: 'block', overflow: 'hidden', width: '100%' };
 const pcardText = { padding: '20px 30px 40px' };
 const pnotes = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' };
-const padd = { marginTop: 18, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', border: 'none', background: 'none', borderBottom: `1px solid ${T.ink}`, padding: '0 0 5px', cursor: 'pointer', fontFamily: T.sans };
 const revGrid = { display: 'grid', border: `1px solid ${T.line}`, marginTop: 48 };
 const rev = { padding: '34px 30px', textAlign: 'left' };
 const ncols = { display: 'grid', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };

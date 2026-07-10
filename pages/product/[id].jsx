@@ -275,7 +275,7 @@ export default function ProductPage({ product }) {
         <section style={{ ...band, borderTop: `1px solid ${T.line}` }}>
           <div style={{ ...S.wrap, textAlign: 'center' }}>
             <p style={S.label}>As worn</p>
-            <h2 style={{ ...S.h2, marginTop: 12 }}>Real people, <span style={S.it}>real veils.</span></h2>
+            <h2 style={{ ...S.h2, marginTop: 12 }}>Real women, <span style={S.it}>smelling incredible.</span></h2>
             <div className="reel-track" style={reelTrack}>
               {REEL_VIDEOS.map((v, i) => (
                 <video
