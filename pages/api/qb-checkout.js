@@ -61,7 +61,13 @@ export default async function handler(req, res) {
     }
 
     if (!response.ok) {
-      const message = data?.errors?.[0]?.detail || data?.error?.message || `Charge failed (${response.status})`;
+      console.error('QuickBooks charge failed:', response.status, JSON.stringify(data));
+      const message =
+        data?.errors?.[0]?.detail ||
+        data?.error?.message ||
+        data?.fault?.error?.[0]?.message ||
+        data?.message ||
+        `Charge failed (${response.status})`;
       return res.status(response.status).json({ error: message });
     }
 
