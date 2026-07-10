@@ -47,8 +47,6 @@ const FAQS = [
   ['How do I apply it?', 'Press the puff into the powder, then sweep over collarbones, shoulders and the backs of knees.'],
 ];
 
-const SUBSCRIBE_DISCOUNT = 0.2;
-
 export async function getStaticPaths() {
   return { paths: PRODUCTS.map((p) => ({ params: { id: p.id } })), fallback: false };
 }
@@ -76,7 +74,6 @@ export default function ProductPage({ product }) {
   const [quantity, setQuantity] = React.useState(1);
   const [openSection, setOpenSection] = React.useState('scent-story');
   const [openFaq, setOpenFaq] = React.useState(null);
-  const [purchaseType, setPurchaseType] = React.useState('onetime');
   const [openStory, setOpenStory] = React.useState(null);
   const images = React.useMemo(() => product?.images || [], [product]);
   const [activeImage, setActiveImage] = React.useState(images[0] || '');
@@ -128,12 +125,10 @@ export default function ProductPage({ product }) {
   const toggleFaq = (i) => setOpenFaq((cur) => (cur === i ? null : i));
 
   const unitPrice = product.price;
-  const subscribePrice = Math.round(unitPrice * (1 - SUBSCRIBE_DISCOUNT) * 100) / 100;
-  const displayPrice = purchaseType === 'subscribe' ? subscribePrice : unitPrice;
-  const lineTotal = (displayPrice * quantity).toFixed(2);
+  const lineTotal = (unitPrice * quantity).toFixed(2);
 
   const handleAdd = () => {
-    c.add({ ...product, price: displayPrice, originalPrice: unitPrice, plan: purchaseType }, quantity);
+    c.add({ ...product, price: unitPrice }, quantity);
     setQuantity(1);
   };
 
@@ -223,26 +218,7 @@ export default function ProductPage({ product }) {
               </div>
             )}
 
-            <div style={purchaseOptions}>
-              <label style={{ ...purchaseOption, borderColor: purchaseType === 'onetime' ? T.ink : T.line }}>
-                <input type="radio" name="purchase" checked={purchaseType === 'onetime'} onChange={() => setPurchaseType('onetime')} style={radio} />
-                <span style={{ flex: 1 }}>One-time purchase</span>
-                <span>${unitPrice}</span>
-              </label>
-              <label style={{ ...purchaseOption, borderColor: purchaseType === 'subscribe' ? T.ink : T.line }}>
-                <input type="radio" name="purchase" checked={purchaseType === 'subscribe'} onChange={() => setPurchaseType('subscribe')} style={radio} />
-                <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block' }}>Subscribe &amp; save 20%</span>
-                  <span style={{ display: 'block', fontSize: 12, color: T.soft, marginTop: 2 }}>Every 2 months · cancel anytime · free scented tassel gift</span>
-                </span>
-                <span>
-                  <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 8, fontSize: 13 }}>${unitPrice}</span>
-                  ${subscribePrice}
-                </span>
-              </label>
-            </div>
-
-            <div style={pdpPrice}>${displayPrice} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span></div>
+            <div style={pdpPrice}>${unitPrice} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span></div>
 
             <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap', marginBottom: 20 }}>
               <div style={qtyWrap}>
@@ -459,7 +435,7 @@ export default function ProductPage({ product }) {
         <div style={stickyBarInner}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, color: T.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
-            <div style={{ fontSize: 13, color: 'rgba(252,251,247,0.7)', marginTop: 2 }}>${displayPrice}</div>
+            <div style={{ fontSize: 13, color: 'rgba(252,251,247,0.7)', marginTop: 2 }}>${unitPrice}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={stickyQtyWrap}>
@@ -517,13 +493,6 @@ const qtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.
 const qtyBtn = { width: 40, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: T.ink };
 const qtyValue = { width: 30, textAlign: 'center', fontSize: 13 };
 const badgeRow = { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, marginTop: 4 };
-
-const purchaseOptions = { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 };
-const purchaseOption = {
-  display: 'flex', alignItems: 'center', gap: 12, border: '1px solid', padding: '14px 16px',
-  cursor: 'pointer', fontSize: 14, fontFamily: T.sans,
-};
-const radio = { width: 16, height: 16, accentColor: T.ink, flexShrink: 0 };
 
 const trioCard = {
   display: 'flex', alignItems: 'center', gap: 14, border: `1px solid ${T.line}`,
