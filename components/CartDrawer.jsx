@@ -42,16 +42,16 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(420px, 100%)', zIndex: 201,
           background: T.white, borderLeft: `1px solid ${T.line}`, padding: '32px 30px',
           transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .35s ease',
-          display: 'flex', flexDirection: 'column',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexShrink: 0 }}>
           <span style={S.label}>Your cart</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: T.ink }}>×</button>
         </div>
 
         {cart.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 24, flexShrink: 0 }}>
             <p style={{ fontSize: 12, color: T.ink, marginBottom: 8 }}>{progressMessage}</p>
             <div style={progressTrack}>
               <div style={{ ...progressFill, width: `${progressPct}%` }} />
@@ -60,7 +60,7 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {cart.length === 0 && <p style={{ color: T.soft, fontSize: 14 }}>Your cart is empty.</p>}
           {cart.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '18px 0', borderBottom: `1px solid ${T.line}` }}>
@@ -106,7 +106,7 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
         </div>
 
         {cart.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexShrink: 0 }}>
             <input
               placeholder="Discount code"
               value={discountCode}
@@ -117,7 +117,7 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           </div>
         )}
 
-        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 20, marginTop: 16 }}>
+        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 20, marginTop: 16, flexShrink: 0 }}>
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>

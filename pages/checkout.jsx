@@ -65,6 +65,18 @@ export default function CheckoutPage() {
     if (hydrated && cart.length === 0) router.replace('/shop');
   }, [hydrated, cart.length, router]);
 
+  React.useEffect(() => {
+    if (!hydrated || cart.length === 0) return;
+    fetch('/api/track/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'checkout_start' }),
+      keepalive: true,
+    }).catch(() => {});
+    // Fire once per checkout page load, not on every cart mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 6;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
