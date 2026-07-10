@@ -35,7 +35,7 @@ export default function ShopPage() {
             <div key={p.id} style={card}>
               <Link href={`/product/${p.id}`} style={imgWrap}>
                 {p.badge && <span style={badge}>{p.badge}</span>}
-                <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'puff' || p.id === 'ritual-set' ? 130 : 120} />
+                <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'puff' ? 130 : 120} />
               </Link>
               <div style={cardText}>
                 <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 22 }}>{p.name}</Link>

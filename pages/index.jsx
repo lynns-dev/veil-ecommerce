@@ -16,12 +16,20 @@ export default function HomePage() {
   const featured = getFeaturedProducts();
   const violette = getProductById('violette');
   const [bannerIndex, setBannerIndex] = React.useState(0);
+  const [scrolled, setScrolled] = React.useState(false);
 
   React.useEffect(() => {
     const id = setInterval(() => {
       setBannerIndex((i) => (i + 1) % BANNER_MESSAGES.length);
     }, 3500);
     return () => clearInterval(id);
+  }, []);
+
+  React.useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 80);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   return (
@@ -40,26 +48,25 @@ export default function HomePage() {
           ))}
         </div>
       </div>
-      <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
-
       {/* HERO */}
-      <section className="hero-grid" style={hero}>
-        <div>
-          <span style={{ ...S.label, display: 'block', marginBottom: 26 }}>Poudre de corps parfumée</span>
-          <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
-          <p style={heroSub}>A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.</p>
-          <div style={hrate}><span style={{ letterSpacing: '2px', color: T.ink }}>★★★★★</span> 4.9 · 2,143 reviews</div>
-          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button style={S.btnFill} onClick={() => c.add(featured[0])}>Shop — $45</button>
-            <a href="#notes" style={S.link}>The scent</a>
+      <section style={heroWrap}>
+        <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} overlay scrolled={scrolled} />
+        <div style={heroBg}>
+          <div style={heroScrim} />
+          <div style={heroContent}>
+            <span style={{ ...S.label, display: 'block', marginBottom: 26, color: 'rgba(252,251,247,0.85)' }}>Poudre de corps parfumée</span>
+            <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
+            <p style={heroSub}>A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.</p>
+            <div style={hrate}><span style={{ letterSpacing: '2px', color: T.white }}>★★★★★</span> 4.9 · 2,143 reviews</div>
+            <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button style={heroBtn} onClick={() => c.add(featured[0])}>Shop — $45</button>
+              <a href="#notes" style={heroLink}>The scent</a>
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <img
-            src="/images/veil-model-one.png"
-            alt="VEIL — poudre de corps parfumée"
-            style={{ width: '100%', maxWidth: 460, height: 'auto', display: 'block' }}
-          />
+          <div style={heroHint}>
+            <span style={heroHintLine} />
+            <span style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(252,251,247,0.7)' }}>Scroll</span>
+          </div>
         </div>
       </section>
 
@@ -73,7 +80,7 @@ export default function HomePage() {
               <div key={p.id} className="col-item" style={pcard}>
                 <Link href={`/product/${p.id}`} style={pimg}>
                   {p.badge && <span style={badge}>{p.badge}</span>}
-                  <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'ritual-set' ? 130 : 104} />
+                  <ProductVisual id={p.id} images={p.images} alt={p.name} width={104} />
                 </Link>
                 <div style={pcardText}>
                   <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
@@ -216,7 +223,6 @@ export default function HomePage() {
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
 
       <style jsx>{`
-        .hero-grid { grid-template-columns: 1fr 1fr; }
         .hm-grid { grid-template-columns: 1fr 1fr; }
         .hm-cell + .hm-cell { border-left: 1px solid ${T.line}; }
         .col-grid { grid-template-columns: repeat(4, 1fr); }
@@ -228,7 +234,6 @@ export default function HomePage() {
         .rit-grid { grid-template-columns: repeat(3, 1fr); }
 
         @media (max-width: 680px) {
-          .hero-grid { grid-template-columns: 1fr; }
           .hm-grid { grid-template-columns: 1fr; }
           .hm-cell + .hm-cell { border-left: none; border-top: 1px solid ${T.line}; }
           .col-grid { grid-template-columns: 1fr; }
@@ -247,10 +252,24 @@ export default function HomePage() {
 }
 
 const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.white, background: T.ink, padding: '14px 20px', borderBottom: `1px solid ${T.dline}`, overflow: 'hidden' };
-const hero = { maxWidth: T.maxw, margin: '0 auto', padding: '36px 40px 60px', display: 'grid', gap: 50, alignItems: 'center' };
-const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(44px,5.6vw,78px)', lineHeight: 1.02, marginBottom: 24 };
-const heroSub = { fontSize: 16, color: T.soft, maxWidth: '38ch', marginBottom: 28 };
-const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 30 };
+const heroWrap = { position: 'relative' };
+const heroBg = {
+  position: 'relative', height: '88vh', minHeight: 560,
+  backgroundImage: 'url(/images/veil-model-7.9.png)', backgroundSize: 'cover', backgroundPosition: 'center 25%',
+  display: 'flex', alignItems: 'flex-end',
+};
+const heroScrim = {
+  position: 'absolute', inset: 0,
+  background: 'linear-gradient(100deg, rgba(22,20,15,0.72) 0%, rgba(22,20,15,0.4) 42%, rgba(22,20,15,0.05) 68%)',
+};
+const heroContent = { position: 'relative', maxWidth: T.maxw, width: '100%', margin: '0 auto', padding: '0 40px 72px', color: T.white };
+const heroH1 = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(40px,5.6vw,72px)', lineHeight: 1.02, marginBottom: 22, color: T.white, maxWidth: '16ch' };
+const heroSub = { fontSize: 16, color: 'rgba(252,251,247,0.82)', maxWidth: '38ch', marginBottom: 26 };
+const hrate = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: 'rgba(252,251,247,0.82)', marginBottom: 30 };
+const heroBtn = { ...S.btnFill, background: T.white, color: T.ink };
+const heroLink = { ...S.link, color: T.white, borderBottom: '1px solid rgba(252,251,247,0.5)' };
+const heroHint = { position: 'absolute', left: '50%', bottom: 28, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 };
+const heroHintLine = { width: 1, height: 34, background: 'rgba(252,251,247,0.6)' };
 const band = { padding: '64px 0' };
 const vcell = { padding: '46px 44px' };
 const vtag = { fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.soft, marginBottom: 18 };

@@ -64,6 +64,8 @@ export default function CheckoutPage() {
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 6;
   const grandTotal = total + shippingCost;
+  const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
+  const discountTotal = subtotal - total;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -266,8 +268,14 @@ export default function CheckoutPage() {
 
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Subtotal</span>
-            <span>${total.toFixed(2)}</span>
+            <span>${subtotal.toFixed(2)}</span>
           </div>
+          {discountTotal > 0 && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Discount</span>
+              <span>−${discountTotal.toFixed(2)}</span>
+            </div>
+          )}
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Shipping</span>
             <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>

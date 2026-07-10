@@ -8,16 +8,21 @@ const FREE_SHIP_AT = 50;
 const FREE_GIFT_AT = 70;
 
 export default function CartDrawer({ cart, open, onClose, remove, setQty, total, add }) {
+  const [discountCode, setDiscountCode] = React.useState('');
   const puff = getProductById('puff');
   const hasPuff = cart.some((i) => i.id === 'puff');
   const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
+
+  const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
+  const discountTotal = subtotal - total;
+  const freeShipping = total >= FREE_SHIP_AT;
 
   const progressPct = Math.min(100, (total / FREE_GIFT_AT) * 100);
   const shipMarkerPct = (FREE_SHIP_AT / FREE_GIFT_AT) * 100;
   let progressMessage;
   if (total >= FREE_GIFT_AT) {
     progressMessage = 'You’ve unlocked free shipping and a free scented tassel gift.';
-  } else if (total >= FREE_SHIP_AT) {
+  } else if (freeShipping) {
     progressMessage = `Free shipping unlocked — add $${(FREE_GIFT_AT - total).toFixed(2)} more for a free scented tassel gift.`;
   } else {
     progressMessage = `Add $${(FREE_SHIP_AT - total).toFixed(2)} more for free shipping.`;
@@ -65,6 +70,9 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
                 </div>
                 <div>
                   <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 20 }}>{item.name}</div>
+                  {item.plan === 'subscribe' && (
+                    <div style={subscribeNote}>Subscribe &amp; save · every 2 months</div>
+                  )}
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>${item.price} · {item.size}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
                     <button onClick={() => setQty(item.id, item.quantity - 1)} style={qtyBtn}>−</button>
@@ -78,24 +86,50 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
           ))}
 
           {puff && !hasPuff && cart.length > 0 && (
-            <div style={upsellCard}>
-              <div style={itemImg}>
-                <ProductVisual id="puff" images={puff.images} alt={puff.name} width={44} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13 }}>{puff.name}</div>
-                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
-                  <span style={{ textDecoration: 'line-through', marginRight: 6 }}>${puff.price}</span>
-                  ${puffPrice.toFixed(2)} · 10% off
+            <div style={upsellSection}>
+              <p style={{ ...S.label, marginBottom: 12 }}>You might also like</p>
+              <div style={upsellCard}>
+                <div style={itemImg}>
+                  <ProductVisual id="puff" images={puff.images} alt={puff.name} width={44} />
                 </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13 }}>{puff.name}</div>
+                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
+                    <span style={{ textDecoration: 'line-through', marginRight: 6 }}>${puff.price}</span>
+                    ${puffPrice.toFixed(2)} · 10% off
+                  </div>
+                </div>
+                <button onClick={() => add({ ...puff, price: puffPrice, originalPrice: puff.price }, 1)} style={upsellAddBtn}>Add</button>
               </div>
-              <button onClick={() => add({ ...puff, price: puffPrice }, 1)} style={upsellAddBtn}>Add</button>
             </div>
           )}
         </div>
 
-        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 20, marginTop: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+        {cart.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <input
+              placeholder="Discount code"
+              value={discountCode}
+              onChange={(e) => setDiscountCode(e.target.value)}
+              style={discountInput}
+            />
+            <button type="button" style={S.btnOutline}>Apply</button>
+          </div>
+        )}
+
+        <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 20, marginTop: 16 }}>
+          <div style={summaryRow}>
+            <span style={{ color: T.soft }}>Subtotal</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          {discountTotal > 0 && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Discount</span>
+              <span>−${discountTotal.toFixed(2)}</span>
+            </div>
+          )}
+          <p style={shippingNote}>{freeShipping ? 'Free shipping' : 'Shipping and taxes calculated at checkout'}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0 18px' }}>
             <span style={S.label}>Total</span>
             <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${total.toFixed(2)}</span>
           </div>
@@ -123,15 +157,23 @@ const itemImg = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 
+const subscribeNote = { fontSize: 11, color: T.soft, marginTop: 3, letterSpacing: '0.02em' };
+
 const progressTrack = { position: 'relative', height: 4, background: T.paper, marginTop: 2 };
 const progressFill = { position: 'absolute', top: 0, left: 0, bottom: 0, background: T.ink, transition: 'width .3s ease' };
 const progressMarker = { position: 'absolute', top: -3, bottom: -3, width: 2, background: T.white, boxShadow: `0 0 0 1px ${T.ink}` };
 
-const upsellCard = {
-  display: 'flex', alignItems: 'center', gap: 14, padding: '16px 0',
-  borderBottom: `1px solid ${T.line}`, borderTop: `1px dashed ${T.line}`,
-};
+const upsellSection = { background: T.paper, padding: '18px 16px', marginTop: 12 };
+const upsellCard = { display: 'flex', alignItems: 'center', gap: 14 };
 const upsellAddBtn = {
   fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', border: `1px solid ${T.ink}`,
   background: 'none', padding: '8px 14px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0,
 };
+
+const discountInput = {
+  flex: 1, height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 13, color: T.ink, outline: 'none', boxSizing: 'border-box',
+};
+
+const summaryRow = { display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0' };
+const shippingNote = { fontSize: 11, color: T.soft, marginTop: 8, letterSpacing: '0.02em' };

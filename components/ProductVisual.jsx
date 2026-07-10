@@ -29,7 +29,7 @@ export default function ProductVisual({ id = 'original', width = 150, images, al
       </div>
     );
   }
-  if (id === 'puff' || id === 'ritual-set') {
+  if (id === 'puff') {
     return (
       <svg width={width} viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <circle cx="110" cy="110" r="82" fill="none" stroke="#16140F" strokeWidth="2" />

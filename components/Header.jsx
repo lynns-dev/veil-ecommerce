@@ -3,19 +3,31 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { T } from '../lib/theme';
 
-export default function Header({ cartCount = 0, onCartClick }) {
+export default function Header({ cartCount = 0, onCartClick, overlay = false, scrolled = false }) {
   const router = useRouter();
   const active = (p) => router.pathname === p;
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = () => setMenuOpen(false);
 
+  const transparent = overlay && !scrolled;
+  const linkColor = transparent ? T.white : T.ink;
+
   return (
-    <header style={styles.header}>
+    <header
+      style={{
+        ...styles.header,
+        position: overlay ? (scrolled ? 'fixed' : 'absolute') : 'sticky',
+        background: transparent ? 'transparent' : 'rgba(252,251,247,0.9)',
+        backdropFilter: transparent ? 'none' : 'blur(10px)',
+        borderBottom: transparent ? '1px solid transparent' : `1px solid ${T.line}`,
+        transition: 'background .35s ease, border-color .35s ease',
+      }}
+    >
       <div style={styles.nav}>
         <div style={styles.side}>
           <div className="desktop-links" style={styles.desktopLinks}>
-            <Link href="/shop" style={{ ...styles.navLink, opacity: active('/shop') ? 1 : 0.7 }}>Shop</Link>
-            <a href="/#notes" style={styles.navLink}>Scent</a>
+            <Link href="/shop" style={{ ...styles.navLink, color: linkColor, opacity: active('/shop') ? 1 : 0.7 }}>Shop</Link>
+            <a href="/#notes" style={{ ...styles.navLink, color: linkColor }}>Scent</a>
           </div>
           <button
             className="hamburger-btn"
@@ -24,15 +36,21 @@ export default function Header({ cartCount = 0, onCartClick }) {
             aria-label="Open menu"
             aria-expanded={menuOpen}
           >
-            <span style={styles.hamburgerLine} />
-            <span style={styles.hamburgerLine} />
-            <span style={styles.hamburgerLine} />
+            <span style={{ ...styles.hamburgerLine, background: linkColor }} />
+            <span style={{ ...styles.hamburgerLine, background: linkColor }} />
+            <span style={{ ...styles.hamburgerLine, background: linkColor }} />
           </button>
         </div>
-        <Link href="/" style={styles.logoLink}><span style={styles.logo}>VEIL</span></Link>
+        <Link href="/" style={styles.logoLink}>
+          <img
+            src={transparent ? '/images/veil-logo-white.png' : '/images/veil-logo-black.png'}
+            alt="VEIL"
+            style={styles.logoImg}
+          />
+        </Link>
         <div style={{ ...styles.side, justifyContent: 'flex-end' }}>
-          <a href="/#reviews" className="reviews-link" style={styles.navLink}>Reviews</a>
-          <button onClick={onCartClick} style={styles.cartBtn} aria-label="Open cart">
+          <a href="/#reviews" className="reviews-link" style={{ ...styles.navLink, color: linkColor }}>Reviews</a>
+          <button onClick={onCartClick} style={{ ...styles.cartBtn, color: linkColor }} aria-label="Open cart">
             Cart{cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
         </div>
@@ -61,9 +79,7 @@ export default function Header({ cartCount = 0, onCartClick }) {
 
 const styles = {
   header: {
-    position: 'sticky', top: 0, zIndex: 100,
-    background: 'rgba(252,251,247,0.9)', backdropFilter: 'blur(10px)',
-    borderBottom: `1px solid ${T.line}`,
+    top: 0, left: 0, right: 0, zIndex: 100,
   },
   nav: {
     maxWidth: T.maxw, margin: '0 auto', padding: '14px 40px',
@@ -73,22 +89,19 @@ const styles = {
   desktopLinks: { gap: 30, alignItems: 'center' },
   navLink: {
     fontFamily: T.sans, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
-    color: T.ink,
+    transition: 'color .35s ease',
   },
   hamburgerBtn: {
     flexDirection: 'column', justifyContent: 'center', gap: 5,
     width: 22, height: 16, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
   },
-  hamburgerLine: { display: 'block', width: '100%', height: 1, background: T.ink },
+  hamburgerLine: { display: 'block', width: '100%', height: 1, transition: 'background .35s ease' },
   cartBtn: {
     fontFamily: T.sans, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
-    color: T.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0, transition: 'color .35s ease',
   },
   logoLink: { flex: '0 0 auto' },
-  logo: {
-    fontFamily: T.serif, fontWeight: 400, fontSize: 26,
-    letterSpacing: '0.5em', paddingLeft: '0.5em',
-  },
+  logoImg: { height: 22, width: 'auto', display: 'block' },
   mobileMenu: {
     position: 'absolute', top: '100%', left: 0, right: 0,
     background: T.white, borderBottom: `1px solid ${T.line}`,

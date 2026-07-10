@@ -70,7 +70,9 @@ function AccordionRow({ title, open, onToggle, children }) {
         <span>{title}</span>
         <span style={accordionIcon}>{open ? '−' : '+'}</span>
       </button>
-      {open && <div style={accordionBody}>{children}</div>}
+      <div style={{ ...accordionBody, maxHeight: open ? 600 : 0, opacity: open ? 1 : 0, paddingBottom: open ? 24 : 0 }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -103,7 +105,7 @@ export default function ProductPage({ product }) {
   const lineTotal = (displayPrice * quantity).toFixed(2);
 
   const handleAdd = () => {
-    c.add({ ...product, price: displayPrice, plan: purchaseType }, quantity);
+    c.add({ ...product, price: displayPrice, originalPrice: unitPrice, plan: purchaseType }, quantity);
     setQuantity(1);
   };
 
@@ -153,6 +155,38 @@ export default function ProductPage({ product }) {
             <h1 style={pdpTitle}>{product.name}</h1>
             <div style={pdpTagline}>{product.tagline}</div>
             <p style={pdpDesc}>{product.description}</p>
+
+            {REEL_VIDEOS.length > 0 && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={storyRowCompact}>
+                  {REEL_VIDEOS.map((v, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setOpenStory((cur) => (cur === i ? null : i))}
+                      style={{ ...storyThumb, borderColor: openStory === i ? T.ink : T.line }}
+                      aria-label={`Open story ${i + 1}`}
+                    >
+                      <video src={v.src} muted preload="metadata" style={storyThumbVideo} />
+                    </button>
+                  ))}
+                </div>
+                {openStory !== null && (
+                  <div style={storyViewerInline}>
+                    <video
+                      key={REEL_VIDEOS[openStory].src}
+                      src={REEL_VIDEOS[openStory].src}
+                      style={storyViewerVideo}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      controls
+                    />
+                    <button onClick={() => setOpenStory(null)} style={storyCloseBtn} aria-label="Close story">×</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={purchaseOptions}>
               <label style={{ ...purchaseOption, borderColor: purchaseType === 'onetime' ? T.ink : T.line }}>
@@ -235,46 +269,6 @@ export default function ProductPage({ product }) {
           <p style={{ ...narrative, color: T.white }}>{product.longDescription}</p>
         </div>
       </section>
-
-      {/* STORIES */}
-      {REEL_VIDEOS.length > 0 && (
-        <section style={narrowBand}>
-          <div style={{ ...S.wrap, textAlign: 'center' }}>
-            <p style={S.label}>Behind the veil</p>
-            <div className="story-row" style={storyRow}>
-              {REEL_VIDEOS.map((v, i) => (
-                <button
-                  key={i}
-                  onClick={() => setOpenStory((cur) => (cur === i ? null : i))}
-                  style={{ ...storyThumb, borderColor: openStory === i ? T.ink : T.line }}
-                  aria-label={`Open story ${i + 1}`}
-                >
-                  <video src={v.src} muted preload="metadata" style={storyThumbVideo} />
-                </button>
-              ))}
-            </div>
-          </div>
-          {openStory !== null && (
-            <div style={storyViewer}>
-              <div style={{ ...S.wrap, display: 'flex', justifyContent: 'center' }}>
-                <div style={storyViewerInner}>
-                  <video
-                    key={REEL_VIDEOS[openStory].src}
-                    src={REEL_VIDEOS[openStory].src}
-                    style={storyViewerVideo}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    controls
-                  />
-                  <button onClick={() => setOpenStory(null)} style={storyCloseBtn} aria-label="Close story">×</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
 
       {/* REEL */}
       {REEL_VIDEOS.length > 0 && (
@@ -466,20 +460,22 @@ const narrative = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(20px,
 const accordionRow = { borderBottom: `1px solid ${T.line}` };
 const accordionHeader = { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.sans, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.ink, textAlign: 'left' };
 const accordionIcon = { fontSize: 16, color: T.soft, fontFamily: T.serif };
-const accordionBody = { paddingBottom: 24 };
+const accordionBody = { overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.3s ease, padding-bottom 0.35s ease' };
 
 const noteRow = { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${T.line}` };
 const noteKey = { fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.soft };
 const noteVal = { fontFamily: T.serif, fontWeight: 300, fontSize: 16 };
 
-const storyRow = { display: 'flex', gap: 18, justifyContent: 'center', flexWrap: 'wrap', marginTop: 32 };
+const storyRowCompact = { display: 'flex', gap: 12, flexWrap: 'wrap' };
 const storyThumb = {
-  width: 68, height: 68, borderRadius: '50%', border: '2px solid', padding: 3, cursor: 'pointer',
-  background: 'none', overflow: 'hidden',
+  width: 56, height: 56, borderRadius: '50%', border: '2px solid', padding: 3, cursor: 'pointer',
+  background: 'none', overflow: 'hidden', flexShrink: 0,
 };
 const storyThumbVideo = { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' };
-const storyViewer = { borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`, background: T.paper, padding: '32px 0', marginTop: 32 };
-const storyViewerInner = { position: 'relative', width: 260 };
+const storyViewerInline = {
+  position: 'relative', width: 200, marginTop: 16, paddingTop: 16, paddingBottom: 16,
+  borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`,
+};
 const storyViewerVideo = { width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', border: `1px solid ${T.line}` };
 const storyCloseBtn = {
   position: 'absolute', top: -14, right: -14, width: 30, height: 30, borderRadius: '50%', background: T.ink,
