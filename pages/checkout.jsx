@@ -1,10 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
-import { getStripePromise } from '../lib/stripeClient';
+import { tokenizeCard } from '../lib/qbPayments';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -44,141 +43,6 @@ function AddressFields({ value, onChange, idPrefix }) {
   );
 }
 
-function CheckoutForm({ email, setEmail, newsletter, setNewsletter, shipping, setShipping, billingSame, setBillingSame, billing, setBilling, cart, grandTotal, shippingCost, clear }) {
-  const router = useRouter();
-  const stripe = useStripe();
-  const elements = useElements();
-  const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setError('');
-    setSubmitting(true);
-
-    const addr = billingSame ? shipping : billing;
-
-    const { error: confirmError } = await stripe.confirmPayment({
-      elements,
-      redirect: 'if_required',
-      confirmParams: {
-        return_url: `${window.location.origin}/success`,
-        receipt_email: email,
-        payment_method_data: {
-          billing_details: {
-            name: `${addr.firstName} ${addr.lastName}`.trim(),
-            email,
-            phone: addr.phone || undefined,
-            address: {
-              line1: addr.address,
-              line2: addr.apt || undefined,
-              city: addr.city,
-              state: addr.state,
-              postal_code: addr.zip,
-              country: 'US',
-            },
-          },
-        },
-      },
-    });
-
-    if (confirmError) {
-      setError(confirmError.message || 'Payment failed. Please try again.');
-      setSubmitting(false);
-      return;
-    }
-
-    await router.push('/success');
-    clear();
-  };
-
-  return (
-    <form onSubmit={handleSubmit} style={formCol}>
-      <section>
-        <div className="express-row" style={expressRow}>
-          {['PayPal', 'Apple Pay', 'Google Pay'].map((name) => (
-            <button
-              key={name}
-              type="button"
-              style={expressBtn}
-              onClick={() => alert(`${name} isn’t connected yet — add that integration to enable this button.`)}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-        <div style={dividerRow}>
-          <span style={dividerLine} />
-          <span style={dividerText}>OR</span>
-          <span style={dividerLine} />
-        </div>
-      </section>
-
-      <section style={{ marginTop: 32 }}>
-        <div style={sectionHead}>
-          <h2 style={sectionTitle}>Contact</h2>
-        </div>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={input}
-          required
-        />
-        <label style={checkboxLabel}>
-          <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
-          Email me with news and offers
-        </label>
-      </section>
-
-      <section style={{ marginTop: 36 }}>
-        <div style={sectionHead}>
-          <h2 style={sectionTitle}>Delivery</h2>
-        </div>
-        <select value="United States" readOnly style={{ ...input, marginBottom: 12, color: T.soft }}>
-          <option>United States</option>
-        </select>
-        <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" />
-      </section>
-
-      <section style={{ marginTop: 36 }}>
-        <div style={sectionHead}>
-          <h2 style={sectionTitle}>Shipping method</h2>
-        </div>
-        <div style={shipMethod}>
-          <span>Standard Shipping</span>
-          <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-        </div>
-      </section>
-
-      <section style={{ marginTop: 36 }}>
-        <div style={sectionHead}>
-          <h2 style={sectionTitle}>Payment</h2>
-          <span style={{ fontSize: 11, color: T.soft }}>All transactions are secure and encrypted.</span>
-        </div>
-        <PaymentElement options={{ fields: { billingDetails: { name: 'never', email: 'never', phone: 'never', address: 'never' } } }} />
-        <label style={checkboxLabel}>
-          <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
-          Use shipping address as billing address
-        </label>
-        {!billingSame && (
-          <div style={{ marginTop: 16 }}>
-            <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
-          </div>
-        )}
-      </section>
-
-      {error && <p style={errorText}>{error}</p>}
-
-      <button type="submit" disabled={submitting || !stripe} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting || !stripe ? 0.6 : 1 }}>
-        {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
-      </button>
-    </form>
-  );
-}
-
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear } = useCart();
@@ -188,10 +52,11 @@ export default function CheckoutPage() {
   const [shipping, setShipping] = React.useState(emptyAddress);
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(emptyAddress);
+  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
   const [discountCode, setDiscountCode] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
-  const [clientSecret, setClientSecret] = React.useState('');
-  const [intentError, setIntentError] = React.useState('');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState('');
 
   React.useEffect(() => {
     if (hydrated && cart.length === 0) router.replace('/shop');
@@ -202,21 +67,51 @@ export default function CheckoutPage() {
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
 
-  React.useEffect(() => {
-    if (!hydrated || cart.length === 0) return;
-    fetch('/api/create-payment-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: grandTotal, items: cart }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.clientSecret) setClientSecret(data.clientSecret);
-        else setIntentError(data.error || 'Could not start checkout.');
-      })
-      .catch(() => setIntentError('Could not start checkout.'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, cart.length]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
+      const billingAddress = billingSame ? shipping : billing;
+      const token = await tokenizeCard(
+        {
+          number: card.number,
+          expMonth,
+          expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
+          cvc: card.cvc,
+          name: card.name,
+          street: billingAddress.address,
+          city: billingAddress.city,
+          region: billingAddress.state,
+          postalCode: billingAddress.zip,
+        },
+        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
+      );
+
+      const res = await fetch('/api/qb-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          amount: grandTotal,
+          items: cart,
+          email,
+          shipping,
+          billing: billingSame ? shipping : billing,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment failed');
+
+      await router.push('/success');
+      clear();
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (!hydrated || cart.length === 0) return null;
 
@@ -237,23 +132,119 @@ export default function CheckoutPage() {
       </button>
 
       <div className="checkout-grid" style={checkoutGrid}>
-        {clientSecret ? (
-          <Elements stripe={getStripePromise()} options={{ clientSecret }}>
-            <CheckoutForm
-              email={email} setEmail={setEmail}
-              newsletter={newsletter} setNewsletter={setNewsletter}
-              shipping={shipping} setShipping={setShipping}
-              billingSame={billingSame} setBillingSame={setBillingSame}
-              billing={billing} setBilling={setBilling}
-              cart={cart} grandTotal={grandTotal} shippingCost={shippingCost}
-              clear={clear}
+        <form onSubmit={handleSubmit} style={formCol}>
+          <section>
+            <div className="express-row" style={expressRow}>
+              {['PayPal', 'Apple Pay', 'Google Pay'].map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  style={expressBtn}
+                  onClick={() => alert(`${name} isn’t connected yet — add that integration to enable this button.`)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div style={dividerRow}>
+              <span style={dividerLine} />
+              <span style={dividerText}>OR</span>
+              <span style={dividerLine} />
+            </div>
+          </section>
+
+          <section style={{ marginTop: 32 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Contact</h2>
+            </div>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={input}
+              required
             />
-          </Elements>
-        ) : (
-          <div style={{ ...formCol, color: T.soft, fontSize: 14 }}>
-            {intentError || 'Loading checkout…'}
-          </div>
-        )}
+            <label style={checkboxLabel}>
+              <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
+              Email me with news and offers
+            </label>
+          </section>
+
+          <section style={{ marginTop: 36 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Delivery</h2>
+            </div>
+            <select value="United States" readOnly style={{ ...input, marginBottom: 12, color: T.soft }}>
+              <option>United States</option>
+            </select>
+            <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" />
+          </section>
+
+          <section style={{ marginTop: 36 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Shipping method</h2>
+            </div>
+            <div style={shipMethod}>
+              <span>Standard Shipping</span>
+              <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+            </div>
+          </section>
+
+          <section style={{ marginTop: 36 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Payment</h2>
+              <span style={{ fontSize: 11, color: T.soft }}>All transactions are secure and encrypted.</span>
+            </div>
+            <input
+              placeholder="Card number"
+              value={card.number}
+              onChange={(e) => setCard({ ...card, number: e.target.value })}
+              style={input}
+              inputMode="numeric"
+              required
+            />
+            <div className="row-2" style={{ marginTop: 12 }}>
+              <input
+                placeholder="Expiration date (MM/YY)"
+                value={card.expiry}
+                onChange={(e) => setCard({ ...card, expiry: e.target.value })}
+                style={input}
+                required
+              />
+              <input
+                placeholder="Security code"
+                value={card.cvc}
+                onChange={(e) => setCard({ ...card, cvc: e.target.value })}
+                style={input}
+                inputMode="numeric"
+                required
+              />
+            </div>
+            <input
+              placeholder="Name on card"
+              value={card.name}
+              onChange={(e) => setCard({ ...card, name: e.target.value })}
+              style={{ ...input, marginTop: 12 }}
+              required
+            />
+            <label style={checkboxLabel}>
+              <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
+              Use shipping address as billing address
+            </label>
+            {!billingSame && (
+              <div style={{ marginTop: 16 }}>
+                <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
+              </div>
+            )}
+          </section>
+
+          {error && <p style={errorText}>{error}</p>}
+
+          <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
+          </button>
+        </form>
 
         <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
           <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
@@ -353,13 +344,13 @@ const input = {
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 13, color: T.soft };
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', padding: '16px 14px',
-  border: `1px solid ${T.line}`, fontSize: 14,
+  border: `1px solid ${T.ink}`, fontSize: 14,
 };
-const errorText = { color: '#B3261E', fontSize: 13, marginTop: 20 };
-const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 };
-const summaryImgWrap = { position: 'relative', flexShrink: 0 };
+const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
+const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0' };
+const summaryImgWrap = { position: 'relative', width: 48, height: 48, flexShrink: 0, overflow: 'hidden', border: `1px solid ${T.line}`, background: T.white };
 const qtyBadge = {
-  position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%',
-  background: T.ink, color: T.white, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  position: 'absolute', top: -8, right: -8, background: T.soft, color: T.white, borderRadius: '50%',
+  width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
-const summaryRow = { display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '6px 0' };
+const summaryRow = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 };

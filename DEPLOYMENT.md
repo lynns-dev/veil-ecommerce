@@ -1,6 +1,6 @@
 # VEIL Full E-Commerce Site — Deployment Guide
 
-This is a Next.js e-commerce site with a full product catalog, detailed product pages, shopping cart, and a custom checkout page that charges cards directly via Stripe (no Shopify, no hosted redirect). Built entirely in VEIL's quiet-luxury aesthetic.
+This is a Next.js e-commerce site with a full product catalog, detailed product pages, shopping cart, and a custom checkout page that charges cards directly via QuickBooks Payments (no Shopify, no hosted redirect). Built entirely in VEIL's quiet-luxury aesthetic.
 
 ## What You Get
 
@@ -8,22 +8,27 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 - **Product catalog page** with all VEIL offerings
 - **Individual product detail pages** with full descriptions, scent notes, and product specifications
 - **Shopping cart** (persists across pages via localStorage, sticky sidebar)
-- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) that charges Stripe directly, using Stripe's hosted Elements UI for card entry
+- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) that charges QuickBooks Payments directly
 - **Deployed to Vercel** (free, automatic scaling, HTTPS included)
 
 ---
 
-## Step 1: Set Up Stripe
+## Step 1: Set Up QuickBooks Payments
 
-1. Go to https://dashboard.stripe.com and sign in (or create a free account).
-2. In **Developers → API keys**, copy the **Publishable key** and **Secret key**. Use the test-mode keys (`pk_test_...` / `sk_test_...`) while building — Stripe's test mode works instantly, no approval process required.
-3. These go in `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` and `STRIPE_SECRET_KEY` respectively (see Step 2 below).
-4. That's it — no OAuth flow, no separate merchant activation step, no token refresh to manage. `pages/api/create-payment-intent.js` creates a PaymentIntent server-side using your secret key, and `pages/checkout.jsx` collects card details via Stripe Elements client-side (card numbers never touch our server).
-5. When ready to take real charges, switch to the **live mode** keys from the same dashboard page and update the environment variables.
+1. Go to https://developer.intuit.com and sign in (or create an Intuit account).
+2. Create a new app → **QuickBooks Online and Payments**.
+3. On the app's **Payments** tab, enable QuickBooks Payments. This is tied to a merchant account — if you don't already have QuickBooks Payments active on your QuickBooks Online account, you'll need to complete Intuit's merchant underwriting first.
+4. Under **Keys & OAuth**, grab the **Client ID** and **Client Secret** for the Sandbox environment (use Production once you're ready to take real charges). These go in `QB_CLIENT_ID` / `QB_CLIENT_SECRET`.
+5. In that same **Keys & OAuth** section, add a redirect URI: `https://YOUR_DOMAIN/api/qb-auth/callback` (use your Vercel URL, or `http://localhost:3000/api/qb-auth/callback` for local testing).
 
-### Testing
+### ⚠️ Required before Production charges will work: request Payments production access
 
-Use any of [Stripe's test card numbers](https://docs.stripe.com/testing#cards) (e.g. `4242 4242 4242 4242`, any future expiry, any CVC) against the test-mode keys — no real charge occurs, and it appears in your Stripe Dashboard's test-mode payments list immediately.
+Having Production `QB_CLIENT_ID`/`QB_CLIENT_SECRET` and a completed OAuth connection is **not** enough to actually charge cards in production. Intuit gates live use of the Payments Charges API behind a separate approval step — without it, charge requests fail with a 403 even though the OAuth token itself is valid (this is exactly what happened on the first attempt at this integration: OAuth succeeded, scopes were correct, and Intuit's own API Explorer reproduced the same 403 under the account, which is the signature of this specific gate, not a bug in the code).
+
+To find and complete it:
+- In your Intuit Developer app, look under the **Payments** tab for a **Production**/**Go Live** section — it typically lists remaining requirements (business verification, a short security questionnaire) before Production Payments API calls are unblocked.
+- If nothing about this is visible in the dashboard, contact Intuit Developer Support directly and ask what's required to move your app's **Payments API** (not just general QuickBooks Online API access) to production.
+- **Sandbox does not require this approval** — always confirm the full flow (connect → tokenize → charge) works in sandbox first before chasing production approval, so you know the code path itself is sound.
 
 ---
 
@@ -37,9 +42,12 @@ Use any of [Stripe's test card numbers](https://docs.stripe.com/testing#cards) (
 4. Click "Deploy"
 5. After deployment, go to "Settings" → "Environment Variables"
 6. Add:
-   - `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: from Step 1
+   - `QB_CLIENT_ID` / `QB_CLIENT_SECRET`: from Step 1
+   - `QB_ENVIRONMENT` and `NEXT_PUBLIC_QB_ENVIRONMENT`: both `sandbox` (or both `production` once approved — see Step 1)
+   - `KV_REST_API_URL` / `KV_REST_API_TOKEN`: from a KV store (Vercel Storage → Marketplace → Upstash, or a standalone Upstash Redis database — same REST API either way)
    - `NEXT_PUBLIC_BASE_URL`: your Vercel domain (e.g., `https://veil-checkout.vercel.app`)
 7. Redeploy by going to "Deployments" → last deployment → "Redeploy"
+8. Visit `/api/qb-auth/connect` once to authorize QuickBooks (see Step 1)
 
 ### Option B: Deploy via Git
 
@@ -69,8 +77,8 @@ Use any of [Stripe's test card numbers](https://docs.stripe.com/testing#cards) (
 
 1. Go to your deployed domain
 2. Add a product to the cart and click "Checkout"
-3. In test mode, use one of [Stripe's test cards](https://docs.stripe.com/testing#cards) (e.g. `4242 4242 4242 4242`)
-4. Check your Stripe Dashboard (test mode) — the payment should appear immediately
+3. In sandbox mode, use one of Intuit's [test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards)
+4. Check your QuickBooks Payments dashboard — the charge should appear
 
 ---
 
@@ -103,27 +111,31 @@ To change them:
 ### Architecture
 - **Frontend**: Next.js React app (all pages)
 - **Cart state**: React Context (`lib/useCart.js`), persisted to `localStorage` so it survives navigation to `/checkout`
-- **Backend**: Vercel serverless function at `/api/create-payment-intent` (creates a Stripe PaymentIntent for the cart total)
-- **Payments**: Stripe — card details are collected via Stripe's hosted Elements UI in the browser, so raw card data never reaches our server
+- **Backend**: Vercel serverless functions at `/api/qb-checkout` (charges a card token via the QuickBooks Payments API) and `/api/qb-auth/connect` + `/api/qb-auth/callback` (one-time OAuth authorization)
+- **Payments**: QuickBooks Payments — card details are tokenized client-side (`lib/qbPayments.js`, a direct call to Intuit's Payments Tokens REST endpoint) before ever reaching the server
+- **Token refresh**: `lib/qbServerAuth.js` transparently refreshes the QuickBooks access token using a refresh token persisted in the KV store (`lib/qbTokenStore.js`) before every charge — no manual token rotation
 - **Hosting**: Vercel (free tier handles all traffic)
 
 ---
 
 ## Security Notes
 
-- `STRIPE_SECRET_KEY` lives only in Vercel's environment variables (never in code)
-- Card numbers are entered directly into Stripe's Elements UI and sent straight to Stripe — the server only creates and later reads the status of a PaymentIntent, never touching raw card data
+- `QB_CLIENT_SECRET` and the KV-stored tokens live only in Vercel's environment variables / KV store (never in code)
+- Card numbers are tokenized in the browser before submission — the server only ever sees a one-time token, not raw card data
 - HTTPS is automatic (Vercel provides free SSL)
 
 ---
 
 ## Troubleshooting
 
-**"STRIPE_SECRET_KEY is not set" error:**
-- Add `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in Vercel's environment variables and redeploy
+**"QuickBooks Payments is not connected yet" error:**
+- Visit `/api/qb-auth/connect` to complete the one-time authorization
 
-**Payment fails with a card error:**
-- Expected in test mode for certain [test card numbers](https://docs.stripe.com/testing#cards) designed to simulate declines — try `4242 4242 4242 4242` for a guaranteed success
+**Charge fails with a 403, and the OAuth connection is valid:**
+- This is almost always the missing Payments production-access approval described in Step 1, not a bug — confirm the same flow works in `sandbox` first, then chase down that approval with Intuit for `production`
+
+**"KV_REST_API_URL / KV_REST_API_TOKEN are not set" error:**
+- Provision a KV store (Vercel Storage → Marketplace → Upstash, or a standalone Upstash Redis database) and add its REST URL/token to your environment variables
 
 **Domain not connecting:**
 - DNS can take 24–48 hours to propagate
@@ -134,7 +146,8 @@ To change them:
 ## Next Steps
 
 1. Deploy this to Vercel
-2. Add `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (test mode)
-3. Test with a Stripe test card
-4. Connect your domain
-5. Switch to live-mode Stripe keys when ready to take real charges
+2. Provision a KV store and add `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `KV_REST_API_URL` / `KV_REST_API_TOKEN`
+3. Visit `/api/qb-auth/connect` once to authorize QuickBooks, with `QB_ENVIRONMENT=sandbox`
+4. Test a full checkout with an Intuit sandbox test card
+5. Request Payments production access from Intuit (Step 1) before switching `QB_ENVIRONMENT` / `NEXT_PUBLIC_QB_ENVIRONMENT` to `production`
+6. Connect your domain
