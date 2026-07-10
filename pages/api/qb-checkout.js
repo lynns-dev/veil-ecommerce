@@ -7,7 +7,7 @@
 // rotation.
 
 import { getValidAccessToken } from '../../lib/qbServerAuth';
-import { recordOrder, incrementEvent } from '../../lib/analyticsStore';
+import { recordOrder, incrementEvent, logEvent } from '../../lib/analyticsStore';
 
 const API_BASE = {
   sandbox: 'https://sandbox.api.intuit.com',
@@ -75,6 +75,7 @@ export default async function handler(req, res) {
     try {
       await recordOrder({ id: data.id, amount: Number(amount), items, createdAt: new Date().toISOString() });
       await incrementEvent('purchase');
+      await logEvent('purchase', { amount: Number(amount) });
     } catch (analyticsErr) {
       // Never fail a successful charge over an analytics write.
       console.error('Order/analytics recording failed:', analyticsErr);

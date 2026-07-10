@@ -10,11 +10,23 @@ const STAGE_LABELS = {
   checkout: 'At checkout',
   purchased: 'Just purchased',
 };
+const EMPTY_ACTIVITY = { counts: { addtocart: 0, checkout_start: 0, purchase: 0, revenue: 0 }, buckets: [], recent: [] };
+const ACTIVITY_LABELS = {
+  addtocart: 'Added to cart',
+  checkout_start: 'Started checkout',
+  purchase: 'Purchased',
+};
+
+function timeAgo(ts) {
+  const seconds = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.round(seconds / 60)}m ago`;
+}
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
-  const [live, setLive] = React.useState({ count: 0, byStage: {} });
+  const [live, setLive] = React.useState({ count: 0, byStage: {}, activity: EMPTY_ACTIVITY });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
@@ -102,6 +114,61 @@ export default function AdminDashboard() {
                 <div key={key} style={{ textAlign: 'center' }}>
                   <div style={{ fontFamily: T.serif, fontSize: 32 }}>{live.byStage[key] || 0}</div>
                   <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* LIVE ACTIVITY */}
+        <Section title="Live activity (last 5 minutes)">
+          <div style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap' }}>
+            <FunnelStep label="Added to cart" value={live.activity.counts.addtocart} />
+            <FunnelStep label="Checkouts started" value={live.activity.counts.checkout_start} />
+            <FunnelStep label="Purchases" value={live.activity.counts.purchase} rate={live.activity.counts.revenue > 0 ? `$${live.activity.counts.revenue.toFixed(2)}` : null} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90, marginBottom: 8 }}>
+            {live.activity.buckets.map((bucket, i) => {
+              const total = bucket.addtocart + bucket.checkout_start + bucket.purchase;
+              const barHeight = Math.min(90, total * 14);
+              return (
+                <div key={i} style={{ flex: 1, height: 90, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  {total > 0 ? (
+                    <div style={{ height: barHeight, display: 'flex', flexDirection: 'column-reverse' }}>
+                      {bucket.addtocart > 0 && <div style={{ flex: bucket.addtocart, background: 'rgba(22,20,15,0.25)' }} />}
+                      {bucket.checkout_start > 0 && <div style={{ flex: bucket.checkout_start, background: 'rgba(22,20,15,0.55)' }} />}
+                      {bucket.purchase > 0 && <div style={{ flex: bucket.purchase, background: T.ink }} />}
+                    </div>
+                  ) : (
+                    <div style={{ height: 2, background: T.line }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.soft, marginBottom: 24 }}>
+            <span>5m ago</span>
+            <span>now</span>
+          </div>
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: T.soft, marginBottom: 24 }}>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(22,20,15,0.25)', marginRight: 6 }} />Added to cart</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(22,20,15,0.55)', marginRight: 6 }} />Checkout started</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: T.ink, marginRight: 6 }} />Purchased</span>
+          </div>
+
+          {live.activity.recent.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No activity in the last 5 minutes.</p>
+          ) : (
+            <div>
+              {live.activity.recent.map((ev, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 0', borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+                  <span>
+                    {ACTIVITY_LABELS[ev.type] || ev.type}
+                    {ev.productName && ` — ${ev.productName}`}
+                    {ev.type === 'purchase' && ev.amount != null && ` — $${Number(ev.amount).toFixed(2)}`}
+                  </span>
+                  <span style={{ color: T.soft }}>{timeAgo(ev.ts)}</span>
                 </div>
               ))}
             </div>
