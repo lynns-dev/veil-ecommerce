@@ -21,14 +21,14 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 4. Under **Keys & OAuth**, grab the **Client ID** and **Client Secret** for the Sandbox environment (use Production once you're ready to take real charges). These go in `QB_CLIENT_ID` / `QB_CLIENT_SECRET`.
 5. In that same **Keys & OAuth** section, add a redirect URI: `https://YOUR_DOMAIN/api/qb-auth/callback` (use your Vercel URL, or `http://localhost:3000/api/qb-auth/callback` for local testing).
 
-### ⚠️ Required before Production charges will work: request Payments production access
+### ⚠️ Two non-obvious ways to get the Charges API to fail even with a valid OAuth connection
 
-Having Production `QB_CLIENT_ID`/`QB_CLIENT_SECRET` and a completed OAuth connection is **not** enough to actually charge cards in production. Intuit gates live use of the Payments Charges API behind a separate approval step — without it, charge requests fail with a 403 even though the OAuth token itself is valid (this is exactly what happened on the first attempt at this integration: OAuth succeeded, scopes were correct, and Intuit's own API Explorer reproduced the same 403 under the account, which is the signature of this specific gate, not a bug in the code).
+Both of these were root-caused by direct testing against Intuit's sandbox and are easy to hit again if this integration is ever rebuilt or reconnected:
 
-To find and complete it:
-- In your Intuit Developer app, look under the **Payments** tab for a **Production**/**Go Live** section — it typically lists remaining requirements (business verification, a short security questionnaire) before Production Payments API calls are unblocked.
-- If nothing about this is visible in the dashboard, contact Intuit Developer Support directly and ask what's required to move your app's **Payments API** (not just general QuickBooks Online API access) to production.
-- **Sandbox does not require this approval** — always confirm the full flow (connect → tokenize → charge) works in sandbox first before chasing production approval, so you know the code path itself is sound.
+1. **Development vs. Production credentials must match `QB_ENVIRONMENT`.** Intuit issues a completely separate Client ID/Secret pair per environment (Keys & Credentials → Development / Production tabs), each with its own Redirect URIs list (Settings → Redirect URIs → Development / Production tabs). Using a Production Client ID while `QB_ENVIRONMENT=sandbox` (or vice versa) produces an access token whose environment doesn't match the API base URL it's sent to — Intuit's gateway rejects it with an **empty-body 403** before the request ever reaches real charge logic. Fix: make sure `QB_CLIENT_ID`/`QB_CLIENT_SECRET` come from the same Development/Production tab as `QB_ENVIRONMENT`, and that the matching redirect URI is registered under that same tab.
+2. **Don't request `com.intuit.quickbooks.accounting` together with `com.intuit.quickbooks.payment`** in the same OAuth authorization. A combined-scope token consistently 401s (`AuthenticationFailed`) on the Payments Charges API even though it's otherwise valid — request `com.intuit.quickbooks.payment` alone (see `pages/api/qb-auth/connect.js`). This was confirmed by testing both variants directly against `sandbox.api.intuit.com/quickbooks/v4/payments/charges`.
+
+If charges still fail after both of the above are correct, the remaining possibility is Intuit's separate Payments production-access approval (business verification / security questionnaire, found under the app's **Payments** tab if applicable) — but rule out #1 and #2 first, since they're far more common and produce very similar-looking errors.
 
 ---
 
@@ -146,8 +146,8 @@ To change them:
 ## Next Steps
 
 1. Deploy this to Vercel
-2. Provision a KV store and add `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `KV_REST_API_URL` / `KV_REST_API_TOKEN`
+2. Provision a KV store and add `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `KV_REST_API_URL` / `KV_REST_API_TOKEN` (Development/sandbox credentials to start — see Step 1)
 3. Visit `/api/qb-auth/connect` once to authorize QuickBooks, with `QB_ENVIRONMENT=sandbox`
 4. Test a full checkout with an Intuit sandbox test card
-5. Request Payments production access from Intuit (Step 1) before switching `QB_ENVIRONMENT` / `NEXT_PUBLIC_QB_ENVIRONMENT` to `production`
+5. When ready for real charges, swap to the Production Client ID/Secret + redirect URI, switch `QB_ENVIRONMENT` / `NEXT_PUBLIC_QB_ENVIRONMENT` to `production`, and re-run `/api/qb-auth/connect`
 6. Connect your domain

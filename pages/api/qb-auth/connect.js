@@ -17,7 +17,9 @@ export default function handler(req, res) {
   authorizeUrl.searchParams.set('client_id', clientId);
   authorizeUrl.searchParams.set('redirect_uri', redirectUri);
   authorizeUrl.searchParams.set('response_type', 'code');
-  authorizeUrl.searchParams.set('scope', 'com.intuit.quickbooks.payment com.intuit.quickbooks.accounting');
+  // Payment scope only — requesting accounting + payment together produces a
+  // token that 401s on the Charges API (confirmed via direct testing).
+  authorizeUrl.searchParams.set('scope', 'com.intuit.quickbooks.payment');
   authorizeUrl.searchParams.set('state', Math.random().toString(36).slice(2));
 
   res.redirect(authorizeUrl.toString());
