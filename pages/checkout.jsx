@@ -73,14 +73,21 @@ export default function CheckoutPage() {
     setSubmitting(true);
     try {
       const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
-      const token = await tokenizeCard({
-        number: card.number,
-        expMonth,
-        expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
-        cvc: card.cvc,
-        name: card.name,
-        postalCode: (billingSame ? shipping.zip : billing.zip),
-      });
+      const billingAddress = billingSame ? shipping : billing;
+      const token = await tokenizeCard(
+        {
+          number: card.number,
+          expMonth,
+          expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
+          cvc: card.cvc,
+          name: card.name,
+          street: billingAddress.address,
+          city: billingAddress.city,
+          region: billingAddress.state,
+          postalCode: billingAddress.zip,
+        },
+        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
+      );
 
       const res = await fetch('/api/qb-checkout', {
         method: 'POST',
