@@ -51,10 +51,17 @@ export default async function handler(req, res) {
       }),
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data;
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      console.error('QuickBooks charge — non-JSON response:', response.status, raw.slice(0, 500));
+      return res.status(502).json({ error: `QuickBooks returned an unexpected response (${response.status}): ${raw.slice(0, 200) || 'empty body'}` });
+    }
 
     if (!response.ok) {
-      const message = data?.errors?.[0]?.detail || data?.error?.message || 'Charge failed';
+      const message = data?.errors?.[0]?.detail || data?.error?.message || `Charge failed (${response.status})`;
       return res.status(response.status).json({ error: message });
     }
 
