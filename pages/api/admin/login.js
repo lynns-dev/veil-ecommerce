@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'crypto';
-import { createSession, SESSION_COOKIE } from '../../../lib/adminAuth';
+import { createSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from '../../../lib/adminAuth';
 
 function safeEqual(a, b) {
   const bufA = Buffer.from(a);
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     const token = await createSession();
     res.setHeader(
       'Set-Cookie',
-      `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`
+      `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}`
     );
     return res.status(200).json({ ok: true });
   } catch (err) {
