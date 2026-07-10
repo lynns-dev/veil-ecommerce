@@ -14,15 +14,16 @@ charges cards via QuickBooks Payments.
 
    | Name | Value |
    |------|-------|
-   | `QB_ACCESS_TOKEN` | OAuth access token from your Intuit Developer app (Payments enabled) |
+   | `QB_CLIENT_ID` / `QB_CLIENT_SECRET` | app credentials from your Intuit Developer app (Payments enabled) |
    | `QB_ENVIRONMENT` | `sandbox` or `production` |
+   | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV (or Upstash Redis) store, used to persist the QuickBooks refresh token |
    | `NEXT_PUBLIC_BASE_URL` | your deployed URL, e.g. `https://veil.vercel.app` |
 
-The site builds and renders fully without a QuickBooks token — only the
-final **Pay now** button on `/checkout` needs it. Add it when you're ready
-to take payments. See `DEPLOYMENT.md` for the full QuickBooks setup walkthrough
-(access tokens expire hourly and currently need manual rotation — flagged
-there and in `pages/api/qb-checkout.js`).
+The site builds and renders fully without QuickBooks configured — only the
+final **Pay now** button on `/checkout` needs it. Once the variables above are
+set, visit `/api/qb-auth/connect` once to authorize QuickBooks; after that,
+`lib/qbServerAuth.js` refreshes the access token automatically forever (no
+manual rotation). See `DEPLOYMENT.md` for the full walkthrough.
 
 ## Run locally
 
@@ -40,7 +41,10 @@ npm run dev
 - `pages/checkout.jsx` — custom single-page checkout (contact, delivery, payment, order summary)
 - `pages/success.jsx` — post-checkout thank-you
 - `pages/api/qb-checkout.js` — charges a card token via the QuickBooks Payments API
+- `pages/api/qb-auth/connect.js`, `pages/api/qb-auth/callback.js` — one-time OAuth authorization flow
 - `lib/qbPayments.js` — client-side card tokenization (Intuit Web Payments SDK)
+- `lib/qbServerAuth.js` — server-side access token, refreshed automatically before every charge
+- `lib/qbTokenStore.js` — persists the QuickBooks token pair in a KV store between requests
 - `lib/products.js` — product data (edit scents/prices here)
 - `lib/theme.js` — design tokens (colors, fonts, shared styles)
 - `lib/useCart.js` — cart Context provider, persisted to `localStorage` so it survives navigating to `/checkout`
@@ -51,9 +55,10 @@ npm run dev
 - Confirm the tokenization call in `lib/qbPayments.js` against the current
   snippet in your Intuit app's Dashboard (Payments > Web Payments SDK) —
   Intuit has changed this SDK's method names across versions.
-- QuickBooks access tokens expire (~60 min) and need a refresh-token exchange
-  to renew; that auto-refresh isn't built yet, so `QB_ACCESS_TOKEN` needs
-  manual rotation until it is.
+- QuickBooks access tokens expire (~60 min); `lib/qbServerAuth.js` refreshes
+  them automatically before each charge, so no manual rotation is needed day
+  to day. The refresh token itself only needs re-authorizing (via
+  `/api/qb-auth/connect`) if it goes unused for 100+ days or is revoked.
 - Ratings and reviews on the homepage/product pages are **placeholders**.
   Connect a verified-review app and display only real reviews before launch.
 - Confirm scent names, notes, and prices in `lib/products.js` match your catalog.

@@ -1,11 +1,12 @@
 // Charges a QuickBooks Payments card token via the Payments API.
 //
-// Requires QB_ACCESS_TOKEN (an OAuth 2.0 access token for a QuickBooks
-// Payments-enabled Intuit app) and QB_ENVIRONMENT ("sandbox" or
-// "production") in the environment. Access tokens expire (~60 minutes) and
-// must be refreshed using a stored refresh token — this route does not yet
-// handle that refresh cycle, so QB_ACCESS_TOKEN will need to be rotated
-// manually (or a token-refresh job added) until that's built.
+// The access token is fetched from lib/qbServerAuth.js, which transparently
+// refreshes it (using a refresh token persisted in the KV store) whenever
+// it's close to expiring. Connect the QuickBooks account once via
+// /api/qb-auth/connect — after that this route needs no manual token
+// rotation.
+
+import { getValidAccessToken } from '../../lib/qbServerAuth';
 
 const API_BASE = {
   sandbox: 'https://sandbox.api.intuit.com',
@@ -17,11 +18,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const accessToken = process.env.QB_ACCESS_TOKEN;
   const environment = process.env.QB_ENVIRONMENT === 'production' ? 'production' : 'sandbox';
 
-  if (!accessToken) {
-    return res.status(500).json({ error: 'QuickBooks Payments is not configured yet. Add QB_ACCESS_TOKEN (and QB_ENVIRONMENT) in Vercel to enable checkout.' });
+  let accessToken;
+  try {
+    accessToken = await getValidAccessToken();
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 
   try {
