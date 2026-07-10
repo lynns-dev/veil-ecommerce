@@ -208,8 +208,14 @@ export default function CheckoutPage() {
               <input
                 placeholder="Expiration date (MM/YY)"
                 value={card.expiry}
-                onChange={(e) => setCard({ ...card, expiry: e.target.value })}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+                  setCard({ ...card, expiry: formatted });
+                }}
                 style={input}
+                inputMode="numeric"
+                maxLength={5}
                 required
               />
               <input
