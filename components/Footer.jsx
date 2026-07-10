@@ -13,7 +13,7 @@ export default function Footer() {
           <Link href="/#reviews">Reviews</Link>
         </div>
         <small style={{ width: '100%', color: T.soft, fontSize: 11, marginTop: 12 }}>
-          Poudre de corps parfumée · Concept build — product visuals are illustrative; ratings &amp; reviews are placeholders.
+          Poudre de corps parfumée · Concept build — product visuals are illustrative.
         </small>
       </div>
     </footer>

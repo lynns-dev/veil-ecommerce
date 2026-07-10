@@ -47,13 +47,6 @@ const FAQS = [
   ['How do I apply it?', 'Press the puff into the powder, then sweep over collarbones, shoulders and the backs of knees.'],
 ];
 
-const REVIEWS = [
-  ['★★★★★', '“Three people leaned in at dinner to ask what I was wearing. Still there at midnight.”', 'Renata M. — Verified'],
-  ['★★★★★', '“Layered it for a wedding — eleven hours later mine was the only scent still going.”', 'Joanne T. — Verified'],
-  ['★★★★', '“Close-to-skin by design, not a room-filler. For a soft personal trail, it’s flawless.”', 'Dana P. — Verified'],
-  ['★★★★★', '“The puff alone makes this feel like a ritual, not a routine.”', 'Priya K. — Verified'],
-];
-
 const SUBSCRIBE_DISCOUNT = 0.2;
 
 export async function getStaticPaths() {
@@ -87,10 +80,45 @@ export default function ProductPage({ product }) {
   const [openStory, setOpenStory] = React.useState(null);
   const images = React.useMemo(() => product?.images || [], [product]);
   const [activeImage, setActiveImage] = React.useState(images[0] || '');
+  const [reviewData, setReviewData] = React.useState({ reviews: [], average: 0, count: 0 });
+  const [reviewForm, setReviewForm] = React.useState({ rating: 5, text: '', author: '' });
+  const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
+  const [reviewError, setReviewError] = React.useState('');
+  const [reviewSubmitted, setReviewSubmitted] = React.useState(false);
 
   React.useEffect(() => {
     setActiveImage(images[0] || '');
   }, [images]);
+
+  React.useEffect(() => {
+    if (!product) return;
+    fetch(`/api/reviews?productId=${product.id}`)
+      .then((r) => r.json())
+      .then((data) => setReviewData(data))
+      .catch(() => {});
+  }, [product]);
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setReviewError('');
+    setReviewSubmitting(true);
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id, ...reviewForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not submit review.');
+      setReviewData((prev) => ({ reviews: [...prev.reviews, data.review], average: data.average, count: data.count }));
+      setReviewForm({ rating: 5, text: '', author: '' });
+      setReviewSubmitted(true);
+    } catch (err) {
+      setReviewError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   if (router.isFallback || !product) return null;
 
@@ -150,7 +178,14 @@ export default function ProductPage({ product }) {
 
           <div style={infoCol}>
             <a href="#reviews" style={pdpRating}>
-              <span style={{ color: T.ink, letterSpacing: '2px' }}>★★★★★</span> 4.9 · 2,143 reviews
+              {reviewData.count > 0 ? (
+                <>
+                  <span style={{ color: T.ink, letterSpacing: '2px' }}>{'★'.repeat(Math.round(reviewData.average))}{'☆'.repeat(5 - Math.round(reviewData.average))}</span>
+                  {' '}{reviewData.average.toFixed(1)} · {reviewData.count} review{reviewData.count === 1 ? '' : 's'}
+                </>
+              ) : (
+                'Be the first to review'
+              )}
             </a>
             <h1 style={pdpTitle}>{product.name}</h1>
             <div style={pdpTagline}>{product.tagline}</div>
@@ -317,16 +352,64 @@ export default function ProductPage({ product }) {
         <div style={{ ...narrowWrap, textAlign: 'center' }}>
           <p style={S.label}>The verdict</p>
           <h2 style={{ ...S.h2, marginTop: 12, fontSize: 'clamp(26px,3vw,36px)' }}>Worn close, <span style={S.it}>adored quietly.</span></h2>
+          {reviewData.count > 0 && (
+            <div style={{ marginTop: 20, fontSize: 12, color: T.soft, letterSpacing: '0.04em' }}>
+              <span style={{ color: T.ink, letterSpacing: '1.5px' }}>{'★'.repeat(Math.round(reviewData.average))}{'☆'.repeat(5 - Math.round(reviewData.average))}</span>
+              {' '}{reviewData.average.toFixed(1)} average · {reviewData.count} review{reviewData.count === 1 ? '' : 's'}
+            </div>
+          )}
           <div style={{ marginTop: 30 }}>
-            {REVIEWS.map(([st, quote, who], i) => (
-              <div key={i} style={{ ...reviewRow, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>
-                <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 10 }}>{st}</div>
-                <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, lineHeight: 1.4, marginBottom: 10 }}>{quote}</p>
-                <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{who}</cite>
+            {reviewData.count === 0 && (
+              <p style={{ color: T.soft, fontSize: 14, padding: '20px 0' }}>No reviews yet — be the first.</p>
+            )}
+            {reviewData.reviews.slice().reverse().map((r, i) => (
+              <div key={r.id} style={{ ...reviewRow, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+                <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 10 }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, lineHeight: 1.4, marginBottom: 10 }}>“{r.text}”</p>
+                <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{r.author}</cite>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 10, color: T.soft, marginTop: 20, letterSpacing: '0.04em' }}>Sample reviews shown — connect a verified-review app before launch.</p>
+
+          <div style={reviewFormWrap}>
+            <p style={{ ...S.label, marginBottom: 16 }}>Write a review</p>
+            {reviewSubmitted ? (
+              <p style={{ color: T.ink, fontSize: 14 }}>Thank you — your review is live.</p>
+            ) : (
+              <form onSubmit={handleReviewSubmit} style={{ textAlign: 'left', maxWidth: 420, margin: '0 auto' }}>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReviewForm({ ...reviewForm, rating: n })}
+                      style={starBtn}
+                      aria-label={`${n} star${n === 1 ? '' : 's'}`}
+                    >
+                      {n <= reviewForm.rating ? '★' : '☆'}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  placeholder="Share your experience with this scent…"
+                  value={reviewForm.text}
+                  onChange={(e) => setReviewForm({ ...reviewForm, text: e.target.value })}
+                  style={reviewTextarea}
+                  required
+                />
+                <input
+                  placeholder="Your name"
+                  value={reviewForm.author}
+                  onChange={(e) => setReviewForm({ ...reviewForm, author: e.target.value })}
+                  style={{ ...reviewInput, marginTop: 12 }}
+                />
+                {reviewError && <p style={{ color: '#a13d2b', fontSize: 13, marginTop: 12 }}>{reviewError}</p>}
+                <button type="submit" disabled={reviewSubmitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 16, opacity: reviewSubmitting ? 0.6 : 1 }}>
+                  {reviewSubmitting ? 'Submitting…' : 'Submit review'}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       </section>
 
@@ -486,6 +569,16 @@ const benefitRow = { display: 'flex', gap: 24, padding: '28px 0', borderTop: `1p
 const benefitNum = { fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 20, color: T.soft, flex: '0 0 40px' };
 
 const reviewRow = { padding: '26px 0', textAlign: 'left' };
+const reviewFormWrap = { marginTop: 40, paddingTop: 40, borderTop: `1px solid ${T.line}` };
+const starBtn = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 26, color: T.ink, lineHeight: 1, padding: 4 };
+const reviewInput = {
+  width: '100%', height: 46, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box',
+};
+const reviewTextarea = {
+  width: '100%', minHeight: 100, padding: '12px 14px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+};
 
 const relatedGrid = { display: 'grid', marginTop: 50, border: `1px solid ${T.line}` };
 const relatedCard = { textAlign: 'center', display: 'block', textDecoration: 'none', color: 'inherit' };

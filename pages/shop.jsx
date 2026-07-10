@@ -7,10 +7,12 @@ import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
 import { PRODUCTS } from '../lib/products';
 import { useCart } from '../lib/useCart';
+import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
 export default function ShopPage() {
   const c = useCart();
+  const reviews = useAllReviews();
   return (
     <div>
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
@@ -39,9 +41,12 @@ export default function ShopPage() {
               </Link>
               <div style={cardText}>
                 <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 22 }}>{p.name}</Link>
-                <div style={ratingRow}>
-                  <span style={{ letterSpacing: '1.5px', color: T.ink }}>★★★★★</span> 4.9 (2,143)
-                </div>
+                {reviews[p.id]?.count > 0 && (
+                  <div style={ratingRow}>
+                    <span style={{ letterSpacing: '1.5px', color: T.ink }}>{'★'.repeat(Math.round(reviews[p.id].average))}{'☆'.repeat(5 - Math.round(reviews[p.id].average))}</span>
+                    {' '}{reviews[p.id].average.toFixed(1)} ({reviews[p.id].count})
+                  </div>
+                )}
                 <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 10px' }}>{p.tagline}</div>
                 <div style={{ fontSize: 13, marginBottom: 14 }}>${p.price} · {p.size}</div>
                 <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center' }} onClick={() => c.add(p)}>Add to cart</button>

@@ -7,6 +7,7 @@ import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
 import { getFeaturedProducts, getProductById } from '../lib/products';
 import { useCart } from '../lib/useCart';
+import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
 const BANNER_MESSAGES = ['Free shipping $50+', '15% off with code VEIL15'];
@@ -15,6 +16,14 @@ export default function HomePage() {
   const c = useCart();
   const featured = getFeaturedProducts();
   const violette = getProductById('violette');
+  const reviewsByProduct = useAllReviews();
+  const siteReviews = React.useMemo(() => {
+    const all = Object.values(reviewsByProduct).flatMap((r) => r.reviews || []);
+    const count = all.length;
+    const average = count === 0 ? 0 : Math.round((all.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
+    const recommendPct = count === 0 ? 0 : Math.round((all.filter((r) => r.rating >= 4).length / count) * 100);
+    return { all, count, average, recommendPct };
+  }, [reviewsByProduct]);
   const [bannerIndex, setBannerIndex] = React.useState(0);
   const [scrolled, setScrolled] = React.useState(false);
 
@@ -57,7 +66,12 @@ export default function HomePage() {
             <span style={{ ...S.label, display: 'block', marginBottom: 26, color: 'rgba(252,251,247,0.85)' }}>Poudre de corps parfumée</span>
             <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
             <p style={heroSub}>A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.</p>
-            <div style={hrate}><span style={{ letterSpacing: '2px', color: T.white }}>★★★★★</span> 4.9 · 2,143 reviews</div>
+            {siteReviews.count > 0 && (
+              <div style={hrate}>
+                <span style={{ letterSpacing: '2px', color: T.white }}>{'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}</span>
+                {' '}{siteReviews.average.toFixed(1)} · {siteReviews.count} review{siteReviews.count === 1 ? '' : 's'}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
               <button style={heroBtn} onClick={() => c.add(featured[0])}>Shop — $45</button>
               <a href="#notes" style={heroLink}>The scent</a>
@@ -149,25 +163,26 @@ export default function HomePage() {
         <div style={{ ...S.wrap, textAlign: 'center' }}>
           <p style={S.label}>The verdict</p>
           <h2 style={{ ...S.h2, marginTop: 12 }}>Worn close, <span style={S.it}>adored quietly.</span></h2>
-          <div style={{ marginTop: 42 }}>
-            <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>4.9</div>
-            <div style={{ color: T.ink, letterSpacing: '3px', fontSize: 14, margin: '6px 0 4px' }}>★★★★★</div>
-            <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>2,143 reviews · 97% recommend</div>
-          </div>
-          <div className="rev-grid" style={revGrid}>
-            {[
-              ['★★★★★', '“Three people leaned in at dinner to ask what I was wearing. Still there at midnight.”', 'Renata M. — Verified'],
-              ['★★★★★', '“Layered it for a wedding — eleven hours later mine was the only scent still going.”', 'Joanne T. — Verified'],
-              ['★★★★', '“Close-to-skin by design, not a room-filler. For a soft personal trail, it’s flawless.”', 'Dana P. — Verified'],
-            ].map(([st, quote, who], i) => (
-              <div key={i} className="rev-item" style={rev}>
-                <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 14 }}>{st}</div>
-                <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19, lineHeight: 1.4, marginBottom: 16 }}>{quote}</p>
-                <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{who}</cite>
+          {siteReviews.count === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14, marginTop: 42 }}>No reviews yet — be the first to share yours on any product page.</p>
+          ) : (
+            <>
+              <div style={{ marginTop: 42 }}>
+                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>{siteReviews.average.toFixed(1)}</div>
+                <div style={{ color: T.ink, letterSpacing: '3px', fontSize: 14, margin: '6px 0 4px' }}>{'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}</div>
+                <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{siteReviews.count} review{siteReviews.count === 1 ? '' : 's'} · {siteReviews.recommendPct}% recommend</div>
               </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 10, color: T.soft, marginTop: 24, letterSpacing: '0.04em' }}>Sample reviews shown — connect a verified-review app before launch.</p>
+              <div className="rev-grid" style={revGrid}>
+                {siteReviews.all.slice().reverse().slice(0, 3).map((r) => (
+                  <div key={r.id} className="rev-item" style={rev}>
+                    <div style={{ color: T.ink, letterSpacing: '1.5px', fontSize: 12, marginBottom: 14 }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                    <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19, lineHeight: 1.4, marginBottom: 16 }}>“{r.text}”</p>
+                    <cite style={{ fontStyle: 'normal', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{r.author}</cite>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
