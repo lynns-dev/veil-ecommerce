@@ -191,26 +191,6 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
           <section>
-            <div className="express-row" style={expressRow}>
-              {['PayPal', 'Apple Pay', 'Google Pay'].map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  style={expressBtn}
-                  onClick={() => alert(`${name} isn’t connected yet — add that integration to enable this button.`)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-            <div style={dividerRow}>
-              <span style={dividerLine} />
-              <span style={dividerText}>OR</span>
-              <span style={dividerLine} />
-            </div>
-          </section>
-
-          <section style={{ marginTop: 32 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Contact</h2>
             </div>
@@ -382,10 +362,6 @@ export default function CheckoutPage() {
       <style jsx>{`
         .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .row-3 { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
-        .express-row { grid-template-columns: repeat(3, 1fr); }
-        @media (max-width: 460px) {
-          .express-row { grid-template-columns: 1fr; }
-        }
         .summary-toggle { display: none; }
         .checkout-grid { grid-template-columns: 1fr 1fr; }
         .order-summary { display: block; }
@@ -413,14 +389,6 @@ export default function CheckoutPage() {
 }
 
 const topbar = { borderBottom: `1px solid ${T.line}`, textAlign: 'center' };
-const expressRow = { display: 'grid', gap: 12 };
-const expressBtn = {
-  height: 46, border: `1px solid ${T.ink}`, background: T.white, color: T.ink,
-  fontFamily: T.sans, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-};
-const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0' };
-const dividerLine = { flex: 1, height: 1, background: T.line };
-const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const summaryToggle = {
   width: '100%', border: 'none', borderBottom: `1px solid ${T.line}`, background: T.paper,
   padding: '16px 24px', alignItems: 'center', justifyContent: 'space-between',
