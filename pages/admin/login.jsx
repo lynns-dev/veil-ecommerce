@@ -1,4 +1,5 @@
 import React from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { T, S } from '../../lib/theme';
 
@@ -30,6 +31,16 @@ export default function AdminLogin() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.paper }}>
+      <Head>
+        <title>VEIL Admin</title>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="theme-color" content={T.ink} />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="VEIL Admin" />
+      </Head>
       <form onSubmit={handleSubmit} style={{ width: 320, padding: 40, background: T.white, border: `1px solid ${T.line}` }}>
         <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.3em', display: 'block', marginBottom: 24, textAlign: 'center' }}>VEIL</span>
         <p style={{ ...S.label, marginBottom: 16, textAlign: 'center' }}>Admin</p>

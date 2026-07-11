@@ -8,6 +8,7 @@
 
 import { getValidAccessToken } from '../../lib/qbServerAuth';
 import { recordOrder, incrementEvent, logEvent } from '../../lib/analyticsStore';
+import { sendPushToAdmins } from '../../lib/webPush';
 
 const API_BASE = {
   sandbox: 'https://sandbox.api.intuit.com',
@@ -76,8 +77,14 @@ export default async function handler(req, res) {
       await recordOrder({ id: data.id, amount: Number(amount), items, createdAt: new Date().toISOString() });
       await incrementEvent('purchase');
       await logEvent('purchase', { amount: Number(amount) });
+      const itemCount = items.length;
+      await sendPushToAdmins({
+        title: 'New order',
+        body: `$${Number(amount).toFixed(2)} — ${itemCount} item${itemCount === 1 ? '' : 's'}`,
+        url: '/admin',
+      });
     } catch (analyticsErr) {
-      // Never fail a successful charge over an analytics write.
+      // Never fail a successful charge over an analytics/notification write.
       console.error('Order/analytics recording failed:', analyticsErr);
     }
 
