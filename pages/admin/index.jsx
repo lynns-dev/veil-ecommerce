@@ -85,6 +85,19 @@ function countryName(code) {
   }
 }
 
+// Which ad/campaign brought the buyer in, from whatever was captured at
+// their first click-through (lib/attribution.js). Falls back to the raw
+// click id if a platform's utm params weren't present, since fbclid/gclid
+// alone still proves the visit came from a paid click.
+function attributionSource(order) {
+  const attr = order.attribution;
+  if (!attr) return { source: 'Direct / organic', campaign: null };
+  if (attr.utm_source) return { source: attr.utm_source, campaign: attr.utm_campaign || null };
+  if (attr.fbclid) return { source: 'Facebook/Instagram ad', campaign: null };
+  if (attr.gclid) return { source: 'Google ad', campaign: null };
+  return { source: 'Direct / organic', campaign: null };
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
@@ -102,6 +115,16 @@ export default function AdminDashboard() {
   const [notifStatus, setNotifStatus] = React.useState('unsupported'); // unsupported | denied | off | on | busy
   const [notifMessage, setNotifMessage] = React.useState('');
   const [hoveredCountry, setHoveredCountry] = React.useState(null);
+  const [orders, setOrders] = React.useState([]);
+  const [ordersLoading, setOrdersLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/admin/orders')
+      .then((r) => r.json())
+      .then((data) => setOrders(data.orders || []))
+      .catch(() => {})
+      .finally(() => setOrdersLoading(false));
+  }, []);
 
   const mapCounts = React.useMemo(
     () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
@@ -541,6 +564,43 @@ export default function AdminDashboard() {
           )}
         </Section>
 
+        {/* RECENT ORDERS */}
+        <Section title={`Recent orders (${orders.length})`}>
+          {ordersLoading ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
+          ) : orders.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No orders in the last 30 days.</p>
+          ) : (
+            <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+              <div style={orderHeadRow}>
+                <span style={{ flex: '0 0 130px' }}>Date</span>
+                <span style={{ flex: 1 }}>Items</span>
+                <span style={{ flex: '0 0 90px' }}>Amount</span>
+                <span style={{ flex: '0 0 100px' }}>Payment</span>
+                <span style={{ flex: '0 0 160px' }}>Source</span>
+              </div>
+              {orders.map((o) => {
+                const { source, campaign } = attributionSource(o);
+                const itemSummary = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ');
+                return (
+                  <div key={o.id} style={orderRow}>
+                    <span style={{ flex: '0 0 130px', color: T.soft }}>
+                      {new Date(o.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                    <span style={{ flex: 1 }} title={itemSummary}>{itemSummary}</span>
+                    <span style={{ flex: '0 0 90px' }}>${Number(o.amount).toFixed(2)}</span>
+                    <span style={{ flex: '0 0 100px', color: T.soft }}>{o.paymentMethod || 'Unknown'}</span>
+                    <span style={{ flex: '0 0 160px' }}>
+                      {source}
+                      {campaign && <span style={{ color: T.soft }}> · {campaign}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
         {/* PENDING REVIEWS */}
         <Section title={`Pending approval (${pendingReviews.length})`}>
           {reviewsLoading ? (
@@ -734,6 +794,14 @@ const funnelGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap
 const funnelRangeSelect = {
   height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
   fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
+};
+const orderHeadRow = {
+  display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.ink}`,
+  fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft,
+};
+const orderRow = {
+  display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.line}`,
+  fontSize: 13, alignItems: 'center',
 };
 const reviewRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {

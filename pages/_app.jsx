@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { CartProvider, useCart } from '../lib/useCart';
 import { loadPixel, fbTrack } from '../lib/fbPixel';
 import { loadClarity } from '../lib/clarity';
+import { captureAttribution } from '../lib/attribution';
 
 const SESSION_STORAGE_KEY = 'veil-session-id';
 const HEARTBEAT_MS = 10000;
@@ -41,6 +42,13 @@ function Tracking() {
   React.useEffect(() => {
     if (isAdmin) return;
     fbTrack('PageView');
+  }, [router.asPath, isAdmin]);
+
+  // Which ad/campaign brought this visitor in — captured on every page load
+  // so a landing page deep in the site (not just "/") still gets credit.
+  React.useEffect(() => {
+    if (isAdmin) return;
+    captureAttribution();
   }, [router.asPath, isAdmin]);
 
   React.useEffect(() => {
