@@ -392,8 +392,8 @@ export default function CheckoutPage() {
       </div>
 
       <style jsx>{`
-        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .row-3 { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
+        :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
         .summary-toggle { display: none; }
         .checkout-grid { grid-template-columns: 1fr 1fr; }
         .order-summary { display: block; }
@@ -413,7 +413,7 @@ export default function CheckoutPage() {
           .order-summary.open { display: block; }
         }
         @media (max-width: 520px) {
-          .row-3 { grid-template-columns: 1fr; }
+          :global(.row-3) { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
