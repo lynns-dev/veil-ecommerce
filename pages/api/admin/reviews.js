@@ -1,4 +1,4 @@
-import { getReviews, deleteReview } from '../../../lib/reviewsStore';
+import { getReviews, deleteReview, approveReview } from '../../../lib/reviewsStore';
 import { PRODUCTS } from '../../../lib/products';
 
 export default async function handler(req, res) {
@@ -17,6 +17,19 @@ export default async function handler(req, res) {
     }
   }
 
+  if (req.method === 'PATCH') {
+    const { productId, reviewId, action } = req.body || {};
+    if (!productId || !reviewId || action !== 'approve') {
+      return res.status(400).json({ error: 'productId, reviewId, and action: "approve" are required.' });
+    }
+    try {
+      await approveReview(productId, reviewId);
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   if (req.method === 'DELETE') {
     const { productId, reviewId } = req.body || {};
     if (!productId || !reviewId) {
@@ -30,6 +43,6 @@ export default async function handler(req, res) {
     }
   }
 
-  res.setHeader('Allow', 'GET, DELETE');
+  res.setHeader('Allow', 'GET, PATCH, DELETE');
   return res.status(405).json({ error: 'Method not allowed' });
 }

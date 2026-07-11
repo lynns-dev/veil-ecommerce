@@ -7,9 +7,7 @@
 // rotation.
 
 import { getValidAccessToken } from '../../lib/qbServerAuth';
-import { recordOrder, incrementEvent, logEvent } from '../../lib/analyticsStore';
-import { sendPushToAdmins } from '../../lib/webPush';
-import { sendCapiEvent, getRequestUserData } from '../../lib/metaCapi';
+import { fulfillOrder } from '../../lib/orderFulfillment';
 
 const API_BASE = {
   sandbox: 'https://sandbox.api.intuit.com',
@@ -74,34 +72,7 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: message });
     }
 
-    try {
-      await recordOrder({ id: data.id, amount: Number(amount), items, paymentMethod: paymentMethod || 'Unknown', createdAt: new Date().toISOString() });
-      await incrementEvent('purchase');
-      await logEvent('purchase', { amount: Number(amount) });
-      const itemCount = items.length;
-      await sendPushToAdmins({
-        title: 'New order',
-        body: `$${Number(amount).toFixed(2)} — ${itemCount} item${itemCount === 1 ? '' : 's'}`,
-        url: '/admin',
-      });
-      if (eventId) {
-        await sendCapiEvent({
-          eventName: 'Purchase',
-          eventId,
-          eventSourceUrl: url,
-          userData: getRequestUserData(req),
-          customData: {
-            currency: 'USD',
-            value: Number(amount),
-            content_ids: items.map((i) => i.id),
-            contents: items.map((i) => ({ id: i.id, quantity: i.quantity })),
-          },
-        });
-      }
-    } catch (analyticsErr) {
-      // Never fail a successful charge over an analytics/notification write.
-      console.error('Order/analytics recording failed:', analyticsErr);
-    }
+    await fulfillOrder({ id: data.id, amount: Number(amount), items, eventId, url, req, paymentMethod: paymentMethod || 'Card' });
 
     return res.status(200).json({ id: data.id, status: data.status });
   } catch (error) {

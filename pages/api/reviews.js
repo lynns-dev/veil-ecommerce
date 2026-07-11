@@ -1,16 +1,20 @@
 // GET  (no productId): { [productId]: { reviews, average, count } } for every product.
 // GET  ?productId=X:   { reviews, average, count } for that product.
-// POST { productId, rating, text, author, source? }: appends a review
-// (source: 'imported' for bulk-added reviews from elsewhere, default 'site')
-// and publishes immediately — no moderation queue.
+// POST { productId, rating, text, author, source? }: adds a review.
+// Only status: 'approved' reviews are ever returned here (public-facing) or
+// counted toward the average/count — customer submissions (source omitted or
+// 'site') start as 'pending' and need approval in /admin before they're
+// visible anywhere. Imported reviews (source: 'imported', added by the
+// store owner via /admin) publish immediately since they're already vetted.
 
 import { getReviews, addReview } from '../../lib/reviewsStore';
 import { PRODUCTS } from '../../lib/products';
 
 function aggregate(reviews) {
-  const count = reviews.length;
-  const average = count === 0 ? 0 : Math.round((reviews.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
-  return { count, average };
+  const approved = reviews.filter((r) => r.status === 'approved');
+  const count = approved.length;
+  const average = count === 0 ? 0 : Math.round((approved.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
+  return { count, average, reviews: approved };
 }
 
 export default async function handler(req, res) {
@@ -20,13 +24,13 @@ export default async function handler(req, res) {
 
       if (productId) {
         const reviews = await getReviews(productId);
-        return res.status(200).json({ reviews, ...aggregate(reviews) });
+        return res.status(200).json(aggregate(reviews));
       }
 
       const entries = await Promise.all(
         PRODUCTS.map(async (p) => {
           const reviews = await getReviews(p.id);
-          return [p.id, { reviews, ...aggregate(reviews) }];
+          return [p.id, aggregate(reviews)];
         })
       );
       return res.status(200).json(Object.fromEntries(entries));
@@ -46,13 +50,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Review text is required.' });
       }
 
+      const isImported = source === 'imported';
       const review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         rating: numericRating,
         text: text.trim().slice(0, 2000),
         author: (author || 'Anonymous').trim().slice(0, 80) || 'Anonymous',
         createdAt: new Date().toISOString(),
-        source: source === 'imported' ? 'imported' : 'site',
+        source: isImported ? 'imported' : 'site',
+        status: isImported ? 'approved' : 'pending',
       };
 
       const updated = await addReview(productId, review);

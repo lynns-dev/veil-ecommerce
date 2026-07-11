@@ -2,11 +2,11 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
+import PayPalButton from '../components/PayPalButton';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
-import { detectCardBrand } from '../lib/cardBrand';
-import { DISCOUNTS } from '../lib/discounts';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -17,12 +17,70 @@ const US_STATES = [
 
 const emptyAddress = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
-function LockIcon() {
+function LockIcon(props) {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
+  );
+}
+
+// IIN-range brand detection — good enough to give the user visual
+// confirmation their card is recognized, not used for validation.
+function detectCardBrand(digits) {
+  if (/^4/.test(digits)) return 'visa';
+  if (/^5[1-5]/.test(digits) || /^2(2[2-9]\d|[3-6]\d{2}|7[01]\d|720)/.test(digits)) return 'mastercard';
+  if (/^3[47]/.test(digits)) return 'amex';
+  if (/^6(?:011|5)/.test(digits)) return 'discover';
+  return null;
+}
+
+function formatCardNumber(digits) {
+  if (/^3[47]/.test(digits)) {
+    // Amex: 4-6-5
+    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
+  }
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+const CARD_BRANDS = [
+  { id: 'visa', label: 'Visa', color: '#1a1f71' },
+  { id: 'mastercard', label: 'Mastercard', color: '#eb001b' },
+  { id: 'amex', label: 'Amex', color: '#2e77bc' },
+  { id: 'discover', label: 'Discover', color: '#e57200' },
+];
+
+function CardBrandBadges() {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {CARD_BRANDS.map((b) => (
+        <span
+          key={b.id}
+          style={{
+            fontFamily: T.sans, fontSize: 8, fontWeight: 700, letterSpacing: '0.03em',
+            padding: '3px 5px', borderRadius: 3, color: T.white, background: b.color,
+          }}
+        >
+          {b.label.toUpperCase()}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CardBrandIcon({ brand }) {
+  if (!brand) return null;
+  const b = CARD_BRANDS.find((x) => x.id === brand);
+  return (
+    <span
+      style={{
+        fontFamily: T.sans, fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+        padding: '4px 6px', borderRadius: 3, color: T.white, background: b.color,
+      }}
+    >
+      {b.label.toUpperCase()}
+    </span>
   );
 }
 
@@ -105,6 +163,16 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
+  const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
+
+  const reviewsByProduct = useAllReviews();
+  const siteReviews = React.useMemo(() => {
+    const all = Object.values(reviewsByProduct).flatMap((r) => r.reviews || []);
+    const count = all.length;
+    const average = count === 0 ? 0 : Math.round((all.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
+    return { count, average };
+  }, [reviewsByProduct]);
+
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
@@ -115,14 +183,26 @@ export default function CheckoutPage() {
     : Math.min(appliedDiscount.value, total);
   const grandTotal = Math.max(total - codeDiscountAmount, 0) + shippingCost;
 
-  const handleApplyDiscount = () => {
-    const match = DISCOUNTS.find((d) => d.code.toLowerCase() === discountCode.trim().toLowerCase());
-    if (match) {
-      setAppliedDiscount(match);
-      setDiscountMessage(`Code "${match.code}" applied.`);
-    } else {
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setDiscountMessage('Checking…');
+    try {
+      const res = await fetch('/api/validate-discount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: discountCode }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedDiscount({ code: data.code, type: data.type, value: data.value });
+        setDiscountMessage(`Code "${data.code}" applied.`);
+      } else {
+        setAppliedDiscount(null);
+        setDiscountMessage('That code isn’t valid.');
+      }
+    } catch {
       setAppliedDiscount(null);
-      setDiscountMessage(discountCode.trim() ? 'That code isn’t valid.' : '');
+      setDiscountMessage('Could not check that code — please try again.');
     }
   };
 
@@ -161,7 +241,7 @@ export default function CheckoutPage() {
           billing: billingSame ? shipping : billing,
           eventId: purchaseEventId,
           url: window.location.href,
-          paymentMethod: detectCardBrand(card.number),
+          paymentMethod: CARD_BRANDS.find((b) => b.id === cardBrand)?.label || 'Card',
         }),
       });
       const data = await res.json();
@@ -181,6 +261,21 @@ export default function CheckoutPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePaypalSuccess = async (result) => {
+    sessionStorage.setItem('veil-purchase', JSON.stringify({
+      eventId: result.eventId,
+      amount: result.amount,
+      contentIds: cart.map((i) => i.id),
+      contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+    }));
+    await router.push('/success');
+    clear();
+  };
+
+  const handlePaypalError = (message) => {
+    setError(message || 'PayPal checkout failed. Please try again.');
   };
 
   if (!hydrated || cart.length === 0) return null;
@@ -204,6 +299,22 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
           <section>
+            <PayPalButton
+              amount={grandTotal}
+              items={cart}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              disabled={submitting}
+              onSuccess={handlePaypalSuccess}
+              onError={handlePaypalError}
+            />
+            <div style={dividerRow}>
+              <span style={dividerLine} />
+              <span style={dividerText}>OR PAY WITH CARD</span>
+              <span style={dividerLine} />
+            </div>
+          </section>
+
+          <section style={{ marginTop: 32 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Contact</h2>
             </div>
@@ -245,7 +356,10 @@ export default function CheckoutPage() {
           <section style={{ marginTop: 36 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Payment</h2>
-              <span style={{ fontSize: 11, color: T.soft }}>All transactions are secure and encrypted.</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.soft }}>
+                <LockIcon />
+                All transactions are secure and encrypted.
+              </span>
             </div>
             <div className="row-2">
               <input
@@ -253,6 +367,7 @@ export default function CheckoutPage() {
                 value={card.firstName}
                 onChange={(e) => setCard({ ...card, firstName: e.target.value })}
                 style={input}
+                autoComplete="cc-given-name"
                 required
               />
               <input
@@ -260,17 +375,26 @@ export default function CheckoutPage() {
                 value={card.lastName}
                 onChange={(e) => setCard({ ...card, lastName: e.target.value })}
                 style={input}
+                autoComplete="cc-family-name"
                 required
               />
             </div>
-            <input
-              placeholder="Card number"
-              value={card.number}
-              onChange={(e) => setCard({ ...card, number: e.target.value })}
-              style={{ ...input, marginTop: 12 }}
-              inputMode="numeric"
-              required
-            />
+            <div style={{ position: 'relative', marginTop: 12 }}>
+              <input
+                placeholder="Card number"
+                value={card.number}
+                onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
+                style={{ ...input, paddingRight: cardBrand ? 70 : 14 }}
+                inputMode="numeric"
+                autoComplete="cc-number"
+                required
+              />
+              {cardBrand && (
+                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+                  <CardBrandIcon brand={cardBrand} />
+                </div>
+              )}
+            </div>
             <div className="row-2" style={{ marginTop: 12 }}>
               <input
                 placeholder="Expiration date (MM/YY)"
@@ -283,16 +407,28 @@ export default function CheckoutPage() {
                 style={input}
                 inputMode="numeric"
                 maxLength={5}
+                autoComplete="cc-exp"
                 required
               />
-              <input
-                placeholder="Security code"
-                value={card.cvc}
-                onChange={(e) => setCard({ ...card, cvc: e.target.value })}
-                style={input}
-                inputMode="numeric"
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  placeholder="Security code"
+                  value={card.cvc}
+                  onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                  style={{ ...input, paddingRight: 34 }}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                  required
+                />
+                <span
+                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, cursor: 'help' }}
+                >
+                  <LockIcon />
+                </span>
+              </div>
             </div>
             <label style={checkboxLabel}>
               <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
@@ -305,28 +441,6 @@ export default function CheckoutPage() {
             )}
           </section>
 
-          <section style={{ marginTop: 36 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Discount code</h2>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                placeholder="Discount code"
-                value={discountCode}
-                onChange={(e) => {
-                  setDiscountCode(e.target.value);
-                  if (appliedDiscount) setAppliedDiscount(null);
-                  setDiscountMessage('');
-                }}
-                style={{ ...input, flex: 1 }}
-              />
-              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-            </div>
-            {discountMessage && (
-              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-            )}
-          </section>
-
           {error && <p style={errorText}>{error}</p>}
 
           <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting ? 0.6 : 1 }}>
@@ -334,8 +448,14 @@ export default function CheckoutPage() {
           </button>
           <div style={secureNote}>
             <LockIcon />
-            <span>Secure, encrypted checkout</span>
+            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
+            <CardBrandBadges />
+          </div>
+          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 10 }}>
+            Payments securely processed by QuickBooks Payments (Intuit)
+          </p>
         </form>
 
         <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
@@ -379,12 +499,40 @@ export default function CheckoutPage() {
             <span style={{ fontFamily: T.serif, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.serif, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <input
+              placeholder="Discount code"
+              value={discountCode}
+              onChange={(e) => {
+                setDiscountCode(e.target.value);
+                if (appliedDiscount) setAppliedDiscount(null);
+                setDiscountMessage('');
+              }}
+              style={{ ...input, flex: 1 }}
+            />
+            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
+          </div>
+          {discountMessage && (
+            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+          )}
+
+          {siteReviews.count > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
+              <span style={{ color: T.ink, letterSpacing: '2px', fontSize: 14 }}>
+                {'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}
+              </span>
+              <span style={{ fontSize: 12, color: T.soft }}>
+                {siteReviews.average.toFixed(1)} · {siteReviews.count} review{siteReviews.count === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
         </aside>
       </div>
 
       <style jsx>{`
-        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .row-3 { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
+        :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
         .summary-toggle { display: none; }
         .checkout-grid { grid-template-columns: 1fr 1fr; }
         .order-summary { display: block; }
@@ -404,7 +552,7 @@ export default function CheckoutPage() {
           .order-summary.open { display: block; }
         }
         @media (max-width: 520px) {
-          .row-3 { grid-template-columns: 1fr; }
+          :global(.row-3) { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
@@ -420,6 +568,9 @@ const summaryToggle = {
 const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto', columnGap: 56, rowGap: 32 };
 const formCol = { padding: '48px 40px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '48px 40px', background: T.paper };
+const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0 0' };
+const dividerLine = { flex: 1, height: 1, background: T.line };
+const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 22, margin: 0 };

@@ -2,6 +2,11 @@
 // calls this every ~10s with its session id and current funnel stage; the
 // KV entry expires quickly (25s) so a visitor who closes the tab drops out
 // of the live count on its own, no cleanup job needed.
+//
+// City/country come from Vercel's edge network, which sets these headers
+// on every request automatically — no third-party geolocation API needed.
+
+import { isExcludedIp } from '../../../lib/ipFilter';
 
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
@@ -21,16 +26,23 @@ export default async function handler(req, res) {
     sessionId.length < 100 &&
     ALLOWED_STAGES.includes(stage) &&
     KV_URL &&
-    KV_TOKEN
+    KV_TOKEN &&
+    !isExcludedIp(req)
   ) {
     try {
-      // Vercel sets this header at the edge for every request — no external
-      // geo-IP lookup needed. Falls back to 'XX' locally / off Vercel.
+      // Vercel sets these headers at the edge for every request — no external
+      // geo-IP lookup needed. Country falls back to 'XX' locally / off Vercel.
+      const city = req.headers['x-vercel-ip-city'];
       const country = req.headers['x-vercel-ip-country'] || 'XX';
+      const value = JSON.stringify({
+        stage,
+        city: city ? decodeURIComponent(city) : null,
+        country,
+      });
       await fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${KV_TOKEN}` },
-        body: JSON.stringify({ stage, country }),
+        body: value,
       });
     } catch (err) {
       console.error('Heartbeat failed:', err);
