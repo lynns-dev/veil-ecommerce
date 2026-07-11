@@ -9,6 +9,7 @@
 import { getValidAccessToken } from '../../lib/qbServerAuth';
 import { recordOrder, incrementEvent, logEvent } from '../../lib/analyticsStore';
 import { sendPushToAdmins } from '../../lib/webPush';
+import { sendCapiEvent, getRequestUserData } from '../../lib/metaCapi';
 
 const API_BASE = {
   sandbox: 'https://sandbox.api.intuit.com',
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { token, amount, items } = req.body;
+    const { token, amount, items, eventId, url } = req.body;
 
     if (!token) return res.status(400).json({ error: 'Missing card token' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
@@ -83,6 +84,20 @@ export default async function handler(req, res) {
         body: `$${Number(amount).toFixed(2)} — ${itemCount} item${itemCount === 1 ? '' : 's'}`,
         url: '/admin',
       });
+      if (eventId) {
+        await sendCapiEvent({
+          eventName: 'Purchase',
+          eventId,
+          eventSourceUrl: url,
+          userData: getRequestUserData(req),
+          customData: {
+            currency: 'USD',
+            value: Number(amount),
+            content_ids: items.map((i) => i.id),
+            contents: items.map((i) => ({ id: i.id, quantity: i.quantity })),
+          },
+        });
+      }
     } catch (analyticsErr) {
       // Never fail a successful charge over an analytics/notification write.
       console.error('Order/analytics recording failed:', analyticsErr);

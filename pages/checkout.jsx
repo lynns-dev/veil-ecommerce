@@ -79,7 +79,14 @@ export default function CheckoutPage() {
     fetch('/api/track/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'checkout_start', eventId, value: total }),
+      body: JSON.stringify({
+        event: 'checkout_start',
+        eventId,
+        value: total,
+        contentIds: cart.map((i) => i.id),
+        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+        url: window.location.href,
+      }),
       keepalive: true,
     }).catch(() => {});
     // Fire once per checkout page load, not on every cart mutation.
@@ -141,6 +148,7 @@ export default function CheckoutPage() {
           shipping,
           billing: billingSame ? shipping : billing,
           eventId: purchaseEventId,
+          url: window.location.href,
         }),
       });
       const data = await res.json();
