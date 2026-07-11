@@ -46,7 +46,9 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
 
         paypal
           .Buttons({
-            style: { layout: 'vertical', color: 'black', shape: 'rect', label: 'paypal', height: 45 },
+            // No color/shape/label overrides — renders PayPal's own default
+            // branded button rather than a custom-styled variant.
+            style: { layout: 'vertical', height: 45 },
             createOrder: async () => {
               stateRef.current.eventId = generateEventId();
               const res = await fetch('/api/paypal/create-order', {
