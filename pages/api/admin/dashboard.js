@@ -1,4 +1,6 @@
-import { getOrders, getEventCounts } from '../../../lib/analyticsStore';
+import { getOrders, getEventCounts, dateKeysForRange } from '../../../lib/analyticsStore';
+
+const VALID_FUNNEL_RANGES = new Set(['today', 'yesterday', '7d', '30d']);
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -6,8 +8,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const funnelRange = VALID_FUNNEL_RANGES.has(req.query.range) ? req.query.range : 'today';
+
   try {
-    const [orders, events] = await Promise.all([getOrders(), getEventCounts()]);
+    const [orders, events] = await Promise.all([getOrders(), getEventCounts(dateKeysForRange(funnelRange))]);
     const revenue = orders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
     const rate = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
@@ -28,6 +32,7 @@ export default async function handler(req, res) {
       revenueToday: revenue,
       ordersToday: orders.length,
       paymentMethods,
+      funnelRange,
       funnel: {
         pageviews: events.pageview,
         addToCart: events.addtocart,

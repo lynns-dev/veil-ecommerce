@@ -41,6 +41,12 @@ function matchProductId(value) {
 }
 
 const LIVE_POLL_MS = 5000;
+const FUNNEL_RANGE_LABELS = {
+  today: "Today's funnel",
+  yesterday: "Yesterday's funnel",
+  '7d': 'Funnel — last 7 days',
+  '30d': 'Funnel — last 30 days',
+};
 const STAGE_LABELS = {
   browsing: 'Browsing',
   cart_open: 'Cart open',
@@ -82,6 +88,7 @@ function countryName(code) {
 export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
+  const [funnelRange, setFunnelRange] = React.useState('today');
   const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, activity: EMPTY_ACTIVITY });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
@@ -159,8 +166,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const loadDashboard = React.useCallback(() => {
-    fetch('/api/admin/dashboard').then((r) => r.json()).then(setDashboard).catch(() => {});
+  const loadDashboard = React.useCallback((range) => {
+    fetch(`/api/admin/dashboard?range=${range}`).then((r) => r.json()).then(setDashboard).catch(() => {});
   }, []);
 
   const loadReviews = React.useCallback(() => {
@@ -176,10 +183,15 @@ export default function AdminDashboard() {
   }, []);
 
   React.useEffect(() => {
-    loadDashboard();
     loadReviews();
     loadDiscounts();
-  }, [loadDashboard, loadReviews, loadDiscounts]);
+  }, [loadReviews, loadDiscounts]);
+
+  // Covers both the initial load and refetching when the funnel time
+  // filter changes.
+  React.useEffect(() => {
+    loadDashboard(funnelRange);
+  }, [loadDashboard, funnelRange]);
 
   React.useEffect(() => {
     const poll = () => fetch('/api/admin/live').then((r) => r.json()).then(setLive).catch(() => {});
@@ -508,7 +520,17 @@ export default function AdminDashboard() {
         </Section>
 
         {/* FUNNEL / CONVERSION */}
-        <Section title="Today's funnel">
+        <Section
+          title={FUNNEL_RANGE_LABELS[funnelRange]}
+          action={
+            <select value={funnelRange} onChange={(e) => setFunnelRange(e.target.value)} style={funnelRangeSelect}>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
+          }
+        >
           {dashboard && (
             <div className="funnel-grid" style={funnelGrid}>
               <FunnelStep label="Page views" value={dashboard.funnel.pageviews} />
@@ -694,10 +716,13 @@ function FunnelStep({ label, value, rate }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, action, children }) {
   return (
     <div style={{ background: T.white, border: `1px solid ${T.line}`, padding: 24, marginBottom: 24 }}>
-      <p style={{ ...S.label, marginBottom: 18 }}>{title}</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
+        <p style={{ ...S.label, margin: 0 }}>{title}</p>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -706,6 +731,10 @@ function Section({ title, children }) {
 const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 };
 const statCard = { background: T.white, border: `1px solid ${T.line}`, padding: '24px 20px', textAlign: 'center' };
 const funnelGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 };
+const funnelRangeSelect = {
+  height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
+};
 const reviewRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {
   fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', border: `1px solid ${T.line}`,
