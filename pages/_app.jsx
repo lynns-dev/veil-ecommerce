@@ -84,8 +84,8 @@ export default function App({ Component, pageProps }) {
           animation: page-fade-in 0.28s ease both;
         }
         @keyframes page-fade-in {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
         @media (prefers-reduced-motion: reduce) {
           .page-fade { animation: none; }
