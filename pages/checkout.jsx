@@ -125,7 +125,7 @@ export default function CheckoutPage() {
   const [shipping, setShipping] = React.useState(emptyAddress);
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(emptyAddress);
-  const [card, setCard] = React.useState({ firstName: '', lastName: '', number: '', expiry: '', cvc: '' });
+  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '' });
   const [discountCode, setDiscountCode] = React.useState('');
   const [appliedDiscount, setAppliedDiscount] = React.useState(null);
   const [discountMessage, setDiscountMessage] = React.useState('');
@@ -221,7 +221,7 @@ export default function CheckoutPage() {
           expMonth,
           expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
           cvc: card.cvc,
-          name: `${card.firstName} ${card.lastName}`.trim(),
+          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim(),
           street: billingAddress.address,
           city: billingAddress.city,
           region: billingAddress.state,
@@ -392,25 +392,7 @@ export default function CheckoutPage() {
                 All transactions are secure and encrypted.
               </span>
             </div>
-            <div className="row-2">
-              <input
-                placeholder="First name"
-                value={card.firstName}
-                onChange={(e) => setCard({ ...card, firstName: e.target.value })}
-                style={input}
-                autoComplete="cc-given-name"
-                required
-              />
-              <input
-                placeholder="Last name"
-                value={card.lastName}
-                onChange={(e) => setCard({ ...card, lastName: e.target.value })}
-                style={input}
-                autoComplete="cc-family-name"
-                required
-              />
-            </div>
-            <div style={{ position: 'relative', marginTop: 12 }}>
+            <div style={{ position: 'relative' }}>
               <input
                 placeholder="Card number"
                 value={card.number}
@@ -469,6 +451,71 @@ export default function CheckoutPage() {
               <div style={{ marginTop: 16 }}>
                 <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
               </div>
+            )}
+
+            <div style={dividerRow}>
+              <span style={dividerLine} />
+              <span style={dividerText}>OR PAY ANOTHER WAY</span>
+              <span style={dividerLine} />
+            </div>
+            <div style={expressStack}>
+              <PayPalButton
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="venmo"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="applepay"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="googlepay"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+            </div>
+          </section>
+
+          <section style={{ marginTop: 36 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Discount code</h2>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                placeholder="Discount code"
+                value={discountCode}
+                onChange={(e) => {
+                  setDiscountCode(e.target.value);
+                  if (appliedDiscount) setAppliedDiscount(null);
+                  setDiscountMessage('');
+                }}
+                style={{ ...input, flex: 1 }}
+              />
+              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
+            </div>
+            {discountMessage && (
+              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
             )}
           </section>
 
