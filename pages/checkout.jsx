@@ -440,28 +440,6 @@ export default function CheckoutPage() {
             )}
           </section>
 
-          <section style={{ marginTop: 36 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Discount code</h2>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                placeholder="Discount code"
-                value={discountCode}
-                onChange={(e) => {
-                  setDiscountCode(e.target.value);
-                  if (appliedDiscount) setAppliedDiscount(null);
-                  setDiscountMessage('');
-                }}
-                style={{ ...input, flex: 1 }}
-              />
-              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-            </div>
-            {discountMessage && (
-              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-            )}
-          </section>
-
           {error && <p style={errorText}>{error}</p>}
 
           <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting ? 0.6 : 1 }}>
@@ -520,6 +498,24 @@ export default function CheckoutPage() {
             <span style={{ fontFamily: T.serif, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.serif, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <input
+              placeholder="Discount code"
+              value={discountCode}
+              onChange={(e) => {
+                setDiscountCode(e.target.value);
+                if (appliedDiscount) setAppliedDiscount(null);
+                setDiscountMessage('');
+              }}
+              style={{ ...input, flex: 1 }}
+            />
+            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
+          </div>
+          {discountMessage && (
+            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+          )}
+
           {siteReviews.count > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
               <span style={{ color: T.ink, letterSpacing: '2px', fontSize: 14 }}>
