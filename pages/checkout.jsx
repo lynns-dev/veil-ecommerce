@@ -5,6 +5,7 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -162,6 +163,14 @@ export default function CheckoutPage() {
   }, [hydrated]);
 
   const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
+
+  const reviewsByProduct = useAllReviews();
+  const siteReviews = React.useMemo(() => {
+    const all = Object.values(reviewsByProduct).flatMap((r) => r.reviews || []);
+    const count = all.length;
+    const average = count === 0 ? 0 : Math.round((all.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
+    return { count, average };
+  }, [reviewsByProduct]);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
@@ -479,6 +488,16 @@ export default function CheckoutPage() {
             <span style={{ fontFamily: T.serif, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.serif, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
+          {siteReviews.count > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
+              <span style={{ color: T.ink, letterSpacing: '2px', fontSize: 14 }}>
+                {'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}
+              </span>
+              <span style={{ fontSize: 12, color: T.soft }}>
+                {siteReviews.average.toFixed(1)} · {siteReviews.count} review{siteReviews.count === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
         </aside>
       </div>
 
