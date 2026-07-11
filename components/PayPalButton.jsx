@@ -1,5 +1,6 @@
 import React from 'react';
 import { generateEventId } from '../lib/fbPixel';
+import { getStoredAttribution } from '../lib/attribution';
 
 let sdkPromise = null;
 
@@ -69,6 +70,7 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
                   items: stateRef.current.items,
                   eventId: stateRef.current.eventId,
                   url: stateRef.current.url,
+                  attribution: getStoredAttribution(),
                 }),
               });
               const result = await res.json();

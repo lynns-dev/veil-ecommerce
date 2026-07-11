@@ -7,6 +7,7 @@ import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { useAllReviews } from '../lib/useReviews';
+import { getStoredAttribution } from '../lib/attribution';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -242,6 +243,7 @@ export default function CheckoutPage() {
           eventId: purchaseEventId,
           url: window.location.href,
           paymentMethod: CARD_BRANDS.find((b) => b.id === cardBrand)?.label || 'Card',
+          attribution: getStoredAttribution(),
         }),
       });
       const data = await res.json();
