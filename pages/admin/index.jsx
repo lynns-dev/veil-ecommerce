@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { PRODUCTS } from '../../lib/products';
 import { parseCsv } from '../../lib/csv';
+import WorldMap from '../../components/WorldMap';
 import { T, S } from '../../lib/theme';
 
 function urlBase64ToUint8Array(base64String) {
@@ -93,6 +94,12 @@ export default function AdminDashboard() {
   const [discountFormMessage, setDiscountFormMessage] = React.useState('');
   const [notifStatus, setNotifStatus] = React.useState('unsupported'); // unsupported | denied | off | on | busy
   const [notifMessage, setNotifMessage] = React.useState('');
+  const [hoveredCountry, setHoveredCountry] = React.useState(null);
+
+  const mapCounts = React.useMemo(
+    () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
+    [live.byCountry]
+  );
 
   React.useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -385,7 +392,18 @@ export default function AdminDashboard() {
           {live.count === 0 ? (
             <p style={{ color: T.soft, fontSize: 14 }}>No one on the site right now.</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <>
+              <div style={{ position: 'relative', marginBottom: 24 }}>
+                <WorldMap counts={mapCounts} onHoverCountry={setHoveredCountry} />
+                <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 12, color: T.soft, background: T.paper, padding: hoveredCountry ? '4px 8px' : 0 }}>
+                  {hoveredCountry && (
+                    <span>
+                      {countryFlag(hoveredCountry.toUpperCase())} {countryName(hoveredCountry.toUpperCase())} — {live.byCountry[hoveredCountry.toUpperCase()]?.count ?? mapCounts[hoveredCountry]}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {Object.entries(live.byCountry)
                 .sort((a, b) => b[1].count - a[1].count)
                 .map(([code, data]) => (
@@ -405,7 +423,8 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 ))}
-            </div>
+              </div>
+            </>
           )}
         </Section>
 
