@@ -111,7 +111,16 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
 
         buttons.render(containerRef.current);
       })
-      .catch((err) => onError?.(err.message));
+      .catch((err) => {
+        // The SDK failing to *load* (blocked by an ad/privacy blocker, a
+        // network hiccup, a bad client ID) happens before the shopper has
+        // touched anything — it shouldn't surface as a page-level error
+        // next to the card form. Just hide this button; card checkout still
+        // works. A failure *during* an actual payment attempt is handled by
+        // the onError callback above and does get reported.
+        console.error('PayPal SDK load failed:', err);
+        if (!cancelled) setEligible(false);
+      });
 
     return () => {
       cancelled = true;
