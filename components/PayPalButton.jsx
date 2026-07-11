@@ -11,7 +11,10 @@ function loadPaypalSdk(clientId) {
 
   sdkPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture`;
+    // disable-funding=card suppresses PayPal's own separate "Debit or Credit
+    // Card" button — the site already has its own card checkout via
+    // QuickBooks, so only the PayPal-account button should render here.
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card`;
     script.onload = () => resolve(window.paypal);
     script.onerror = () => reject(new Error('Failed to load the PayPal SDK.'));
     document.body.appendChild(script);
