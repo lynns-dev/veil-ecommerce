@@ -16,29 +16,40 @@ const US_STATES = [
 
 const emptyAddress = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
+function LockIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function AddressFields({ value, onChange, idPrefix }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
+  const section = idPrefix === 'bill' ? 'billing' : 'shipping';
   return (
     <>
       <div className="row-2">
-        <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={input} required />
-        <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={input} required />
+        <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={input} autoComplete={`${section} given-name`} required />
+        <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={input} autoComplete={`${section} family-name`} required />
       </div>
-      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 12 }} required />
-      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 12 }} />
+      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 12 }} autoComplete={`${section} address-line1`} required />
+      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 12 }} autoComplete={`${section} address-line2`} />
       <div className="row-3" style={{ marginTop: 12 }}>
-        <input placeholder="City" value={value.city} onChange={set('city')} style={input} required />
-        <select value={value.state} onChange={set('state')} style={input} required>
+        <input placeholder="City" value={value.city} onChange={set('city')} style={input} autoComplete={`${section} address-level2`} required />
+        <select value={value.state} onChange={set('state')} style={input} autoComplete={`${section} address-level1`} required>
           <option value="">State</option>
           {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <input placeholder="ZIP code" value={value.zip} onChange={set('zip')} style={input} required />
+        <input placeholder="ZIP code" value={value.zip} onChange={set('zip')} style={input} autoComplete={`${section} postal-code`} required />
       </div>
       <input
         placeholder="Phone (optional)"
         value={value.phone}
         onChange={set('phone')}
         style={{ ...input, marginTop: 12 }}
+        autoComplete={`${section} tel`}
         id={idPrefix ? `${idPrefix}-phone` : undefined}
       />
     </>
@@ -93,7 +104,7 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  const shippingCost = total >= 50 || cart.length === 0 ? 0 : 6;
+  const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
   const codeDiscountAmount = !appliedDiscount
@@ -200,6 +211,7 @@ export default function CheckoutPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={input}
+              autoComplete="email"
               required
             />
             <label style={checkboxLabel}>
@@ -291,11 +303,37 @@ export default function CheckoutPage() {
             )}
           </section>
 
+          <section style={{ marginTop: 36 }}>
+            <div style={sectionHead}>
+              <h2 style={sectionTitle}>Discount code</h2>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                placeholder="Discount code"
+                value={discountCode}
+                onChange={(e) => {
+                  setDiscountCode(e.target.value);
+                  if (appliedDiscount) setAppliedDiscount(null);
+                  setDiscountMessage('');
+                }}
+                style={{ ...input, flex: 1 }}
+              />
+              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
+            </div>
+            {discountMessage && (
+              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+            )}
+          </section>
+
           {error && <p style={errorText}>{error}</p>}
 
           <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
           </button>
+          <div style={secureNote}>
+            <LockIcon />
+            <span>Secure, encrypted checkout</span>
+          </div>
         </form>
 
         <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
@@ -314,23 +352,6 @@ export default function CheckoutPage() {
               </div>
             ))}
           </div>
-
-          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-            <input
-              placeholder="Discount code"
-              value={discountCode}
-              onChange={(e) => {
-                setDiscountCode(e.target.value);
-                if (appliedDiscount) setAppliedDiscount(null);
-                setDiscountMessage('');
-              }}
-              style={{ ...input, flex: 1 }}
-            />
-            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-          </div>
-          {discountMessage && (
-            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginBottom: 12 }}>{discountMessage}</p>
-          )}
 
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Subtotal</span>
@@ -377,7 +398,7 @@ export default function CheckoutPage() {
         @media (max-width: 860px) {
           .checkout-grid { grid-template-columns: 1fr; }
           .summary-toggle { display: flex; }
-          .order-summary { display: none; }
+          .order-summary { display: none; order: -1; border-bottom: 1px solid ${T.line}; }
           .order-summary.open { display: block; }
         }
         @media (max-width: 520px) {
@@ -394,9 +415,10 @@ const summaryToggle = {
   padding: '16px 24px', alignItems: 'center', justifyContent: 'space-between',
   cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
 };
-const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto' };
+const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto', columnGap: 56, rowGap: 32 };
 const formCol = { padding: '48px 40px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '48px 40px', background: T.paper };
+const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 22, margin: 0 };
 const input = {
