@@ -3,9 +3,27 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
+import { fbTrack } from '../lib/fbPixel';
 import { T, S } from '../lib/theme';
 
 export default function SuccessPage() {
+  React.useEffect(() => {
+    const raw = sessionStorage.getItem('veil-purchase');
+    if (!raw) return;
+    sessionStorage.removeItem('veil-purchase');
+    try {
+      const purchase = JSON.parse(raw);
+      fbTrack('Purchase', {
+        content_ids: purchase.contentIds,
+        contents: purchase.contents,
+        value: purchase.amount,
+        currency: 'USD',
+      }, purchase.eventId);
+    } catch {
+      // malformed sessionStorage value — nothing to track
+    }
+  }, []);
+
   return (
     <div>
       <Header cartCount={0} onCartClick={() => {}} />

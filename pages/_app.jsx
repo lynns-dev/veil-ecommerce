@@ -1,9 +1,11 @@
 import React from 'react';
 import { useRouter } from 'next/router';
 import { CartProvider, useCart } from '../lib/useCart';
+import { loadPixel, fbTrack } from '../lib/fbPixel';
 
 const SESSION_STORAGE_KEY = 'veil-session-id';
 const HEARTBEAT_MS = 10000;
+const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
 // Fire-and-forget analytics pings live here (inside CartProvider, so it can
 // read cart-open state) rather than duplicated across every page.
@@ -11,6 +13,7 @@ function Tracking() {
   const router = useRouter();
   const cart = useCart();
   const sessionIdRef = React.useRef(null);
+  const isAdmin = router.pathname.startsWith('/admin');
 
   React.useEffect(() => {
     let id = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -20,6 +23,17 @@ function Tracking() {
     }
     sessionIdRef.current = id;
   }, []);
+
+  // Meta Pixel — never on /admin, that traffic isn't customer activity.
+  React.useEffect(() => {
+    if (isAdmin || !PIXEL_ID) return;
+    loadPixel(PIXEL_ID);
+  }, [isAdmin]);
+
+  React.useEffect(() => {
+    if (isAdmin) return;
+    fbTrack('PageView');
+  }, [router.asPath, isAdmin]);
 
   React.useEffect(() => {
     fetch('/api/track/event', {

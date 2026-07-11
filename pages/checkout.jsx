@@ -5,6 +5,7 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { DISCOUNTS } from '../lib/discounts';
+import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -67,10 +68,18 @@ export default function CheckoutPage() {
 
   React.useEffect(() => {
     if (!hydrated || cart.length === 0) return;
+    const eventId = generateEventId();
+    fbTrack('InitiateCheckout', {
+      content_ids: cart.map((i) => i.id),
+      contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+      value: total,
+      currency: 'USD',
+      num_items: cart.reduce((s, i) => s + i.quantity, 0),
+    }, eventId);
     fetch('/api/track/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'checkout_start' }),
+      body: JSON.stringify({ event: 'checkout_start', eventId, value: total }),
       keepalive: true,
     }).catch(() => {});
     // Fire once per checkout page load, not on every cart mutation.
@@ -103,6 +112,7 @@ export default function CheckoutPage() {
     setError('');
     setSubmitting(true);
     try {
+      const purchaseEventId = generateEventId();
       const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
       const billingAddress = billingSame ? shipping : billing;
       const token = await tokenizeCard(
@@ -130,10 +140,18 @@ export default function CheckoutPage() {
           email,
           shipping,
           billing: billingSame ? shipping : billing,
+          eventId: purchaseEventId,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Payment failed');
+
+      sessionStorage.setItem('veil-purchase', JSON.stringify({
+        eventId: purchaseEventId,
+        amount: grandTotal,
+        contentIds: cart.map((i) => i.id),
+        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+      }));
 
       await router.push('/success');
       clear();

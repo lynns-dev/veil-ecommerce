@@ -8,6 +8,7 @@ import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
 import { PRODUCTS, getProductById } from '../../lib/products';
 import { useCart } from '../../lib/useCart';
+import { fbTrack } from '../../lib/fbPixel';
 import { T, S } from '../../lib/theme';
 
 const INGREDIENTS = 'Arrowroot powder, kaolin clay, rice bran powder, skin-safe mica, clean fragrance.';
@@ -93,6 +94,17 @@ export default function ProductPage({ product }) {
       .then((r) => r.json())
       .then((data) => setReviewData(data))
       .catch(() => {});
+  }, [product]);
+
+  React.useEffect(() => {
+    if (!product) return;
+    fbTrack('ViewContent', {
+      content_ids: [product.id],
+      content_name: product.name,
+      content_type: 'product',
+      value: product.price,
+      currency: 'USD',
+    });
   }, [product]);
 
   const handleReviewSubmit = async (e) => {
