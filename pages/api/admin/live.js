@@ -13,6 +13,17 @@ const WINDOW_MS = 5 * 60 * 1000;
 const BUCKET_MS = 60 * 1000;
 const BUCKET_COUNT = WINDOW_MS / BUCKET_MS;
 
+function parseVisitorValue(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Brief transition window right after deploy — old entries were a
+    // plain stage string, not JSON. They expire within 25s on their own.
+    return { stage: raw, city: null, country: 'XX' };
+  }
+}
+
 async function getLiveVisitors() {
   const keysRes = await fetch(`${KV_URL}/keys/visitor:*`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
   const keysData = await keysRes.json();
@@ -22,26 +33,25 @@ async function getLiveVisitors() {
 
   const mgetRes = await fetch(`${KV_URL}/mget/${keys.join('/')}`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
   const mgetData = await mgetRes.json();
-  const entries = mgetData.result || [];
+  const visitors = (mgetData.result || []).map(parseVisitorValue).filter(Boolean);
 
   const byStage = {};
+  // Keyed by country code; each entry tracks its own count plus a per-city
+  // breakdown so the admin view can show "New York, US" not just "US".
   const byCountry = {};
-  for (const raw of entries) {
-    if (!raw) continue;
-    // Older heartbeats before country tracking stored the stage as a plain
-    // string — fall back gracefully rather than dropping the visitor.
-    let stage = raw;
-    let country = 'XX';
-    try {
-      const parsed = JSON.parse(raw);
-      stage = parsed.stage;
-      country = parsed.country || 'XX';
-    } catch {
-      // plain string, keep defaults above
-    }
-    if (stage) byStage[stage] = (byStage[stage] || 0) + 1;
-    byCountry[country] = (byCountry[country] || 0) + 1;
+  for (const v of visitors) {
+    if (v.stage) byStage[v.stage] = (byStage[v.stage] || 0) + 1;
+    const country = v.country || 'XX';
+    if (!byCountry[country]) byCountry[country] = { count: 0, cities: {} };
+    byCountry[country].count += 1;
+    if (v.city) byCountry[country].cities[v.city] = (byCountry[country].cities[v.city] || 0) + 1;
   }
+  for (const country of Object.keys(byCountry)) {
+    byCountry[country].cities = Object.entries(byCountry[country].cities)
+      .map(([city, count]) => ({ city, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   return { count: keys.length, byStage, byCountry };
 }
 

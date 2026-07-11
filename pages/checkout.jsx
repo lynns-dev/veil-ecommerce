@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
-import { DISCOUNTS } from '../lib/discounts';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { T, S } from '../lib/theme';
 
@@ -114,14 +113,26 @@ export default function CheckoutPage() {
     : Math.min(appliedDiscount.value, total);
   const grandTotal = Math.max(total - codeDiscountAmount, 0) + shippingCost;
 
-  const handleApplyDiscount = () => {
-    const match = DISCOUNTS.find((d) => d.code.toLowerCase() === discountCode.trim().toLowerCase());
-    if (match) {
-      setAppliedDiscount(match);
-      setDiscountMessage(`Code "${match.code}" applied.`);
-    } else {
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setDiscountMessage('Checking…');
+    try {
+      const res = await fetch('/api/validate-discount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: discountCode }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedDiscount({ code: data.code, type: data.type, value: data.value });
+        setDiscountMessage(`Code "${data.code}" applied.`);
+      } else {
+        setAppliedDiscount(null);
+        setDiscountMessage('That code isn’t valid.');
+      }
+    } catch {
       setAppliedDiscount(null);
-      setDiscountMessage(discountCode.trim() ? 'That code isn’t valid.' : '');
+      setDiscountMessage('Could not check that code — please try again.');
     }
   };
 

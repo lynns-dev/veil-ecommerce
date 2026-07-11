@@ -119,7 +119,8 @@ export default function ProductPage({ product }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not submit review.');
-      setReviewData((prev) => ({ reviews: [...prev.reviews, data.review], average: data.average, count: data.count }));
+      // Pending customer reviews don't show up here until approved in
+      // /admin — reviewData isn't updated, just the thank-you state.
       setReviewForm({ rating: 5, text: '', author: '' });
       setReviewSubmitted(true);
     } catch (err) {
@@ -362,7 +363,7 @@ export default function ProductPage({ product }) {
           <div style={reviewFormWrap}>
             <p style={{ ...S.label, marginBottom: 16 }}>Write a review</p>
             {reviewSubmitted ? (
-              <p style={{ color: T.ink, fontSize: 14 }}>Thank you — your review is live.</p>
+              <p style={{ color: T.ink, fontSize: 14 }}>Thank you — your review has been submitted and will appear once it's approved.</p>
             ) : (
               <form onSubmit={handleReviewSubmit} style={{ textAlign: 'left', maxWidth: 420, margin: '0 auto' }}>
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16 }}>
