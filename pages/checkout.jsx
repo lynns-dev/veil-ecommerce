@@ -15,12 +15,70 @@ const US_STATES = [
 
 const emptyAddress = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
-function LockIcon() {
+function LockIcon(props) {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
+  );
+}
+
+// IIN-range brand detection — good enough to give the user visual
+// confirmation their card is recognized, not used for validation.
+function detectCardBrand(digits) {
+  if (/^4/.test(digits)) return 'visa';
+  if (/^5[1-5]/.test(digits) || /^2(2[2-9]\d|[3-6]\d{2}|7[01]\d|720)/.test(digits)) return 'mastercard';
+  if (/^3[47]/.test(digits)) return 'amex';
+  if (/^6(?:011|5)/.test(digits)) return 'discover';
+  return null;
+}
+
+function formatCardNumber(digits) {
+  if (/^3[47]/.test(digits)) {
+    // Amex: 4-6-5
+    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
+  }
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+const CARD_BRANDS = [
+  { id: 'visa', label: 'Visa', color: '#1a1f71' },
+  { id: 'mastercard', label: 'Mastercard', color: '#eb001b' },
+  { id: 'amex', label: 'Amex', color: '#2e77bc' },
+  { id: 'discover', label: 'Discover', color: '#e57200' },
+];
+
+function CardBrandBadges() {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {CARD_BRANDS.map((b) => (
+        <span
+          key={b.id}
+          style={{
+            fontFamily: T.sans, fontSize: 8, fontWeight: 700, letterSpacing: '0.03em',
+            padding: '3px 5px', borderRadius: 3, color: T.white, background: b.color,
+          }}
+        >
+          {b.label.toUpperCase()}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CardBrandIcon({ brand }) {
+  if (!brand) return null;
+  const b = CARD_BRANDS.find((x) => x.id === brand);
+  return (
+    <span
+      style={{
+        fontFamily: T.sans, fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+        padding: '4px 6px', borderRadius: 3, color: T.white, background: b.color,
+      }}
+    >
+      {b.label.toUpperCase()}
+    </span>
   );
 }
 
@@ -102,6 +160,8 @@ export default function CheckoutPage() {
     // Fire once per checkout page load, not on every cart mutation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
+
+  const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
@@ -254,7 +314,10 @@ export default function CheckoutPage() {
           <section style={{ marginTop: 36 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Payment</h2>
-              <span style={{ fontSize: 11, color: T.soft }}>All transactions are secure and encrypted.</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.soft }}>
+                <LockIcon />
+                All transactions are secure and encrypted.
+              </span>
             </div>
             <div className="row-2">
               <input
@@ -262,6 +325,7 @@ export default function CheckoutPage() {
                 value={card.firstName}
                 onChange={(e) => setCard({ ...card, firstName: e.target.value })}
                 style={input}
+                autoComplete="cc-given-name"
                 required
               />
               <input
@@ -269,17 +333,26 @@ export default function CheckoutPage() {
                 value={card.lastName}
                 onChange={(e) => setCard({ ...card, lastName: e.target.value })}
                 style={input}
+                autoComplete="cc-family-name"
                 required
               />
             </div>
-            <input
-              placeholder="Card number"
-              value={card.number}
-              onChange={(e) => setCard({ ...card, number: e.target.value })}
-              style={{ ...input, marginTop: 12 }}
-              inputMode="numeric"
-              required
-            />
+            <div style={{ position: 'relative', marginTop: 12 }}>
+              <input
+                placeholder="Card number"
+                value={card.number}
+                onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
+                style={{ ...input, paddingRight: cardBrand ? 70 : 14 }}
+                inputMode="numeric"
+                autoComplete="cc-number"
+                required
+              />
+              {cardBrand && (
+                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+                  <CardBrandIcon brand={cardBrand} />
+                </div>
+              )}
+            </div>
             <div className="row-2" style={{ marginTop: 12 }}>
               <input
                 placeholder="Expiration date (MM/YY)"
@@ -292,16 +365,28 @@ export default function CheckoutPage() {
                 style={input}
                 inputMode="numeric"
                 maxLength={5}
+                autoComplete="cc-exp"
                 required
               />
-              <input
-                placeholder="Security code"
-                value={card.cvc}
-                onChange={(e) => setCard({ ...card, cvc: e.target.value })}
-                style={input}
-                inputMode="numeric"
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  placeholder="Security code"
+                  value={card.cvc}
+                  onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                  style={{ ...input, paddingRight: 34 }}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                  required
+                />
+                <span
+                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, cursor: 'help' }}
+                >
+                  <LockIcon />
+                </span>
+              </div>
             </div>
             <label style={checkboxLabel}>
               <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
@@ -343,8 +428,14 @@ export default function CheckoutPage() {
           </button>
           <div style={secureNote}>
             <LockIcon />
-            <span>Secure, encrypted checkout</span>
+            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
+            <CardBrandBadges />
+          </div>
+          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 10 }}>
+            Payments securely processed by QuickBooks Payments (Intuit)
+          </p>
         </form>
 
         <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
