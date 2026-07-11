@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
+import PayPalButton from '../components/PayPalButton';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
@@ -261,6 +262,21 @@ export default function CheckoutPage() {
     }
   };
 
+  const handlePaypalSuccess = async (result) => {
+    sessionStorage.setItem('veil-purchase', JSON.stringify({
+      eventId: result.eventId,
+      amount: result.amount,
+      contentIds: cart.map((i) => i.id),
+      contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+    }));
+    await router.push('/success');
+    clear();
+  };
+
+  const handlePaypalError = (message) => {
+    setError(message || 'PayPal checkout failed. Please try again.');
+  };
+
   if (!hydrated || cart.length === 0) return null;
 
   return (
@@ -282,6 +298,22 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
           <section>
+            <PayPalButton
+              amount={grandTotal}
+              items={cart}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              disabled={submitting}
+              onSuccess={handlePaypalSuccess}
+              onError={handlePaypalError}
+            />
+            <div style={dividerRow}>
+              <span style={dividerLine} />
+              <span style={dividerText}>OR PAY WITH CARD</span>
+              <span style={dividerLine} />
+            </div>
+          </section>
+
+          <section style={{ marginTop: 32 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Contact</h2>
             </div>
@@ -539,6 +571,9 @@ const summaryToggle = {
 const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto', columnGap: 56, rowGap: 32 };
 const formCol = { padding: '48px 40px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '48px 40px', background: T.paper };
+const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0 0' };
+const dividerLine = { flex: 1, height: 1, background: T.line };
+const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 22, margin: 0 };
