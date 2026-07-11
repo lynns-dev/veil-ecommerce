@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { token, amount, items, eventId, url } = req.body;
+    const { token, amount, items, eventId, url, paymentMethod } = req.body;
 
     if (!token) return res.status(400).json({ error: 'Missing card token' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      await recordOrder({ id: data.id, amount: Number(amount), items, createdAt: new Date().toISOString() });
+      await recordOrder({ id: data.id, amount: Number(amount), items, paymentMethod: paymentMethod || 'Unknown', createdAt: new Date().toISOString() });
       await incrementEvent('purchase');
       await logEvent('purchase', { amount: Number(amount) });
       const itemCount = items.length;

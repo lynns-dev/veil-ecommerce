@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
+import { detectCardBrand } from '../lib/cardBrand';
 import { DISCOUNTS } from '../lib/discounts';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { T, S } from '../lib/theme';
@@ -160,6 +161,7 @@ export default function CheckoutPage() {
           billing: billingSame ? shipping : billing,
           eventId: purchaseEventId,
           url: window.location.href,
+          paymentMethod: detectCardBrand(card.number),
         }),
       });
       const data = await res.json();

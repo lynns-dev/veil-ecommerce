@@ -12,9 +12,22 @@ export default async function handler(req, res) {
 
     const rate = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
 
+    const methodTotals = new Map();
+    for (const o of orders) {
+      const method = o.paymentMethod || 'Unknown';
+      const entry = methodTotals.get(method) || { count: 0, revenue: 0 };
+      entry.count += 1;
+      entry.revenue += Number(o.amount || 0);
+      methodTotals.set(method, entry);
+    }
+    const paymentMethods = [...methodTotals.entries()]
+      .map(([method, { count, revenue }]) => ({ method, count, revenue }))
+      .sort((a, b) => b.count - a.count);
+
     return res.status(200).json({
       revenueToday: revenue,
       ordersToday: orders.length,
+      paymentMethods,
       funnel: {
         pageviews: events.pageview,
         addToCart: events.addtocart,

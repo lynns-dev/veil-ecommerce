@@ -317,6 +317,30 @@ export default function AdminDashboard() {
           )}
         </Section>
 
+        {/* PAYMENT METHODS */}
+        <Section title="Payment methods today">
+          {!dashboard || dashboard.paymentMethods.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No orders yet today.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {dashboard.paymentMethods.map(({ method, count, revenue }) => {
+                const maxCount = Math.max(...dashboard.paymentMethods.map((m) => m.count));
+                return (
+                  <div key={method} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 13, width: 110, flexShrink: 0 }}>{method}</span>
+                    <div style={{ flex: 1, height: 8, background: T.paper }}>
+                      <div style={{ height: '100%', width: `${(count / maxCount) * 100}%`, background: T.ink }} />
+                    </div>
+                    <span style={{ fontSize: 13, color: T.soft, width: 90, textAlign: 'right', flexShrink: 0 }}>
+                      {count} order{count === 1 ? '' : 's'} · ${revenue.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
         {/* FUNNEL / CONVERSION */}
         <Section title="Today's funnel">
           {dashboard && (
