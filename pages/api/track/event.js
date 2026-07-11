@@ -4,6 +4,7 @@
 
 import { incrementEvent, logEvent } from '../../../lib/analyticsStore';
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
+import { isExcludedIp } from '../../../lib/ipFilter';
 
 const ALLOWED = ['pageview', 'addtocart', 'checkout_start'];
 // Logged to the timestamped recent-events feed for the live-activity view.
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
   }
 
   const { event, productName, eventId, contentId, contentIds, contents, value, url } = req.body || {};
-  if (ALLOWED.includes(event)) {
+  if (ALLOWED.includes(event) && !isExcludedIp(req)) {
     try {
       await incrementEvent(event);
       if (LOGGED.includes(event)) await logEvent(event, productName ? { productName } : {});
