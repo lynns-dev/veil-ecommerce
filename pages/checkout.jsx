@@ -301,14 +301,43 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
           <section>
-            <PayPalButton
-              amount={grandTotal}
-              items={cart}
-              url={typeof window !== 'undefined' ? window.location.href : ''}
-              disabled={submitting}
-              onSuccess={handlePaypalSuccess}
-              onError={handlePaypalError}
-            />
+            <div style={expressStack}>
+              <PayPalButton
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="venmo"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="applepay"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <PayPalButton
+                fundingSource="googlepay"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+            </div>
             <div style={dividerRow}>
               <span style={dividerLine} />
               <span style={dividerText}>OR PAY WITH CARD</span>
@@ -570,6 +599,7 @@ const summaryToggle = {
 const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto', columnGap: 56, rowGap: 32 };
 const formCol = { padding: '48px 40px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '48px 40px', background: T.paper };
+const expressStack = { display: 'flex', flexDirection: 'column', gap: 10 };
 const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0 0' };
 const dividerLine = { flex: 1, height: 1, background: T.line };
 const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };

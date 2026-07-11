@@ -1,6 +1,5 @@
 import React from 'react';
 import { generateEventId } from '../lib/fbPixel';
-import { getStoredAttribution } from '../lib/attribution';
 
 let sdkPromise = null;
 
@@ -14,8 +13,10 @@ function loadPaypalSdk(clientId) {
     const script = document.createElement('script');
     // disable-funding=card suppresses PayPal's own separate "Debit or Credit
     // Card" button — the site already has its own card checkout via
-    // QuickBooks, so only the PayPal-account button should render here.
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card`;
+    // QuickBooks, so only wallet buttons should render here. enable-funding
+    // opts into Venmo/Apple Pay/Google Pay, which the SDK doesn't render by
+    // default even on merchant accounts that support them.
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card&enable-funding=venmo,applepay,googlepay`;
     script.onload = () => resolve(window.paypal);
     script.onerror = () => reject(new Error('Failed to load the PayPal SDK.'));
     document.body.appendChild(script);
@@ -23,17 +24,32 @@ function loadPaypalSdk(clientId) {
   return sdkPromise;
 }
 
+const FUNDING_LABELS = {
+  paypal: 'PayPal',
+  venmo: 'Venmo',
+  applepay: 'Apple Pay',
+  googlepay: 'Google Pay',
+};
+
 // amount/items/eventId/url change on every render as the cart/discount
 // change, but paypal.Buttons().render() only runs once — the createOrder/
 // onApprove callbacks it's given are closures from that first render. A ref
 // keeps them reading the current values without tearing down and
 // re-rendering the button on every keystroke.
-export default function PayPalButton({ amount, items, url, disabled, onSuccess, onError }) {
+//
+// fundingSource picks which wallet button this instance renders — 'paypal'
+// (default), 'venmo', 'applepay', or 'googlepay'. Apple Pay/Google Pay only
+// render at all once eligible (Safari + Apple Pay set up, or a Google Pay
+// account, respectively, AND the merchant account has that wallet enabled
+// in the PayPal dashboard) — isEligible() gates this per instance so an
+// unsupported wallet just doesn't render anything, no broken button.
+export default function PayPalButton({ amount, items, url, disabled, onSuccess, onError, fundingSource = 'paypal' }) {
   const containerRef = React.useRef(null);
   const stateRef = React.useRef({ amount, items, url, eventId: null });
   stateRef.current.amount = amount;
   stateRef.current.items = items;
   stateRef.current.url = url;
+  const [eligible, setEligible] = React.useState(true);
 
   React.useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
@@ -45,47 +61,55 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
       .then((paypal) => {
         if (cancelled || !containerRef.current) return;
 
-        paypal
-          .Buttons({
-            // No color/shape/label overrides — renders PayPal's own default
-            // branded button rather than a custom-styled variant.
-            style: { layout: 'vertical', height: 45 },
-            createOrder: async () => {
-              stateRef.current.eventId = generateEventId();
-              const res = await fetch('/api/paypal/create-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: stateRef.current.amount }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Could not start PayPal checkout.');
-              return data.id;
-            },
-            onApprove: async (data) => {
-              const res = await fetch('/api/paypal/capture-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  orderId: data.orderID,
-                  items: stateRef.current.items,
-                  eventId: stateRef.current.eventId,
-                  url: stateRef.current.url,
-                  attribution: getStoredAttribution(),
-                }),
-              });
-              const result = await res.json();
-              if (!res.ok) {
-                onError?.(result.error || 'Payment could not be completed.');
-                return;
-              }
-              onSuccess?.({ ...result, eventId: stateRef.current.eventId });
-            },
-            onError: (err) => {
-              console.error('PayPal button error:', err);
-              onError?.('PayPal checkout failed. Please try again.');
-            },
-          })
-          .render(containerRef.current);
+        const resolvedFundingSource = fundingSource === 'paypal' ? undefined : paypal.FUNDING[fundingSource.toUpperCase()];
+
+        const buttons = paypal.Buttons({
+          fundingSource: resolvedFundingSource,
+          // No color/shape/label overrides — renders PayPal's own default
+          // branded button rather than a custom-styled variant.
+          style: { layout: 'vertical', height: 45 },
+          createOrder: async () => {
+            stateRef.current.eventId = generateEventId();
+            const res = await fetch('/api/paypal/create-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount: stateRef.current.amount }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Could not start PayPal checkout.');
+            return data.id;
+          },
+          onApprove: async (data) => {
+            const res = await fetch('/api/paypal/capture-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId: data.orderID,
+                items: stateRef.current.items,
+                eventId: stateRef.current.eventId,
+                url: stateRef.current.url,
+                paymentMethod: FUNDING_LABELS[fundingSource] || 'PayPal',
+              }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+              onError?.(result.error || 'Payment could not be completed.');
+              return;
+            }
+            onSuccess?.({ ...result, eventId: stateRef.current.eventId });
+          },
+          onError: (err) => {
+            console.error('PayPal button error:', err);
+            onError?.('PayPal checkout failed. Please try again.');
+          },
+        });
+
+        if (!buttons.isEligible()) {
+          setEligible(false);
+          return;
+        }
+
+        buttons.render(containerRef.current);
       })
       .catch((err) => onError?.(err.message));
 
@@ -94,6 +118,8 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (!eligible) return null;
 
   return (
     <div style={{ opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
