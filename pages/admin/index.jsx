@@ -31,10 +31,29 @@ function timeAgo(ts) {
   return `${Math.round(seconds / 60)}m ago`;
 }
 
+const countryNames = typeof Intl !== 'undefined' && Intl.DisplayNames
+  ? new Intl.DisplayNames(['en'], { type: 'region' })
+  : null;
+
+function countryFlag(code) {
+  if (!code || code === 'XX' || code.length !== 2) return '🌐';
+  const codePoints = [...code.toUpperCase()].map((c) => 0x1f1e6 - 65 + c.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+}
+
+function countryName(code) {
+  if (!code || code === 'XX') return 'Unknown';
+  try {
+    return countryNames?.of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
-  const [live, setLive] = React.useState({ count: 0, byStage: {}, activity: EMPTY_ACTIVITY });
+  const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, activity: EMPTY_ACTIVITY });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
@@ -217,6 +236,28 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
                 </div>
               ))}
+            </div>
+          )}
+        </Section>
+
+        {/* LIVE LOCATIONS */}
+        <Section title="Live visitors by location">
+          {live.count === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No one on the site right now.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {Object.entries(live.byCountry)
+                .sort((a, b) => b[1] - a[1])
+                .map(([code, count]) => (
+                  <div key={code} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 18, width: 24, flexShrink: 0 }}>{countryFlag(code)}</span>
+                    <span style={{ fontSize: 13, width: 140, flexShrink: 0 }}>{countryName(code)}</span>
+                    <div style={{ flex: 1, height: 8, background: T.paper }}>
+                      <div style={{ height: '100%', width: `${(count / live.count) * 100}%`, background: T.ink }} />
+                    </div>
+                    <span style={{ fontSize: 13, color: T.soft, width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                  </div>
+                ))}
             </div>
           )}
         </Section>

@@ -18,18 +18,31 @@ async function getLiveVisitors() {
   const keysData = await keysRes.json();
   const keys = keysData.result || [];
 
-  if (keys.length === 0) return { count: 0, byStage: {} };
+  if (keys.length === 0) return { count: 0, byStage: {}, byCountry: {} };
 
   const mgetRes = await fetch(`${KV_URL}/mget/${keys.join('/')}`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
   const mgetData = await mgetRes.json();
-  const stages = mgetData.result || [];
+  const entries = mgetData.result || [];
 
   const byStage = {};
-  for (const stage of stages) {
-    if (!stage) continue;
-    byStage[stage] = (byStage[stage] || 0) + 1;
+  const byCountry = {};
+  for (const raw of entries) {
+    if (!raw) continue;
+    // Older heartbeats before country tracking stored the stage as a plain
+    // string — fall back gracefully rather than dropping the visitor.
+    let stage = raw;
+    let country = 'XX';
+    try {
+      const parsed = JSON.parse(raw);
+      stage = parsed.stage;
+      country = parsed.country || 'XX';
+    } catch {
+      // plain string, keep defaults above
+    }
+    if (stage) byStage[stage] = (byStage[stage] || 0) + 1;
+    byCountry[country] = (byCountry[country] || 0) + 1;
   }
-  return { count: keys.length, byStage };
+  return { count: keys.length, byStage, byCountry };
 }
 
 function buildActivity(events) {

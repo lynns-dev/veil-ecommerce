@@ -24,10 +24,13 @@ export default async function handler(req, res) {
     KV_TOKEN
   ) {
     try {
+      // Vercel sets this header at the edge for every request — no external
+      // geo-IP lookup needed. Falls back to 'XX' locally / off Vercel.
+      const country = req.headers['x-vercel-ip-country'] || 'XX';
       await fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${KV_TOKEN}` },
-        body: stage,
+        body: JSON.stringify({ stage, country }),
       });
     } catch (err) {
       console.error('Heartbeat failed:', err);
