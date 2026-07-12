@@ -52,10 +52,17 @@ const CARD_BRANDS = [
   { id: 'discover', label: 'Discover', color: '#e57200' },
 ];
 
+// Shows a couple of the most recognizable brands plus a "+N" count for the
+// rest — the point is signaling "we take lots of card types," not listing
+// every logo (which also doesn't reliably fit next to the "Credit card"
+// label on a phone screen).
+const VISIBLE_CARD_BRANDS = CARD_BRANDS.slice(0, 2);
+const HIDDEN_CARD_BRAND_COUNT = CARD_BRANDS.length - VISIBLE_CARD_BRANDS.length;
+
 function CardBrandBadges() {
   return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-      {CARD_BRANDS.map((b) => (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      {VISIBLE_CARD_BRANDS.map((b) => (
         <span
           key={b.id}
           style={{
@@ -66,6 +73,16 @@ function CardBrandBadges() {
           {b.label.toUpperCase()}
         </span>
       ))}
+      {HIDDEN_CARD_BRAND_COUNT > 0 && (
+        <span
+          style={{
+            fontFamily: T.sans, fontSize: 8, fontWeight: 700,
+            padding: '3px 5px', borderRadius: 3, color: T.soft, background: T.white, border: `1px solid ${T.line}`,
+          }}
+        >
+          +{HIDDEN_CARD_BRAND_COUNT}
+        </span>
+      )}
     </div>
   );
 }
