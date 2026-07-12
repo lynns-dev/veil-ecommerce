@@ -7,11 +7,35 @@ import { getProductById } from '../lib/products';
 const FREE_SHIP_AT = 50;
 const FREE_GIFT_AT = 70;
 
-export default function CartDrawer({ cart, open, onClose, remove, setQty, total, add }) {
+export default function CartDrawer({
+  cart, open, onClose, remove, setQty, total, add,
+  appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal,
+}) {
   const [discountCode, setDiscountCode] = React.useState('');
+  const [discountMessage, setDiscountMessage] = React.useState('');
+  const [discountSubmitting, setDiscountSubmitting] = React.useState(false);
   const puff = getProductById('puff');
   const hasPuff = cart.some((i) => i.id === 'puff');
   const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
+
+  React.useEffect(() => {
+    if (appliedDiscount) setDiscountCode(appliedDiscount.code);
+  }, [appliedDiscount]);
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setDiscountSubmitting(true);
+    setDiscountMessage('Checking…');
+    const data = await applyDiscount(discountCode);
+    setDiscountSubmitting(false);
+    if (data.valid) {
+      setDiscountMessage(`Code "${data.code}" applied.`);
+    } else if (data.error) {
+      setDiscountMessage('Could not check that code — please try again.');
+    } else {
+      setDiscountMessage('That code isn’t valid.');
+    }
+  };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
@@ -106,14 +130,23 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
         </div>
 
         {cart.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexShrink: 0 }}>
-            <input
-              placeholder="Discount code"
-              value={discountCode}
-              onChange={(e) => setDiscountCode(e.target.value)}
-              style={discountInput}
-            />
-            <button type="button" style={S.btnOutline}>Apply</button>
+          <div style={{ marginTop: 16, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                placeholder="Discount code"
+                value={discountCode}
+                onChange={(e) => {
+                  setDiscountCode(e.target.value);
+                  if (appliedDiscount) clearDiscount();
+                  setDiscountMessage('');
+                }}
+                style={discountInput}
+              />
+              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount} disabled={discountSubmitting}>Apply</button>
+            </div>
+            {discountMessage && (
+              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 6 }}>{discountMessage}</p>
+            )}
           </div>
         )}
 
@@ -128,10 +161,16 @@ export default function CartDrawer({ cart, open, onClose, remove, setQty, total,
               <span>−${discountTotal.toFixed(2)}</span>
             </div>
           )}
+          {codeDiscountAmount > 0 && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
+              <span>−${codeDiscountAmount.toFixed(2)}</span>
+            </div>
+          )}
           <p style={shippingNote}>{freeShipping ? 'Free shipping' : 'Shipping and taxes calculated at checkout'}</p>
           <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0 18px' }}>
             <span style={S.label}>Total</span>
-            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${total.toFixed(2)}</span>
+            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${discountedTotal.toFixed(2)}</span>
           </div>
           <Link
             href="/checkout"

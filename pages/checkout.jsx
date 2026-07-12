@@ -176,7 +176,7 @@ function AddressFields({ value, onChange, idPrefix }) {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, total, hydrated, clear } = useCart();
+  const { cart, total, hydrated, clear, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
 
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
@@ -185,11 +185,14 @@ export default function CheckoutPage() {
   const [billing, setBilling] = React.useState(emptyAddress);
   const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '' });
   const [discountCode, setDiscountCode] = React.useState('');
-  const [appliedDiscount, setAppliedDiscount] = React.useState(null);
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    if (appliedDiscount) setDiscountCode(appliedDiscount.code);
+  }, [appliedDiscount]);
 
   React.useEffect(() => {
     if (hydrated && cart.length === 0) router.replace('/shop');
@@ -228,33 +231,18 @@ export default function CheckoutPage() {
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
-  const codeDiscountAmount = !appliedDiscount
-    ? 0
-    : appliedDiscount.type === 'percent'
-    ? Math.round(total * (appliedDiscount.value / 100) * 100) / 100
-    : Math.min(appliedDiscount.value, total);
-  const grandTotal = Math.max(total - codeDiscountAmount, 0) + shippingCost;
+  const grandTotal = discountedTotal + shippingCost;
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return;
     setDiscountMessage('Checking…');
-    try {
-      const res = await fetch('/api/validate-discount', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: discountCode }),
-      });
-      const data = await res.json();
-      if (data.valid) {
-        setAppliedDiscount({ code: data.code, type: data.type, value: data.value });
-        setDiscountMessage(`Code "${data.code}" applied.`);
-      } else {
-        setAppliedDiscount(null);
-        setDiscountMessage('That code isn’t valid.');
-      }
-    } catch {
-      setAppliedDiscount(null);
+    const data = await applyDiscount(discountCode);
+    if (data.valid) {
+      setDiscountMessage(`Code "${data.code}" applied.`);
+    } else if (data.error) {
       setDiscountMessage('Could not check that code — please try again.');
+    } else {
+      setDiscountMessage('That code isn’t valid.');
     }
   };
 
@@ -510,7 +498,7 @@ export default function CheckoutPage() {
                 value={discountCode}
                 onChange={(e) => {
                   setDiscountCode(e.target.value);
-                  if (appliedDiscount) setAppliedDiscount(null);
+                  if (appliedDiscount) clearDiscount();
                   setDiscountMessage('');
                 }}
                 style={{ ...input, flex: 1 }}
@@ -591,7 +579,7 @@ export default function CheckoutPage() {
               value={discountCode}
               onChange={(e) => {
                 setDiscountCode(e.target.value);
-                if (appliedDiscount) setAppliedDiscount(null);
+                if (appliedDiscount) clearDiscount();
                 setDiscountMessage('');
               }}
               style={{ ...input, flex: 1 }}
