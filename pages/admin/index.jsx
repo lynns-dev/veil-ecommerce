@@ -15,8 +15,9 @@ function urlBase64ToUint8Array(base64String) {
 
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
+// No "product" entry: which product a CSV belongs to is now chosen once in
+// the admin UI before upload, rather than matched per-row from a column.
 const FIELD_ALIASES = {
-  product: ['product', 'product_id', 'product name', 'product_name', 'product_title', 'title', 'handle'],
   rating: ['rating', 'stars', 'score'],
   text: ['text', 'review', 'body', 'content', 'review_text', 'review_body', 'comment'],
   author: ['author', 'name', 'reviewer', 'reviewer_name', 'customer', 'customer_name'],
@@ -27,17 +28,6 @@ function pickField(row, key) {
     if (row[alias] !== undefined && row[alias] !== '') return row[alias];
   }
   return '';
-}
-
-function matchProductId(value) {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  const byId = PRODUCTS.find((p) => p.id.toLowerCase() === normalized);
-  if (byId) return byId.id;
-  const byName = PRODUCTS.find((p) => p.name.toLowerCase() === normalized);
-  if (byName) return byName.id;
-  const byPartial = PRODUCTS.find((p) => normalized.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(normalized));
-  return byPartial ? byPartial.id : null;
 }
 
 const LIVE_POLL_MS = 5000;
@@ -107,6 +97,7 @@ export default function AdminDashboard() {
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
   const [importMessage, setImportMessage] = React.useState('');
+  const [csvProductId, setCsvProductId] = React.useState(PRODUCTS[0]?.id || '');
   const [csvStatus, setCsvStatus] = React.useState('idle'); // idle | processing
   const [csvSummary, setCsvSummary] = React.useState(null);
   const [discounts, setDiscounts] = React.useState([]);
@@ -248,7 +239,7 @@ export default function AdminDashboard() {
   const handleCsvFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || !csvProductId) return;
 
     setCsvStatus('processing');
     setCsvSummary(null);
@@ -264,15 +255,10 @@ export default function AdminDashboard() {
     // race and clobber each other.
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const productId = matchProductId(pickField(row, 'product'));
       const rating = Number(pickField(row, 'rating'));
       const text = pickField(row, 'text');
       const author = pickField(row, 'author');
 
-      if (!productId) {
-        skipped.push({ row: i + 2, reason: `Couldn't match product "${pickField(row, 'product')}"` });
-        continue;
-      }
       if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
         skipped.push({ row: i + 2, reason: `Invalid rating "${pickField(row, 'rating')}"` });
         continue;
@@ -286,7 +272,7 @@ export default function AdminDashboard() {
         const res = await fetch('/api/reviews', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId, rating, text, author, source: 'imported' }),
+          body: JSON.stringify({ productId: csvProductId, rating, text, author, source: 'imported' }),
         });
         if (!res.ok) {
           const data = await res.json();
@@ -299,7 +285,8 @@ export default function AdminDashboard() {
       }
     }
 
-    setCsvSummary({ imported, skipped });
+    const productName = PRODUCTS.find((p) => p.id === csvProductId)?.name || csvProductId;
+    setCsvSummary({ imported, skipped, productName });
     setCsvStatus('idle');
     loadReviews();
   };
@@ -673,15 +660,26 @@ export default function AdminDashboard() {
         {/* CSV IMPORT */}
         <Section title="Import reviews from a CSV">
           <p style={{ fontSize: 12, color: T.soft, marginBottom: 16 }}>
-            Columns (any order, header names are flexible): <strong>product</strong> (name or id), <strong>rating</strong> (1–5),{' '}
-            <strong>text</strong>, <strong>author</strong>. Imported reviews publish immediately.
+            Choose the product these reviews are for, then upload a CSV. Columns (any order, header names are
+            flexible): <strong>rating</strong> (1–5), <strong>text</strong>, <strong>author</strong>. Imported
+            reviews publish immediately.
           </p>
-          <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} disabled={csvStatus === 'processing'} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+            <select
+              value={csvProductId}
+              onChange={(e) => setCsvProductId(e.target.value)}
+              disabled={csvStatus === 'processing'}
+              style={{ ...formInput, width: 220 }}
+            >
+              {PRODUCTS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} disabled={csvStatus === 'processing' || !csvProductId} />
+          </div>
           {csvStatus === 'processing' && <p style={{ fontSize: 13, color: T.soft, marginTop: 12 }}>Importing…</p>}
           {csvSummary && (
             <div style={{ marginTop: 16, fontSize: 13 }}>
               <p style={{ color: T.ink, marginBottom: 8 }}>
-                Imported {csvSummary.imported}{csvSummary.skipped.length > 0 ? `, skipped ${csvSummary.skipped.length}` : ''}.
+                Imported {csvSummary.imported} for {csvSummary.productName}{csvSummary.skipped.length > 0 ? `, skipped ${csvSummary.skipped.length}` : ''}.
               </p>
               {csvSummary.skipped.length > 0 && (
                 <div style={{ maxHeight: 200, overflowY: 'auto', color: '#a13d2b' }}>
