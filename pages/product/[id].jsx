@@ -143,7 +143,6 @@ export default function ProductPage({ product }) {
   const toggleFaq = (i) => setOpenFaq((cur) => (cur === i ? null : i));
 
   const unitPrice = product.price;
-  const lineTotal = (unitPrice * quantity).toFixed(2);
 
   const handleAdd = () => {
     c.add({ ...product, price: unitPrice }, quantity);
@@ -212,7 +211,7 @@ export default function ProductPage({ product }) {
                 <span style={qtyValue}>{quantity}</span>
                 <button onClick={() => setQuantity((q) => q + 1)} style={qtyBtn} aria-label="Increase quantity">+</button>
               </div>
-              <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag — ${lineTotal}</button>
+              <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
