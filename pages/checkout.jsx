@@ -374,66 +374,68 @@ export default function CheckoutPage() {
                 All transactions are secure and encrypted.
               </span>
             </div>
-            <div style={{ position: 'relative' }}>
-              <input
-                placeholder="Card number"
-                value={card.number}
-                onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
-                style={{ ...input, paddingRight: cardBrand ? 70 : 14 }}
-                inputMode="numeric"
-                autoComplete="cc-number"
-                required
-              />
-              {cardBrand && (
-                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
-                  <CardBrandIcon brand={cardBrand} />
+            <div style={paymentBox}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  placeholder="Card number"
+                  value={card.number}
+                  onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
+                  style={{ ...input, paddingRight: cardBrand ? 70 : 14 }}
+                  inputMode="numeric"
+                  autoComplete="cc-number"
+                  required
+                />
+                {cardBrand && (
+                  <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+                    <CardBrandIcon brand={cardBrand} />
+                  </div>
+                )}
+              </div>
+              <div className="row-2" style={{ marginTop: 12 }}>
+                <input
+                  placeholder="Expiration date (MM/YY)"
+                  value={card.expiry}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+                    setCard({ ...card, expiry: formatted });
+                  }}
+                  style={input}
+                  inputMode="numeric"
+                  maxLength={5}
+                  autoComplete="cc-exp"
+                  required
+                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    placeholder="Security code"
+                    value={card.cvc}
+                    onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                    style={{ ...input, paddingRight: 34 }}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                    title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                    required
+                  />
+                  <span
+                    title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, cursor: 'help' }}
+                  >
+                    <LockIcon />
+                  </span>
+                </div>
+              </div>
+              <label style={checkboxLabel}>
+                <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
+                Use shipping address as billing address
+              </label>
+              {!billingSame && (
+                <div style={{ marginTop: 16 }}>
+                  <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
                 </div>
               )}
             </div>
-            <div className="row-2" style={{ marginTop: 12 }}>
-              <input
-                placeholder="Expiration date (MM/YY)"
-                value={card.expiry}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
-                  const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-                  setCard({ ...card, expiry: formatted });
-                }}
-                style={input}
-                inputMode="numeric"
-                maxLength={5}
-                autoComplete="cc-exp"
-                required
-              />
-              <div style={{ position: 'relative' }}>
-                <input
-                  placeholder="Security code"
-                  value={card.cvc}
-                  onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                  style={{ ...input, paddingRight: 34 }}
-                  type="password"
-                  inputMode="numeric"
-                  autoComplete="cc-csc"
-                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
-                  required
-                />
-                <span
-                  title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, cursor: 'help' }}
-                >
-                  <LockIcon />
-                </span>
-              </div>
-            </div>
-            <label style={checkboxLabel}>
-              <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
-              Use shipping address as billing address
-            </label>
-            {!billingSame && (
-              <div style={{ marginTop: 16 }}>
-                <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
-              </div>
-            )}
           </section>
 
           <section style={{ marginTop: 36 }}>
@@ -597,6 +599,7 @@ const input = {
   fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 0,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 13, color: T.soft };
+const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 20 };
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', padding: '16px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,
