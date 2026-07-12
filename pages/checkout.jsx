@@ -26,6 +26,16 @@ function LockIcon(props) {
   );
 }
 
+function QuestionIcon(props) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="17" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 // IIN-range brand detection — good enough to give the user visual
 // confirmation their card is recognized, not used for validation.
 function detectCardBrand(digits) {
@@ -184,6 +194,17 @@ export default function CheckoutPage() {
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(emptyAddress);
   const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '' });
+  const [cvcTipOpen, setCvcTipOpen] = React.useState(false);
+  const cvcTipRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!cvcTipOpen) return;
+    const handler = (e) => {
+      if (cvcTipRef.current && !cvcTipRef.current.contains(e.target)) setCvcTipOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [cvcTipOpen]);
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
@@ -426,11 +447,14 @@ export default function CheckoutPage() {
                 <CardBrandBadges />
               </div>
               <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, display: 'flex' }}>
+                  <LockIcon />
+                </span>
                 <input
                   placeholder="Card number"
                   value={card.number}
                   onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
-                  style={{ ...input, paddingRight: cardBrand ? 70 : 14 }}
+                  style={{ ...input, paddingLeft: 34, paddingRight: cardBrand ? 70 : 14 }}
                   inputMode="numeric"
                   autoComplete="cc-number"
                   required
@@ -456,7 +480,7 @@ export default function CheckoutPage() {
                   autoComplete="cc-exp"
                   required
                 />
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }} ref={cvcTipRef}>
                   <input
                     placeholder="Security code"
                     value={card.cvc}
@@ -465,15 +489,24 @@ export default function CheckoutPage() {
                     type="password"
                     inputMode="numeric"
                     autoComplete="cc-csc"
-                    title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
                     required
                   />
-                  <span
-                    title="The 3-digit code on the back of your card (4 digits on the front for Amex)."
-                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, cursor: 'help' }}
+                  <button
+                    type="button"
+                    onClick={() => setCvcTipOpen((o) => !o)}
+                    aria-label="What is the security code?"
+                    style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      color: T.soft, cursor: 'pointer', background: 'none', border: 'none', padding: 0, display: 'flex',
+                    }}
                   >
-                    <LockIcon />
-                  </span>
+                    <QuestionIcon />
+                  </button>
+                  {cvcTipOpen && (
+                    <div style={cvcTooltip}>
+                      The 3-digit code on the back of your card (4 digits on the front for Amex).
+                    </div>
+                  )}
                 </div>
               </div>
               <label style={checkboxLabel}>
@@ -650,6 +683,11 @@ const input = {
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
+const cvcTooltip = {
+  position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, width: 200,
+  background: T.ink, color: T.white, fontSize: 11, lineHeight: 1.4,
+  padding: '8px 10px', borderRadius: 4, zIndex: 5,
+};
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,
