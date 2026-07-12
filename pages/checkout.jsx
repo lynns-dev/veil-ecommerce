@@ -6,7 +6,6 @@ import PayPalButton from '../components/PayPalButton';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
-import { useAllReviews } from '../lib/useReviews';
 import { getStoredAttribution } from '../lib/attribution';
 import { T, S } from '../lib/theme';
 
@@ -224,14 +223,6 @@ export default function CheckoutPage() {
   }, [hydrated]);
 
   const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
-
-  const reviewsByProduct = useAllReviews();
-  const siteReviews = React.useMemo(() => {
-    const all = Object.values(reviewsByProduct).flatMap((r) => r.reviews || []);
-    const count = all.length;
-    const average = count === 0 ? 0 : Math.round((all.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
-    return { count, average };
-  }, [reviewsByProduct]);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
@@ -609,17 +600,6 @@ export default function CheckoutPage() {
           </div>
           {discountMessage && (
             <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-          )}
-
-          {siteReviews.count > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
-              <span style={{ color: T.ink, letterSpacing: '2px', fontSize: 14 }}>
-                {'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}
-              </span>
-              <span style={{ fontSize: 12, color: T.soft }}>
-                {siteReviews.average.toFixed(1)} · {siteReviews.count} review{siteReviews.count === 1 ? '' : 's'}
-              </span>
-            </div>
           )}
         </aside>
       </div>
