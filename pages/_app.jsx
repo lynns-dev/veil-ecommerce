@@ -4,8 +4,8 @@ import { CartProvider, useCart } from '../lib/useCart';
 import { loadPixel, fbTrack } from '../lib/fbPixel';
 import { loadClarity } from '../lib/clarity';
 import { captureAttribution } from '../lib/attribution';
+import { getSessionId } from '../lib/session';
 
-const SESSION_STORAGE_KEY = 'veil-session-id';
 const HEARTBEAT_MS = 10000;
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
@@ -19,12 +19,7 @@ function Tracking() {
   const isAdmin = router.pathname.startsWith('/admin');
 
   React.useEffect(() => {
-    let id = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!id) {
-      id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-    }
-    sessionIdRef.current = id;
+    sessionIdRef.current = getSessionId();
   }, []);
 
   // Meta Pixel — never on /admin, that traffic isn't customer activity.

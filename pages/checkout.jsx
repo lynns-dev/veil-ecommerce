@@ -7,6 +7,7 @@ import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
+import { getSessionId } from '../lib/session';
 import { T, S } from '../lib/theme';
 
 const US_STATES = [
@@ -239,6 +240,7 @@ export default function CheckoutPage() {
         contentIds: cart.map((i) => i.id),
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
         url: window.location.href,
+        sessionId: getSessionId(),
       }),
       keepalive: true,
     }).catch(() => {});

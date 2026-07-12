@@ -60,11 +60,23 @@ function buildActivity(events) {
   const buckets = Array.from({ length: BUCKET_COUNT }, () => ({ addtocart: 0, checkout_start: 0, purchase: 0 }));
 
   const counts = { addtocart: 0, checkout_start: 0, purchase: 0, revenue: 0 };
+  // Headline counts are per visitor, not per action — someone adding 3
+  // items or reloading checkout twice still only counts once. The bucket
+  // sparkline and recent feed below stay un-deduped since those represent
+  // a raw activity pulse, not a visitor total.
+  const seenSessions = { addtocart: new Set(), checkout_start: new Set() };
   for (const ev of events) {
     const age = now - ev.ts;
     const bucketIndex = BUCKET_COUNT - 1 - Math.min(BUCKET_COUNT - 1, Math.floor(age / BUCKET_MS));
     if (buckets[bucketIndex] && ev.type in buckets[bucketIndex]) buckets[bucketIndex][ev.type] += 1;
-    if (ev.type in counts) counts[ev.type] += 1;
+
+    if (ev.type === 'addtocart' || ev.type === 'checkout_start') {
+      if (ev.sessionId && seenSessions[ev.type].has(ev.sessionId)) continue;
+      if (ev.sessionId) seenSessions[ev.type].add(ev.sessionId);
+      counts[ev.type] += 1;
+    } else if (ev.type in counts) {
+      counts[ev.type] += 1;
+    }
     if (ev.type === 'purchase') counts.revenue += Number(ev.amount) || 0;
   }
 

@@ -23,11 +23,16 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId } = req.body || {};
   if (ALLOWED.includes(event) && !isExcludedIp(req)) {
     try {
-      await incrementEvent(event);
-      if (LOGGED.includes(event)) await logEvent(event, productName ? { productName } : {});
+      await incrementEvent(event, sessionId);
+      if (LOGGED.includes(event)) {
+        await logEvent(event, {
+          ...(productName ? { productName } : {}),
+          ...(sessionId ? { sessionId } : {}),
+        });
+      }
 
       const capiEventName = CAPI_EVENT_NAMES[event];
       if (capiEventName && eventId) {
