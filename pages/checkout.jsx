@@ -345,8 +345,8 @@ export default function CheckoutPage() {
   return (
     <div>
       <header style={topbar}>
-        <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', height: 64, textDecoration: 'none' }}>
-          <span style={{ fontFamily: T.sans, fontWeight: 400, fontSize: 22, letterSpacing: '0.3em', color: T.ink }}>VEIL</span>
+        <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 64, textDecoration: 'none' }}>
+          <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
         </Link>
       </header>
 
@@ -530,7 +530,14 @@ export default function CheckoutPage() {
 
           {error && <p style={errorText}>{error}</p>}
 
-          <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20, opacity: submitting ? 0.6 : 1 }}>
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
+              height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
+            }}
+          >
             {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
           </button>
           <div style={secureNote}>
@@ -665,10 +672,10 @@ const dividerLine = { flex: 1, height: 1, background: T.line };
 const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
-const sectionTitle = { fontFamily: T.sans, fontWeight: 300, fontSize: 22, margin: 0 };
+const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0 };
 const input = {
   width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 14, fontWeight: 300, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
+  fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
