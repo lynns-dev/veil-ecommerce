@@ -265,7 +265,11 @@ export default function ProductPage({ product }) {
                   {Object.entries(product.notes).map(([k, v]) => (
                     <div key={k} style={noteRow}>
                       <span style={noteKey}>{k}</span>
-                      <span style={noteVal}>{v}</span>
+                      <ul style={noteList}>
+                        {v.split('·').map((item, i) => (
+                          <li key={i} style={noteListItem}>{item.trim()}</li>
+                        ))}
+                      </ul>
                     </div>
                   ))}
                 </AccordionRow>
@@ -527,9 +531,10 @@ const accordionHeader = { width: '100%', display: 'flex', justifyContent: 'space
 const accordionIcon = { fontSize: 16, color: T.soft, fontFamily: T.serif };
 const accordionBody = { overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.3s ease, padding-bottom 0.35s ease' };
 
-const noteRow = { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${T.line}` };
-const noteKey = { fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.soft };
-const noteVal = { fontFamily: T.serif, fontWeight: 300, fontSize: 16 };
+const noteRow = { padding: '10px 0', borderBottom: `1px solid ${T.line}` };
+const noteKey = { display: 'block', marginBottom: 6, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.soft };
+const noteList = { margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 };
+const noteListItem = { fontFamily: T.serif, fontWeight: 300, fontSize: 16, color: T.ink };
 
 const storyRowCompact = { display: 'flex', gap: 12, flexWrap: 'wrap' };
 const storyThumb = {
