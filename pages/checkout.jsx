@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import PayPalButton from '../components/PayPalButton';
+import ApplePayButton from '../components/ApplePayButton';
+import GooglePayButton from '../components/GooglePayButton';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
 import { tokenizeCard } from '../lib/qbPayments';
@@ -387,6 +389,22 @@ export default function CheckoutPage() {
               />
               <PayPalButton
                 fundingSource="venmo"
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <ApplePayButton
+                amount={grandTotal}
+                items={cart}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                disabled={submitting}
+                onSuccess={handlePaypalSuccess}
+                onError={handlePaypalError}
+              />
+              <GooglePayButton
                 amount={grandTotal}
                 items={cart}
                 url={typeof window !== 'undefined' ? window.location.href : ''}

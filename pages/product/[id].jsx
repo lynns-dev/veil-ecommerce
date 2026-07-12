@@ -212,10 +212,13 @@ export default function ProductPage({ product }) {
                 <span style={qtyValue}>{quantity}</span>
                 <button onClick={() => setQuantity((q) => q + 1)} style={qtyBtn} aria-label="Increase quantity">+</button>
               </div>
-              <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to cart — ${lineTotal}</button>
+              <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag — ${lineTotal}</button>
             </div>
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
+            {product.category === 'fragrance' && (
+              <p style={puffIncludedNote}>Comes with the Veil Luxury Puff for effortless, everyday application.</p>
+            )}
 
             {trio && product.id !== 'scent-trio' && (
               <div style={trioCard}>
@@ -483,6 +486,7 @@ const qtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.
 const qtyBtn = { width: 40, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: T.ink };
 const qtyValue = { width: 30, textAlign: 'center', fontSize: 13 };
 const badgeRow = { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, marginTop: 4 };
+const puffIncludedNote = { fontSize: 13, color: T.soft, marginTop: 10 };
 
 const trioCard = {
   display: 'flex', alignItems: 'center', gap: 14, border: `1px solid ${T.line}`,

@@ -1,28 +1,6 @@
 import React from 'react';
 import { generateEventId } from '../lib/fbPixel';
-
-let sdkPromise = null;
-
-// Loads the PayPal JS SDK once and reuses it across mounts — checkout only
-// ever needs one instance of window.paypal.
-function loadPaypalSdk(clientId) {
-  if (window.paypal) return Promise.resolve(window.paypal);
-  if (sdkPromise) return sdkPromise;
-
-  sdkPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    // disable-funding=card suppresses PayPal's own separate "Debit or Credit
-    // Card" button — the site already has its own card checkout via
-    // QuickBooks, so only wallet buttons should render here. enable-funding
-    // opts into Venmo, which the SDK doesn't render by default even on
-    // merchant accounts that support it.
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card&enable-funding=venmo`;
-    script.onload = () => resolve(window.paypal);
-    script.onerror = () => reject(new Error('Failed to load the PayPal SDK.'));
-    document.body.appendChild(script);
-  });
-  return sdkPromise;
-}
+import { loadPaypalSdk } from '../lib/paypalSdk';
 
 const FUNDING_LABELS = {
   paypal: 'PayPal',
@@ -36,13 +14,11 @@ const FUNDING_LABELS = {
 // re-rendering the button on every keystroke.
 //
 // fundingSource picks which wallet button this instance renders — 'paypal'
-// (default) or 'venmo', the only two funding sources this SDK integration
-// (paypal.Buttons({ fundingSource })) actually supports. Apple Pay/Google
-// Pay are NOT available this way despite seeming symmetrical — PayPal only
-// exposes those through separate paypal.Applepay()/paypal.Googlepay()
-// components that need their own domain verification (Apple) and merchant
-// setup (Google), so don't add fundingSource values beyond these two
-// without building that real integration.
+// (default) or 'venmo', the only two funding sources paypal.Buttons({
+// fundingSource }) actually supports. Apple Pay and Google Pay are NOT
+// available this way despite seeming symmetrical — see ApplePayButton.jsx
+// and GooglePayButton.jsx, which use PayPal's separate paypal.Applepay()/
+// paypal.Googlepay() components instead.
 export default function PayPalButton({ amount, items, url, disabled, onSuccess, onError, fundingSource = 'paypal' }) {
   const containerRef = React.useRef(null);
   const stateRef = React.useRef({ amount, items, url, eventId: null });
