@@ -520,7 +520,7 @@ export default function CheckoutPage() {
               height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
             }}
           >
-            {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
+            {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
           </button>
           <div style={secureNote}>
             <LockIcon />
