@@ -434,31 +434,6 @@ export default function CheckoutPage() {
                 <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
               </div>
             )}
-
-            <div style={dividerRow}>
-              <span style={dividerLine} />
-              <span style={dividerText}>OR PAY ANOTHER WAY</span>
-              <span style={dividerLine} />
-            </div>
-            <div style={expressStack}>
-              <PayPalButton
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <PayPalButton
-                fundingSource="venmo"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-            </div>
           </section>
 
           <section style={{ marginTop: 36 }}>
