@@ -664,7 +664,7 @@ const summaryToggle = {
   cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
-const formCol = { padding: '32px 40px', borderRight: `1px solid ${T.line}` };
+const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.paper };
 const expressStack = { display: 'flex', flexDirection: 'column', gap: 10 };
 const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '14px 0 0' };
