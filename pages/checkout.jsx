@@ -111,9 +111,9 @@ function AddressFields({ value, onChange, idPrefix }) {
         <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={input} autoComplete={`${section} given-name`} required />
         <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={input} autoComplete={`${section} family-name`} required />
       </div>
-      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 12 }} autoComplete={`${section} address-line1`} required />
-      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 12 }} autoComplete={`${section} address-line2`} />
-      <div className="row-3" style={{ marginTop: 12 }}>
+      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 8 }} autoComplete={`${section} address-line1`} required />
+      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 8 }} autoComplete={`${section} address-line2`} />
+      <div className="row-3" style={{ marginTop: 8 }}>
         <input placeholder="City" value={value.city} onChange={set('city')} style={input} autoComplete={`${section} address-level2`} required />
         <select value={value.state} onChange={set('state')} style={input} autoComplete={`${section} address-level1`} required>
           <option value="">State</option>
@@ -125,7 +125,7 @@ function AddressFields({ value, onChange, idPrefix }) {
         placeholder="Phone (optional)"
         value={value.phone}
         onChange={set('phone')}
-        style={{ ...input, marginTop: 12 }}
+        style={{ ...input, marginTop: 8 }}
         autoComplete={`${section} tel`}
         id={idPrefix ? `${idPrefix}-phone` : undefined}
       />
@@ -345,7 +345,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          <section style={{ marginTop: 32 }}>
+          <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Contact</h2>
             </div>
@@ -364,7 +364,7 @@ export default function CheckoutPage() {
             </label>
           </section>
 
-          <section style={{ marginTop: 36 }}>
+          <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Delivery</h2>
             </div>
@@ -374,7 +374,7 @@ export default function CheckoutPage() {
             <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" />
           </section>
 
-          <section style={{ marginTop: 36 }}>
+          <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Shipping method</h2>
             </div>
@@ -388,7 +388,7 @@ export default function CheckoutPage() {
             )}
           </section>
 
-          <section style={{ marginTop: 36 }}>
+          <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Payment</h2>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.soft }}>
@@ -417,7 +417,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </div>
-              <div className="row-2" style={{ marginTop: 12 }}>
+              <div className="row-2" style={{ marginTop: 8 }}>
                 <input
                   placeholder="Expiration date (MM/YY)"
                   value={card.expiry}
@@ -457,14 +457,14 @@ export default function CheckoutPage() {
                 Use shipping address as billing address
               </label>
               {!billingSame && (
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: 10 }}>
                   <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
                 </div>
               )}
             </div>
           </section>
 
-          <section style={{ marginTop: 36 }}>
+          <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Discount code</h2>
             </div>
@@ -488,14 +488,14 @@ export default function CheckoutPage() {
 
           {error && <p style={errorText}>{error}</p>}
 
-          <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 32, opacity: submitting ? 0.6 : 1 }}>
+          <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Pay now — $${grandTotal.toFixed(2)}`}
           </button>
           <div style={secureNote}>
             <LockIcon />
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
-          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 10 }}>
+          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
             Payments securely processed by QuickBooks Payments (Intuit)
           </p>
         </form>
@@ -580,10 +580,10 @@ export default function CheckoutPage() {
       </div>
 
       <style jsx>{`
-        :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
+        :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 10px; }
         .summary-toggle { display: none; }
-        .checkout-grid { grid-template-columns: 1fr 1fr; }
+        .checkout-grid { grid-template-columns: 1.35fr 1fr; }
         .order-summary { display: block; }
         @media (min-width: 861px) {
           .order-summary {
@@ -614,24 +614,24 @@ const summaryToggle = {
   padding: '16px 24px', alignItems: 'center', justifyContent: 'space-between',
   cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
 };
-const checkoutGrid = { display: 'grid', maxWidth: 1100, margin: '0 auto', columnGap: 56, rowGap: 32 };
-const formCol = { padding: '48px 40px', borderRight: `1px solid ${T.line}` };
-const summaryCol = { padding: '48px 40px', background: T.paper };
+const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
+const formCol = { padding: '32px 40px', borderRight: `1px solid ${T.line}` };
+const summaryCol = { padding: '32px 40px', background: T.paper };
 const expressStack = { display: 'flex', flexDirection: 'column', gap: 10 };
-const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '20px 0 0' };
+const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '14px 0 0' };
 const dividerLine = { flex: 1, height: 1, background: T.line };
 const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
-const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
-const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16, flexWrap: 'wrap', gap: 8 };
+const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
+const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 22, margin: 0 };
 const input = {
-  width: '100%', height: 46, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
+  width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
   fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 0,
 };
-const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 13, color: T.soft };
-const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 20 };
+const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
+const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const shipMethod = {
-  display: 'flex', justifyContent: 'space-between', padding: '16px 14px',
+  display: 'flex', justifyContent: 'space-between', padding: '14px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,
 };
 const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
@@ -644,7 +644,7 @@ const qtyBadge = {
 const summaryRow = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 };
 const legalLinks = {
   display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20,
-  maxWidth: 1100, margin: '0 auto', padding: '32px 40px 48px',
+  maxWidth: 1280, margin: '0 auto', padding: '24px 40px 36px',
   fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
   borderTop: `1px solid ${T.line}`,
 };
