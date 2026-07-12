@@ -75,7 +75,6 @@ export default function ProductPage({ product }) {
   const [quantity, setQuantity] = React.useState(1);
   const [openSection, setOpenSection] = React.useState('scent-story');
   const [openFaq, setOpenFaq] = React.useState(null);
-  const [openStory, setOpenStory] = React.useState(null);
   const images = React.useMemo(() => product?.images || [], [product]);
   const [activeImage, setActiveImage] = React.useState(images[0] || '');
   const [reviewData, setReviewData] = React.useState({ reviews: [], average: 0, count: 0 });
@@ -204,38 +203,6 @@ export default function ProductPage({ product }) {
             <h1 style={pdpTitle}>{product.name}</h1>
             <div style={pdpTagline}>{product.tagline}</div>
             <p style={pdpDesc}>{product.description}</p>
-
-            {REEL_VIDEOS.length > 0 && (
-              <div style={{ marginBottom: 22 }}>
-                <div style={storyRowCompact}>
-                  {REEL_VIDEOS.map((v, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setOpenStory((cur) => (cur === i ? null : i))}
-                      style={{ ...storyThumb, borderColor: openStory === i ? T.ink : T.line }}
-                      aria-label={`Open story ${i + 1}`}
-                    >
-                      <video src={v.src} muted preload="metadata" style={storyThumbVideo} />
-                    </button>
-                  ))}
-                </div>
-                {openStory !== null && (
-                  <div style={storyViewerInline}>
-                    <video
-                      key={REEL_VIDEOS[openStory].src}
-                      src={REEL_VIDEOS[openStory].src}
-                      style={storyViewerVideo}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      controls
-                    />
-                    <button onClick={() => setOpenStory(null)} style={storyCloseBtn} aria-label="Close story">×</button>
-                  </div>
-                )}
-              </div>
-            )}
 
             <div style={pdpPrice}>${unitPrice} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span></div>
 
@@ -541,22 +508,6 @@ const noteRow = { padding: '10px 0', borderBottom: `1px solid ${T.line}` };
 const noteKey = { display: 'block', marginBottom: 6, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.soft };
 const noteList = { margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 };
 const noteListItem = { fontFamily: T.serif, fontWeight: 300, fontSize: 16, color: T.ink };
-
-const storyRowCompact = { display: 'flex', gap: 12, flexWrap: 'wrap' };
-const storyThumb = {
-  width: 56, height: 56, borderRadius: '50%', border: '2px solid', padding: 3, cursor: 'pointer',
-  background: 'none', overflow: 'hidden', flexShrink: 0,
-};
-const storyThumbVideo = { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' };
-const storyViewerInline = {
-  position: 'relative', width: 200, marginTop: 16, paddingTop: 16, paddingBottom: 16,
-  borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`,
-};
-const storyViewerVideo = { width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', border: `1px solid ${T.line}` };
-const storyCloseBtn = {
-  position: 'absolute', top: -14, right: -14, width: 30, height: 30, borderRadius: '50%', background: T.ink,
-  color: T.white, border: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1,
-};
 
 const benefitRow = { display: 'flex', gap: 24, padding: '28px 0', borderTop: `1px solid ${T.line}` };
 const benefitNum = { fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 20, color: T.soft, flex: '0 0 40px' };
