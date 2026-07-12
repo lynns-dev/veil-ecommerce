@@ -61,7 +61,12 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
       .then((paypal) => {
         if (cancelled || !containerRef.current) return;
 
-        const resolvedFundingSource = fundingSource === 'paypal' ? undefined : paypal.FUNDING[fundingSource.toUpperCase()];
+        // Explicit funding source for every instance, including PayPal
+        // itself — leaving it undefined lets the SDK auto-stack every
+        // eligible funding source (Venmo included, since enable-funding
+        // opts it in account-wide) inside that one button, duplicating the
+        // separate Venmo instance rendered alongside it.
+        const resolvedFundingSource = paypal.FUNDING[fundingSource.toUpperCase()];
 
         const buttons = paypal.Buttons({
           fundingSource: resolvedFundingSource,
