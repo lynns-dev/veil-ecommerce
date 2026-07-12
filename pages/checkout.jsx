@@ -54,7 +54,7 @@ const CARD_BRANDS = [
 
 function CardBrandBadges() {
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
       {CARD_BRANDS.map((b) => (
         <span
           key={b.id}
@@ -375,6 +375,10 @@ export default function CheckoutPage() {
               </span>
             </div>
             <div style={paymentBox}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.ink, whiteSpace: 'nowrap' }}>Credit card</span>
+                <CardBrandBadges />
+              </div>
               <div style={{ position: 'relative' }}>
                 <input
                   placeholder="Card number"
@@ -468,9 +472,6 @@ export default function CheckoutPage() {
           <div style={secureNote}>
             <LockIcon />
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-            <CardBrandBadges />
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 10 }}>
             Payments securely processed by QuickBooks Payments (Intuit)
