@@ -14,9 +14,9 @@ function loadPaypalSdk(clientId) {
     // disable-funding=card suppresses PayPal's own separate "Debit or Credit
     // Card" button — the site already has its own card checkout via
     // QuickBooks, so only wallet buttons should render here. enable-funding
-    // opts into Venmo/Apple Pay/Google Pay, which the SDK doesn't render by
-    // default even on merchant accounts that support them.
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card&enable-funding=venmo,applepay,googlepay`;
+    // opts into Venmo, which the SDK doesn't render by default even on
+    // merchant accounts that support it.
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&intent=capture&disable-funding=card&enable-funding=venmo`;
     script.onload = () => resolve(window.paypal);
     script.onerror = () => reject(new Error('Failed to load the PayPal SDK.'));
     document.body.appendChild(script);
@@ -27,8 +27,6 @@ function loadPaypalSdk(clientId) {
 const FUNDING_LABELS = {
   paypal: 'PayPal',
   venmo: 'Venmo',
-  applepay: 'Apple Pay',
-  googlepay: 'Google Pay',
 };
 
 // amount/items/eventId/url change on every render as the cart/discount
@@ -38,11 +36,13 @@ const FUNDING_LABELS = {
 // re-rendering the button on every keystroke.
 //
 // fundingSource picks which wallet button this instance renders — 'paypal'
-// (default), 'venmo', 'applepay', or 'googlepay'. Apple Pay/Google Pay only
-// render at all once eligible (Safari + Apple Pay set up, or a Google Pay
-// account, respectively, AND the merchant account has that wallet enabled
-// in the PayPal dashboard) — isEligible() gates this per instance so an
-// unsupported wallet just doesn't render anything, no broken button.
+// (default) or 'venmo', the only two funding sources this SDK integration
+// (paypal.Buttons({ fundingSource })) actually supports. Apple Pay/Google
+// Pay are NOT available this way despite seeming symmetrical — PayPal only
+// exposes those through separate paypal.Applepay()/paypal.Googlepay()
+// components that need their own domain verification (Apple) and merchant
+// setup (Google), so don't add fundingSource values beyond these two
+// without building that real integration.
 export default function PayPalButton({ amount, items, url, disabled, onSuccess, onError, fundingSource = 'paypal' }) {
   const containerRef = React.useRef(null);
   const stateRef = React.useRef({ amount, items, url, eventId: null });

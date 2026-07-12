@@ -319,24 +319,6 @@ export default function CheckoutPage() {
                 onSuccess={handlePaypalSuccess}
                 onError={handlePaypalError}
               />
-              <PayPalButton
-                fundingSource="applepay"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <PayPalButton
-                fundingSource="googlepay"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
             </div>
             <div style={dividerRow}>
               <span style={dividerLine} />
@@ -469,24 +451,6 @@ export default function CheckoutPage() {
               />
               <PayPalButton
                 fundingSource="venmo"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <PayPalButton
-                fundingSource="applepay"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <PayPalButton
-                fundingSource="googlepay"
                 amount={grandTotal}
                 items={cart}
                 url={typeof window !== 'undefined' ? window.location.href : ''}
