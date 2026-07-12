@@ -12,7 +12,13 @@ export default function Footer() {
           <Link href="/#notes">Scent</Link>
           <Link href="/#reviews">Reviews</Link>
         </div>
-        <small style={{ width: '100%', color: T.soft, fontSize: 11, marginTop: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, width: '100%', paddingTop: 20, borderTop: `1px solid ${T.line}`, marginTop: 4 }}>
+          <Link href="/terms">Terms & Conditions</Link>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/returns">Return Policy</Link>
+          <Link href="/shipping">Shipping Policy</Link>
+        </div>
+        <small style={{ width: '100%', color: T.soft, fontSize: 11 }}>
           Poudre de corps parfumée · Concept build — product visuals are illustrative.
         </small>
       </div>

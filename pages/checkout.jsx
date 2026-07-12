@@ -192,6 +192,7 @@ export default function CheckoutPage() {
   }, [reviewsByProduct]);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
+  const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
   const codeDiscountAmount = !appliedDiscount
@@ -377,10 +378,14 @@ export default function CheckoutPage() {
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Shipping method</h2>
             </div>
-            <div style={shipMethod}>
-              <span>Standard Shipping</span>
-              <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-            </div>
+            {addressEntered ? (
+              <div style={shipMethod}>
+                <span>Standard Shipping</span>
+                <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+              </div>
+            ) : (
+              <p style={{ color: T.soft, fontSize: 14 }}>Enter your delivery address to see shipping options.</p>
+            )}
           </section>
 
           <section style={{ marginTop: 36 }}>
@@ -567,6 +572,13 @@ export default function CheckoutPage() {
         </aside>
       </div>
 
+      <div style={legalLinks}>
+        <Link href="/terms">Terms & Conditions</Link>
+        <Link href="/privacy">Privacy Policy</Link>
+        <Link href="/returns">Return Policy</Link>
+        <Link href="/shipping">Shipping Policy</Link>
+      </div>
+
       <style jsx>{`
         :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 12px; }
@@ -630,3 +642,9 @@ const qtyBadge = {
   width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 const summaryRow = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 };
+const legalLinks = {
+  display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20,
+  maxWidth: 1100, margin: '0 auto', padding: '32px 40px 48px',
+  fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
+  borderTop: `1px solid ${T.line}`,
+};
