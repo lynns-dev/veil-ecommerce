@@ -668,7 +668,7 @@ const sectionHead = { display: 'flex', justifyContent: 'space-between', alignIte
 const sectionTitle = { fontFamily: T.sans, fontWeight: 300, fontSize: 22, margin: 0 };
 const input = {
   width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 14, fontWeight: 300, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 0,
+  fontFamily: T.sans, fontSize: 14, fontWeight: 300, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
