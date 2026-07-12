@@ -91,8 +91,14 @@ export default function ProductPage({ product }) {
   React.useEffect(() => {
     if (!product) return;
     fetch(`/api/reviews?productId=${product.id}`)
-      .then((r) => r.json())
-      .then((data) => setReviewData(data))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        // A failed request (e.g. the reviews store being unreachable)
+        // still resolves here with an error body, not a rejection — only
+        // adopt it if it actually has the shape the rest of the page
+        // expects, otherwise keep the empty default already in state.
+        if (data && Array.isArray(data.reviews)) setReviewData(data);
+      })
       .catch(() => {});
   }, [product]);
 
