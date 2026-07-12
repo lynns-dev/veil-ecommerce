@@ -422,7 +422,10 @@ export default function CheckoutPage() {
             </div>
             {addressEntered ? (
               <div style={shipMethod}>
-                <span>Standard Shipping</span>
+                <div>
+                  <div>Standard Shipping</div>
+                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>3–5 business days after order placed</div>
+                </div>
                 <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
               </div>
             ) : (
@@ -680,7 +683,7 @@ const input = {
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const shipMethod = {
-  display: 'flex', justifyContent: 'space-between', padding: '14px 14px',
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,
 };
 const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };

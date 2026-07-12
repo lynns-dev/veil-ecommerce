@@ -8,7 +8,7 @@ export default function ShippingPolicy() {
 
       <PolicySection title="Processing time">
         <p>
-          Orders are typically processed and handed off to the carrier within 1–2 business days. You'll receive a
+          Orders are typically processed and handed off to the carrier within 1 business day. You'll receive a
           confirmation email as soon as your order ships.
         </p>
       </PolicySection>
@@ -19,8 +19,8 @@ export default function ShippingPolicy() {
 
       <PolicySection title="Delivery estimates">
         <p>
-          Once shipped, most orders arrive within 3–7 business days depending on your location. These are estimates,
-          not guarantees — carrier delays can occasionally push delivery outside this window.
+          Most orders arrive within 3–5 business days of being placed. This is an estimate, not a guarantee — carrier
+          delays can occasionally push delivery outside this window.
         </p>
       </PolicySection>
 
