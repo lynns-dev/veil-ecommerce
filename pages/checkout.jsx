@@ -45,11 +45,70 @@ function formatCardNumber(digits) {
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 }
 
+// Small, recognizable renderings of each network's real mark (not a
+// colored text pill) so the "we accept" row reads as legitimate rather
+// than placeholder-ish.
+function CardLogoBadge({ children, bg = '#fff' }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 20, borderRadius: 3, background: bg,
+        border: `1px solid ${T.line}`, overflow: 'hidden', flexShrink: 0,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function VisaLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="24" height="10" viewBox="0 0 48 18" aria-label="Visa">
+        <text x="0" y="14" fontFamily="Arial, sans-serif" fontStyle="italic" fontWeight="800" fontSize="16" fill="#1434CB" letterSpacing="-0.5">VISA</text>
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function MastercardLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="22" height="14" viewBox="0 0 40 26" aria-label="Mastercard">
+        <circle cx="15" cy="13" r="11" fill="#EB001B" />
+        <circle cx="25" cy="13" r="11" fill="#F79E1B" style={{ mixBlendMode: 'multiply' }} />
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function AmexLogo() {
+  return (
+    <CardLogoBadge bg="#006FCF">
+      <svg width="26" height="13" viewBox="0 0 52 22" aria-label="American Express">
+        <text x="1" y="16" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="0.5">AMEX</text>
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function DiscoverLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="28" height="11" viewBox="0 0 66 20" aria-label="Discover">
+        <text x="0" y="14" fontFamily="Arial, sans-serif" fontWeight="700" fontStyle="italic" fontSize="11" fill="#1B1B1B" letterSpacing="-0.3">Discover</text>
+        <circle cx="62" cy="14" r="4" fill="#FF6600" />
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
 const CARD_BRANDS = [
-  { id: 'visa', label: 'Visa', color: '#1a1f71' },
-  { id: 'mastercard', label: 'Mastercard', color: '#eb001b' },
-  { id: 'amex', label: 'Amex', color: '#2e77bc' },
-  { id: 'discover', label: 'Discover', color: '#e57200' },
+  { id: 'visa', label: 'Visa', Logo: VisaLogo },
+  { id: 'mastercard', label: 'Mastercard', Logo: MastercardLogo },
+  { id: 'amex', label: 'Amex', Logo: AmexLogo },
+  { id: 'discover', label: 'Discover', Logo: DiscoverLogo },
 ];
 
 // Shows a couple of the most recognizable brands plus a "+N" count for the
@@ -62,22 +121,14 @@ const HIDDEN_CARD_BRAND_COUNT = CARD_BRANDS.length - VISIBLE_CARD_BRANDS.length;
 function CardBrandBadges() {
   return (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      {VISIBLE_CARD_BRANDS.map((b) => (
-        <span
-          key={b.id}
-          style={{
-            fontFamily: T.sans, fontSize: 8, fontWeight: 700, letterSpacing: '0.03em',
-            padding: '3px 5px', borderRadius: 3, color: T.white, background: b.color,
-          }}
-        >
-          {b.label.toUpperCase()}
-        </span>
-      ))}
+      {VISIBLE_CARD_BRANDS.map((b) => <b.Logo key={b.id} />)}
       {HIDDEN_CARD_BRAND_COUNT > 0 && (
         <span
           style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 20, borderRadius: 3,
             fontFamily: T.sans, fontSize: 8, fontWeight: 700,
-            padding: '3px 5px', borderRadius: 3, color: T.soft, background: T.white, border: `1px solid ${T.line}`,
+            color: T.soft, background: T.white, border: `1px solid ${T.line}`,
           }}
         >
           +{HIDDEN_CARD_BRAND_COUNT}
@@ -88,18 +139,9 @@ function CardBrandBadges() {
 }
 
 function CardBrandIcon({ brand }) {
-  if (!brand) return null;
   const b = CARD_BRANDS.find((x) => x.id === brand);
-  return (
-    <span
-      style={{
-        fontFamily: T.sans, fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
-        padding: '4px 6px', borderRadius: 3, color: T.white, background: b.color,
-      }}
-    >
-      {b.label.toUpperCase()}
-    </span>
-  );
+  if (!b) return null;
+  return <b.Logo />;
 }
 
 function AddressFields({ value, onChange, idPrefix }) {
@@ -304,7 +346,7 @@ export default function CheckoutPage() {
     <div>
       <header style={topbar}>
         <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', height: 64, textDecoration: 'none' }}>
-          <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.3em', color: T.ink }}>VEIL</span>
+          <span style={{ fontFamily: T.sans, fontWeight: 400, fontSize: 22, letterSpacing: '0.3em', color: T.ink }}>VEIL</span>
         </Link>
       </header>
 
@@ -313,7 +355,7 @@ export default function CheckoutPage() {
           <span>{summaryOpen ? 'Hide' : 'Show'} order summary</span>
           <span style={{ fontSize: 10 }}>{summaryOpen ? '▲' : '▼'}</span>
         </span>
-        <span style={{ fontFamily: T.serif, fontSize: 17 }}>${grandTotal.toFixed(2)}</span>
+        <span style={{ fontFamily: T.sans, fontSize: 17 }}>${grandTotal.toFixed(2)}</span>
       </button>
 
       <div className="checkout-grid" style={checkoutGrid}>
@@ -538,8 +580,8 @@ export default function CheckoutPage() {
             <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
           </div>
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
-            <span style={{ fontFamily: T.serif, fontSize: 18 }}>Total</span>
-            <span style={{ fontFamily: T.serif, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
+            <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
+            <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -623,10 +665,10 @@ const dividerLine = { flex: 1, height: 1, background: T.line };
 const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
-const sectionTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 22, margin: 0 };
+const sectionTitle = { fontFamily: T.sans, fontWeight: 300, fontSize: 22, margin: 0 };
 const input = {
   width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 0,
+  fontFamily: T.sans, fontSize: 14, fontWeight: 300, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 0,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
