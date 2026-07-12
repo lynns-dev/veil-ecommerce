@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import PayPalButton from '../components/PayPalButton';
 import { useCart } from '../lib/useCart';
+import { TASSEL_GIFT } from '../lib/products';
 import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
@@ -187,7 +188,7 @@ function AddressFields({ value, onChange, idPrefix }) {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, total, hydrated, clear, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
+  const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
 
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
@@ -211,6 +212,12 @@ export default function CheckoutPage() {
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [tasselSeconds, setTasselSeconds] = React.useState(5 * 60);
+
+  React.useEffect(() => {
+    const t = setInterval(() => setTasselSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   React.useEffect(() => {
     if (appliedDiscount) setDiscountCode(appliedDiscount.code);
@@ -249,6 +256,12 @@ export default function CheckoutPage() {
   }, [hydrated]);
 
   const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
+
+  const hasTassel = cart.some((i) => i.id === TASSEL_GIFT.id);
+  const tasselExpired = tasselSeconds <= 0;
+  const tasselMins = Math.floor(tasselSeconds / 60);
+  const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
+  const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
 
   const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
@@ -388,6 +401,38 @@ export default function CheckoutPage() {
               <span style={dividerLine} />
             </div>
           </section>
+
+          {!tasselExpired && (
+            <section style={{ marginTop: 24 }}>
+              <div style={tasselCard}>
+                <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <div style={tasselImgWrap}>
+                    <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
+                      <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
+                        ${TASSEL_GIFT.price.toFixed(2)}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
+                    </div>
+                  </div>
+                  {hasTassel ? (
+                    <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
+                  ) : (
+                    <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
+                  )}
+                </div>
+                {!hasTassel && (
+                  <p style={tasselTimer}>
+                    Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
 
           <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
@@ -685,6 +730,12 @@ const input = {
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
+const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
+const tasselImgWrap = {
+  width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,
+  border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
 const cvcTooltip = {
   position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, width: 200,
   background: T.ink, color: T.white, fontSize: 11, lineHeight: 1.4,
