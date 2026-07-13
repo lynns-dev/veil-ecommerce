@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import PayPalButton from '../components/PayPalButton';
-import ApplePayButton from '../components/ApplePayButton';
+// ApplePayButton is temporarily not rendered on checkout — see git history /
+// components/ApplePayButton.jsx. Domain verification with PayPal isn't
+// finished yet; re-add the <ApplePayButton /> usage once that's sorted.
 import GooglePayButton from '../components/GooglePayButton';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
@@ -389,14 +391,6 @@ export default function CheckoutPage() {
               />
               <PayPalButton
                 fundingSource="venmo"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <ApplePayButton
                 amount={grandTotal}
                 items={cart}
                 url={typeof window !== 'undefined' ? window.location.href : ''}
