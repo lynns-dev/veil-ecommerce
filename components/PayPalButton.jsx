@@ -81,7 +81,7 @@ export default function PayPalButton({ amount, items, url, disabled, onSuccess, 
           },
           onError: (err) => {
             console.error('PayPal button error:', err);
-            onError?.('PayPal checkout failed. Please try again.');
+            onError?.(`PayPal checkout failed: ${err?.message || err}`);
           },
         });
 

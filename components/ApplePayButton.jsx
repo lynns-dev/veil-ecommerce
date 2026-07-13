@@ -74,7 +74,7 @@ export default function ApplePayButton({ amount, items, url, disabled, onSuccess
         } catch (err) {
           console.error('Apple Pay merchant validation failed:', err);
           session.abort();
-          onError?.('Apple Pay could not be verified. Please try again.');
+          onError?.(`Apple Pay could not be verified: ${err?.message || err}`);
         }
       };
 
@@ -122,7 +122,7 @@ export default function ApplePayButton({ amount, items, url, disabled, onSuccess
       session.begin();
     } catch (err) {
       console.error('Apple Pay error:', err);
-      onError?.('Apple Pay checkout failed. Please try again.');
+      onError?.(`Apple Pay checkout failed: ${err?.message || err}`);
     }
   };
 
