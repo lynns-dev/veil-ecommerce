@@ -380,6 +380,7 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
           <section>
+            <p style={{ ...S.label, marginBottom: 10 }}>Express checkout</p>
             <div style={expressStack}>
               <PayPalButton
                 amount={grandTotal}
