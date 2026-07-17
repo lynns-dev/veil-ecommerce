@@ -12,8 +12,7 @@ function addressFromCapture(data) {
   const addr = unit?.shipping?.address;
   if (!addr) return null;
   return {
-    firstName: unit.shipping?.name?.full_name || '',
-    lastName: '',
+    name: unit.shipping?.name?.full_name || '',
     address: addr.address_line_1 || '',
     apt: addr.address_line_2 || '',
     city: addr.admin_area_2 || '',
@@ -44,7 +43,11 @@ export default async function handler(req, res) {
     const email = data.payer?.email_address || '';
     const shipping = addressFromCapture(data);
 
-    await fulfillOrder({ id: data.id, amount, items, eventId, url, req, paymentMethod: paymentMethod || 'PayPal', attribution });
+    await fulfillOrder({
+      id: data.id, amount, items, eventId, url, req,
+      paymentMethod: paymentMethod || 'PayPal', attribution,
+      email, shipping, processor: 'paypal', captureId: capture.id,
+    });
 
     return res.status(200).json({ id: data.id, status: capture.status, amount, email, shipping });
   } catch (err) {

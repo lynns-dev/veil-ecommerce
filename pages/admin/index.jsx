@@ -88,6 +88,21 @@ function attributionSource(order) {
   return { source: 'Direct / organic', campaign: null };
 }
 
+const ORDER_STATUS_COLORS = {
+  paid: { color: '#1a7a3c', background: 'rgba(26,122,60,0.1)' },
+  refunded: { color: '#a13d2b', background: 'rgba(161,61,43,0.1)' },
+  cancelled: { color: T.soft, background: T.paper },
+  archived: { color: T.soft, background: T.paper },
+};
+
+function orderStatusBadge(status) {
+  const colors = ORDER_STATUS_COLORS[status] || ORDER_STATUS_COLORS.paid;
+  return {
+    display: 'inline-block', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+    padding: '3px 8px', borderRadius: 3, ...colors,
+  };
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
@@ -108,14 +123,69 @@ export default function AdminDashboard() {
   const [hoveredCountry, setHoveredCountry] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState('dashboard');
+  const [expandedOrderId, setExpandedOrderId] = React.useState(null);
+  const [showArchived, setShowArchived] = React.useState(false);
+  const [orderActionBusy, setOrderActionBusy] = React.useState({});
+  const [orderActionError, setOrderActionError] = React.useState({});
 
-  React.useEffect(() => {
+  const loadOrders = React.useCallback(() => {
+    setOrdersLoading(true);
     fetch('/api/admin/orders')
       .then((r) => r.json())
       .then((data) => setOrders(data.orders || []))
       .catch(() => {})
       .finally(() => setOrdersLoading(false));
   }, []);
+
+  React.useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const visibleOrders = React.useMemo(
+    () => (showArchived ? orders : orders.filter((o) => o.status !== 'archived')),
+    [orders, showArchived]
+  );
+
+  const handleRefundOrder = async (order) => {
+    if (!confirm(`Refund $${Number(order.amount).toFixed(2)} for this order? This can't be undone.`)) return;
+    setOrderActionBusy((prev) => ({ ...prev, [order.id]: true }));
+    setOrderActionError((prev) => ({ ...prev, [order.id]: '' }));
+    try {
+      const res = await fetch('/api/admin/orders/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, processor: order.processor, captureId: order.captureId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Refund failed.');
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
+    } catch (err) {
+      setOrderActionError((prev) => ({ ...prev, [order.id]: err.message }));
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [order.id]: false }));
+    }
+  };
+
+  const handleSetOrderStatus = async (order, status) => {
+    if (status === 'cancelled' && !confirm('Mark this order as cancelled? This only updates its status here — it does not refund the customer.')) return;
+    setOrderActionBusy((prev) => ({ ...prev, [order.id]: true }));
+    setOrderActionError((prev) => ({ ...prev, [order.id]: '' }));
+    try {
+      const res = await fetch('/api/admin/orders/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update this order.');
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
+    } catch (err) {
+      setOrderActionError((prev) => ({ ...prev, [order.id]: err.message }));
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [order.id]: false }));
+    }
+  };
 
   const mapCounts = React.useMemo(
     () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
@@ -357,11 +427,31 @@ export default function AdminDashboard() {
       </Head>
 
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
           <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.2em' }}>VEIL admin</span>
-          <button onClick={handleLogout} style={S.btnOutline}>Sign out</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <a href="/" target="_blank" rel="noopener noreferrer" style={S.btnOutline}>View website</a>
+            <button onClick={handleLogout} style={S.btnOutline}>Sign out</button>
+          </div>
         </div>
 
+        <div style={tabRow}>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            style={{ ...tabBtn, ...(activeTab === 'dashboard' ? tabBtnActive : {}) }}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            style={{ ...tabBtn, ...(activeTab === 'orders' ? tabBtnActive : {}) }}
+          >
+            Orders ({orders.length})
+          </button>
+        </div>
+
+        {activeTab === 'dashboard' && (
+        <>
         {/* NOTIFICATIONS */}
         <Section title="Order notifications">
           {notifStatus === 'unsupported' && (
@@ -565,42 +655,6 @@ export default function AdminDashboard() {
           )}
         </Section>
 
-        {/* RECENT ORDERS */}
-        <Section title={`Recent orders (${orders.length})`}>
-          {ordersLoading ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
-          ) : orders.length === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No orders in the last 30 days.</p>
-          ) : (
-            <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-              <div style={orderHeadRow}>
-                <span style={{ flex: '0 0 130px' }}>Date</span>
-                <span style={{ flex: 1 }}>Items</span>
-                <span style={{ flex: '0 0 90px' }}>Amount</span>
-                <span style={{ flex: '0 0 100px' }}>Payment</span>
-                <span style={{ flex: '0 0 160px' }}>Source</span>
-              </div>
-              {orders.map((o) => {
-                const { source, campaign } = attributionSource(o);
-                const itemSummary = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ');
-                return (
-                  <div key={o.id} style={orderRow}>
-                    <span style={{ flex: '0 0 130px', color: T.soft }}>
-                      {new Date(o.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                    <span style={{ flex: 1 }} title={itemSummary}>{itemSummary}</span>
-                    <span style={{ flex: '0 0 90px' }}>${Number(o.amount).toFixed(2)}</span>
-                    <span style={{ flex: '0 0 100px', color: T.soft }}>{o.paymentMethod || 'Unknown'}</span>
-                    <span style={{ flex: '0 0 160px' }}>
-                      {source}
-                      {campaign && <span style={{ color: T.soft }}> · {campaign}</span>}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Section>
 
         {/* PENDING REVIEWS */}
         <Section title={`Pending approval (${pendingReviews.length})`}>
@@ -755,6 +809,128 @@ export default function AdminDashboard() {
           </form>
           {discountFormMessage && <p style={{ fontSize: 12, color: T.ink, marginTop: 12 }}>{discountFormMessage}</p>}
         </Section>
+        </>
+        )}
+
+        {activeTab === 'orders' && (
+        <Section
+          title={`Orders (${visibleOrders.length})`}
+          action={
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.soft }}>
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              Show archived
+            </label>
+          }
+        >
+          {ordersLoading ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
+          ) : visibleOrders.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No orders to show.</p>
+          ) : (
+            <div>
+              <div style={orderHeadRow}>
+                <span style={{ flex: '0 0 130px' }}>Date</span>
+                <span style={{ flex: 1 }}>Items</span>
+                <span style={{ flex: '0 0 90px' }}>Amount</span>
+                <span style={{ flex: '0 0 100px' }}>Payment</span>
+                <span style={{ flex: '0 0 90px' }}>Status</span>
+              </div>
+              {visibleOrders.map((o) => {
+                const { source, campaign } = attributionSource(o);
+                const itemSummary = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ');
+                const expanded = expandedOrderId === o.id;
+                const busy = Boolean(orderActionBusy[o.id]);
+                return (
+                  <div key={o.id} style={{ borderBottom: `1px solid ${T.line}` }}>
+                    <div
+                      style={{ ...orderRow, borderBottom: 'none', cursor: 'pointer' }}
+                      onClick={() => setExpandedOrderId(expanded ? null : o.id)}
+                    >
+                      <span style={{ flex: '0 0 130px', color: T.soft }}>
+                        {new Date(o.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                      <span style={{ flex: 1 }} title={itemSummary}>{itemSummary}</span>
+                      <span style={{ flex: '0 0 90px' }}>${Number(o.amount).toFixed(2)}</span>
+                      <span style={{ flex: '0 0 100px', color: T.soft }}>{o.paymentMethod || 'Unknown'}</span>
+                      <span style={{ flex: '0 0 90px' }}>
+                        <span style={orderStatusBadge(o.status)}>{o.status || 'paid'}</span>
+                      </span>
+                    </div>
+
+                    {expanded && (
+                      <div style={orderDetail}>
+                        <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap', marginBottom: 16 }}>
+                          <div>
+                            <div style={formLabel}>Contact</div>
+                            <div style={{ fontSize: 13 }}>{o.email || 'Not provided'}</div>
+                          </div>
+                          <div>
+                            <div style={formLabel}>Shipping address</div>
+                            {o.shipping ? (
+                              <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                                {o.shipping.name && <div>{o.shipping.name}</div>}
+                                <div>{o.shipping.address}{o.shipping.apt ? `, ${o.shipping.apt}` : ''}</div>
+                                <div>{o.shipping.city}, {o.shipping.state} {o.shipping.zip}</div>
+                                {o.shipping.phone && <div>{o.shipping.phone}</div>}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 13, color: T.soft }}>Not provided</div>
+                            )}
+                          </div>
+                          <div>
+                            <div style={formLabel}>Order source</div>
+                            <div style={{ fontSize: 13 }}>{source}{campaign && ` · ${campaign}`}</div>
+                          </div>
+                        </div>
+
+                        <div style={formLabel}>Items</div>
+                        <div style={{ marginBottom: 20 }}>
+                          {(o.items || []).map((i, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0' }}>
+                              <span>{i.name} × {i.quantity}</span>
+                              <span>${Number((i.price ?? 0) * i.quantity).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {orderActionError[o.id] && (
+                          <p style={{ fontSize: 12, color: '#a13d2b', marginBottom: 12 }}>{orderActionError[o.id]}</p>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          {o.status !== 'refunded' && (
+                            <button
+                              disabled={busy}
+                              onClick={() => handleRefundOrder(o)}
+                              style={{ ...deleteBtn, opacity: busy ? 0.5 : 1 }}
+                            >
+                              {busy ? 'Working…' : 'Refund'}
+                            </button>
+                          )}
+                          {o.status !== 'cancelled' && (
+                            <button disabled={busy} onClick={() => handleSetOrderStatus(o, 'cancelled')} style={{ ...S.btnOutline, opacity: busy ? 0.5 : 1 }}>
+                              Cancel order
+                            </button>
+                          )}
+                          {o.status !== 'archived' ? (
+                            <button disabled={busy} onClick={() => handleSetOrderStatus(o, 'archived')} style={{ ...S.btnOutline, opacity: busy ? 0.5 : 1 }}>
+                              Archive
+                            </button>
+                          ) : (
+                            <button disabled={busy} onClick={() => handleSetOrderStatus(o, 'paid')} style={{ ...S.btnOutline, opacity: busy ? 0.5 : 1 }}>
+                              Restore
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+        )}
       </div>
 
       <style jsx>{`
@@ -840,6 +1016,13 @@ const orderRow = {
   display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.line}`,
   fontSize: 13, alignItems: 'center',
 };
+const orderDetail = { padding: '4px 0 20px', borderBottom: `1px solid ${T.line}` };
+const tabRow = { display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${T.line}` };
+const tabBtn = {
+  fontFamily: T.sans, fontSize: 13, background: 'none', border: 'none', borderBottom: '2px solid transparent',
+  padding: '10px 4px', marginBottom: -1, cursor: 'pointer', color: T.soft,
+};
+const tabBtnActive = { color: T.ink, borderBottomColor: T.ink, fontWeight: 600 };
 const reviewRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {
   fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', border: `1px solid ${T.line}`,
