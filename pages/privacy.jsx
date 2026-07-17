@@ -55,9 +55,10 @@ export default function PrivacyPolicy() {
 
       <PolicySection title="Payment processing">
         <p>
-          Payments are processed by Stripe, Inc. and PayPal, Inc. When you check out, your payment
-          details are sent directly to whichever processor you choose, under their own privacy policies — we never
-          see or store full card numbers.
+          Payments are processed by Stripe, Inc., including card payments and wallet options such as
+          PayPal, Apple Pay, Google Pay, and Afterpay offered through Stripe. When you check out, your payment
+          details are sent directly to Stripe under its own privacy policy — we never see or store full
+          card numbers.
         </p>
       </PolicySection>
 

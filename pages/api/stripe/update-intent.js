@@ -24,8 +24,8 @@ function shippingParam(shipping) {
   };
 }
 
-// Same flat shape used by PayPal's capture-order route and rendered in the
-// admin Orders tab ({ name, address, apt, city, state, zip, phone }) — the
+// Same flat shape rendered in the admin Orders tab
+// ({ name, address, apt, city, state, zip, phone }) — the
 // raw checkout form uses firstName/lastName instead of a single name field,
 // so that needs collapsing here rather than storing the form's own shape.
 function normalizeFormShipping(shipping) {

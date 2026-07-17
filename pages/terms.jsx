@@ -28,7 +28,7 @@ export default function TermsOfService() {
       <PolicySection title="Orders and payment">
         <p>
           Placing an order is an offer to purchase, which we may accept or decline (for example, if a product is out
-          of stock or we suspect fraud). Payment is processed by Stripe or PayPal at the time of
+          of stock or we suspect fraud). Payment is processed by Stripe at the time of
           purchase. You confirm that any payment details you provide are your own or that you're authorized to use
           them.
         </p>

@@ -2,11 +2,6 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
-import PayPalButton from '../components/PayPalButton';
-// ApplePayButton is temporarily not rendered on checkout — see git history /
-// components/ApplePayButton.jsx. Domain verification with PayPal isn't
-// finished yet; re-add the <ApplePayButton /> usage once that's sorted.
-import GooglePayButton from '../components/GooglePayButton';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
 import { getStripeClient } from '../lib/stripeClient';
@@ -33,10 +28,10 @@ function LockIcon(props) {
 }
 
 
-// Human labels for the payment method types Stripe's Payment Element can
-// resolve to (reported via its 'change' event) — used for the order
-// record/analytics label, since Payment Element itself doesn't hand back a
-// pretty name the way the old single-purpose PayPal buttons did.
+// Human labels for the payment method types Stripe's Payment Element and
+// Express Checkout Element can resolve to (reported via their 'change' /
+// 'confirm' events) — used for the order record/analytics label, since
+// neither element hands back a pretty name on its own.
 const PAYMENT_METHOD_LABELS = {
   card: 'Card',
   afterpay_clearpay: 'Afterpay',
@@ -228,17 +223,13 @@ export default function CheckoutPage() {
           console.error('Stripe Payment Element failed to load:', e.error);
         });
 
-        // Apple Pay/Google Pay/PayPal are already offered above via the
-        // PayPal SDK buttons — only Link and Amazon Pay are new here, so
-        // the rest are explicitly turned off to avoid showing the same
-        // wallet twice from two different providers.
         if (expressCheckoutRef.current) {
           const expressCheckout = elements.create('expressCheckout', {
             paymentMethods: {
-              applePay: 'never',
-              googlePay: 'never',
-              paypal: 'never',
-              venmo: 'never',
+              applePay: 'auto',
+              googlePay: 'auto',
+              paypal: 'auto',
+              venmo: 'auto',
               link: 'auto',
               amazonPay: 'auto',
             },
@@ -399,21 +390,6 @@ export default function CheckoutPage() {
   };
   handleExpressConfirmRef.current = handleExpressConfirm;
 
-  const handlePaypalSuccess = async (result) => {
-    sessionStorage.setItem('veil-purchase', JSON.stringify({
-      eventId: result.eventId,
-      amount: result.amount,
-      contentIds: cart.map((i) => i.id),
-      contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
-    }));
-    await router.push('/success');
-    clear();
-  };
-
-  const handlePaypalError = (message) => {
-    setError(message || 'PayPal checkout failed. Please try again.');
-  };
-
   if (!hydrated || cart.length === 0) return null;
 
   return (
@@ -437,33 +413,6 @@ export default function CheckoutPage() {
           <section>
             <p style={{ ...S.label, marginBottom: 10 }}>Express checkout</p>
             <div style={expressStack}>
-              <PayPalButton
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <PayPalButton
-                fundingSource="venmo"
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              <GooglePayButton
-                amount={grandTotal}
-                items={cart}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                disabled={submitting}
-                onSuccess={handlePaypalSuccess}
-                onError={handlePaypalError}
-              />
-              {/* Stripe's own Link/Amazon Pay — Apple Pay/Google Pay/PayPal are
-                  turned off here since those are already covered above. */}
               <div
                 ref={expressCheckoutRef}
                 style={{ display: expressReady ? 'block' : 'none', opacity: submitting ? 0.5 : 1, pointerEvents: submitting ? 'none' : 'auto' }}
