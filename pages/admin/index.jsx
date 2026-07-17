@@ -560,12 +560,12 @@ export default function AdminDashboard() {
 
               <p style={{ ...S.label, margin: '28px 0 12px' }}>Who's here right now</p>
               <div>
-                <div style={visitorHeadRow}>
-                  <span style={{ flex: '0 0 110px' }}>Stage</span>
-                  <span style={{ flex: '0 0 150px' }}>Source</span>
-                  <span style={{ flex: 1 }}>Page</span>
-                  <span style={{ flex: '0 0 130px' }}>Scrolled</span>
-                  <span style={{ flex: '0 0 120px' }}>Location</span>
+                <div className="visitor-head-row" style={visitorHeadRow}>
+                  <span className="visitor-col-stage">Stage</span>
+                  <span className="visitor-col-source">Source</span>
+                  <span className="visitor-col-page">Page</span>
+                  <span className="visitor-col-scroll">Scrolled</span>
+                  <span className="visitor-col-location">Location</span>
                 </div>
                 {live.visitors
                   .slice()
@@ -573,24 +573,24 @@ export default function AdminDashboard() {
                   .map((v) => {
                     const stageIndex = Math.max(0, STAGE_ORDER.indexOf(v.stage));
                     return (
-                      <div key={v.sessionId} style={visitorRow}>
-                        <span style={{ flex: '0 0 110px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div key={v.sessionId} className="visitor-row" style={visitorRow}>
+                        <span className="visitor-col-stage" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: STAGE_BAR_COLORS[stageIndex], flexShrink: 0 }} />
                           {STAGE_LABELS[v.stage] || v.stage}
                         </span>
-                        <span style={{ flex: '0 0 150px', color: T.soft }} title={v.campaign || undefined}>
+                        <span className="visitor-col-source" style={{ color: T.soft }} title={v.campaign || undefined}>
                           {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
                         </span>
-                        <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
+                        <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
                           {pageLabel(v.path)}
                         </span>
-                        <span style={{ flex: '0 0 130px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="visitor-col-scroll" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ flex: 1, height: 6, background: T.paper, maxWidth: 60 }}>
                             <div style={{ height: '100%', width: `${v.scrollPct ?? 0}%`, background: T.ink }} />
                           </div>
                           <span style={{ color: T.soft, fontSize: 12, flexShrink: 0 }}>{v.scrollPct != null ? `${v.scrollPct}%` : '—'}</span>
                         </span>
-                        <span style={{ flex: '0 0 120px', color: T.soft }}>
+                        <span className="visitor-col-location" style={{ color: T.soft }}>
                           {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
                         </span>
                       </div>
@@ -987,6 +987,21 @@ export default function AdminDashboard() {
           .stat-grid { grid-template-columns: 1fr; }
           .funnel-grid { grid-template-columns: repeat(2, 1fr); }
         }
+        .visitor-head-row, .visitor-row { display: flex; }
+        .visitor-col-stage { flex: 0 0 110px; }
+        .visitor-col-source { flex: 0 0 150px; }
+        .visitor-col-page { flex: 1; }
+        .visitor-col-scroll { flex: 0 0 130px; }
+        .visitor-col-location { flex: 0 0 120px; }
+        @media (max-width: 640px) {
+          .visitor-head-row { display: none; }
+          .visitor-row { flex-wrap: wrap; row-gap: 6px; }
+          .visitor-col-stage { flex: 1 1 50%; order: 1; }
+          .visitor-col-location { flex: 1 1 50%; order: 2; text-align: right; }
+          .visitor-col-source { flex: 1 1 100%; order: 3; }
+          .visitor-col-page { flex: 1 1 60%; order: 4; }
+          .visitor-col-scroll { flex: 1 1 40%; order: 5; justify-content: flex-end; }
+        }
         .live-dot {
           width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
           background: #22c55e;
@@ -1051,12 +1066,16 @@ const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // Lightest (browsing) to darkest (just purchased), same "further down the
 // funnel = more solid" convention as the live-activity sparkline below.
 const STAGE_BAR_COLORS = ['rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)', 'rgba(22,20,15,0.65)', T.ink];
+// display is intentionally left out of these two and set in CSS instead
+// (.visitor-head-row/.visitor-row below) — an inline `display` would always
+// beat the mobile media query's `display: none` / `flex-wrap`, regardless
+// of specificity.
 const visitorHeadRow = {
-  display: 'flex', gap: 12, padding: '0 0 8px', borderBottom: `1px solid ${T.ink}`,
+  gap: 12, padding: '0 0 8px', borderBottom: `1px solid ${T.ink}`,
   fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
 };
 const visitorRow = {
-  display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${T.line}`,
+  gap: 12, padding: '10px 0', borderBottom: `1px solid ${T.line}`,
   fontSize: 13, alignItems: 'center',
 };
 const funnelRangeSelect = {
