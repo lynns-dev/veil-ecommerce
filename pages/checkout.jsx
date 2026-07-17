@@ -160,8 +160,13 @@ export default function CheckoutPage() {
   // never touch our own JS. It needs a PaymentIntent client_secret up front
   // to know what's eligible for this amount, so the intent is created once,
   // early (intentCreatedRef guards against re-creating it as grandTotal
-  // changes); a separate effect keeps the mounted element's amount in sync
-  // afterward via elements.update() rather than recreating anything.
+  // changes). elements.update({amount}) only works for the "deferred"
+  // Elements setup (mode: 'payment'), not this clientSecret-based one, so
+  // if the total changes later (a discount code applied after the element
+  // is already mounted) the displayed amount/eligibility won't reflect it
+  // until submit — /api/stripe/update-intent syncs the real PaymentIntent
+  // amount server-side right before confirmPayment, so the actual charge
+  // is always correct regardless.
   const paymentElementRef = React.useRef(null);
   const stripeRef = React.useRef(null);
   const elementsRef = React.useRef(null);
@@ -227,11 +232,6 @@ export default function CheckoutPage() {
       cancelled = true;
     };
   }, [hydrated, cart.length, grandTotal]);
-
-  React.useEffect(() => {
-    if (!stripeReady || !elementsRef.current || grandTotal <= 0) return;
-    elementsRef.current.update({ amount: Math.round(grandTotal * 100) });
-  }, [grandTotal, stripeReady]);
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return;
