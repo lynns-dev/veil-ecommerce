@@ -388,34 +388,48 @@ export default function AdminDashboard() {
         <div className="stat-grid" style={statGrid}>
           <StatCard label="Revenue today" value={dashboard ? `$${dashboard.revenueToday.toFixed(2)}` : '—'} />
           <StatCard label="Orders today" value={dashboard ? dashboard.ordersToday : '—'} />
-          <StatCard label="Live visitors" value={live.count} highlight />
         </div>
 
-        {/* LIVE FUNNEL */}
-        <Section title="Live visitors by stage">
-          {live.count === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No one on the site right now.</p>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 24 }}>
+        {/* LIVE VIEW — Shopify-style unified live module: big visitor count,
+            funnel-stage breakdown as one segmented bar, map + locations,
+            all in one card instead of split across several boxed sections. */}
+        <div style={liveViewCard}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20, marginBottom: 28 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span className={live.count > 0 ? 'live-dot' : 'live-dot live-dot-idle'} />
+                <span style={{ ...S.label, margin: 0 }}>Live view</span>
+              </div>
+              <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>{live.count}</div>
+              <div style={{ fontSize: 13, color: T.soft, marginTop: 8 }}>
+                {live.count === 0 ? 'No one on the site right now' : `visitor${live.count === 1 ? '' : 's'} on your site right now`}
+              </div>
+            </div>
+            {live.count > 0 && (
+              <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
                 {Object.entries(STAGE_LABELS).map(([key, label]) => (
-                  <div key={key} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: T.serif, fontSize: 32 }}>{live.byStage[key] || 0}</div>
-                    <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
+                  <div key={key} style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: T.serif, fontSize: 26 }}>{live.byStage[key] || 0}</div>
+                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
                   </div>
                 ))}
               </div>
-            </>
-          )}
-        </Section>
+            )}
+          </div>
 
-        {/* LIVE LOCATIONS */}
-        <Section title="Live visitors by location">
           {live.count === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No one on the site right now.</p>
+            <p style={{ color: T.soft, fontSize: 14 }}>Visitor locations and funnel stage will show up here as soon as someone's browsing.</p>
           ) : (
             <>
-              <div style={{ position: 'relative', marginBottom: 24 }}>
+              <div style={stageBarTrack}>
+                {Object.entries(STAGE_LABELS).map(([key], i) => {
+                  const val = live.byStage[key] || 0;
+                  const pct = (val / live.count) * 100;
+                  return pct > 0 ? <div key={key} style={{ ...stageBarSeg, width: `${pct}%`, background: STAGE_BAR_COLORS[i] }} /> : null;
+                })}
+              </div>
+
+              <div style={{ position: 'relative', marginTop: 28, marginBottom: 24 }}>
                 <WorldMap counts={mapCounts} onHoverCountry={setHoveredCountry} />
                 <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 12, color: T.soft, background: T.paper, padding: hoveredCountry ? '4px 8px' : 0 }}>
                   {hoveredCountry && (
@@ -448,7 +462,7 @@ export default function AdminDashboard() {
               </div>
             </>
           )}
-        </Section>
+        </div>
 
         {/* LIVE ACTIVITY */}
         <Section title="Live activity (last 5 minutes)">
@@ -744,11 +758,27 @@ export default function AdminDashboard() {
       </div>
 
       <style jsx>{`
-        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
         .funnel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         @media (max-width: 640px) {
           .stat-grid { grid-template-columns: 1fr; }
           .funnel-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .live-dot {
+          width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+          background: #22c55e;
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+          animation: live-pulse 2s infinite;
+        }
+        .live-dot-idle {
+          background: ${T.line};
+          box-shadow: none;
+          animation: none;
+        }
+        @keyframes live-pulse {
+          0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+          70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
       `}</style>
     </div>
@@ -786,9 +816,15 @@ function Section({ title, action, children }) {
   );
 }
 
-const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 };
+const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 };
 const statCard = { background: T.white, border: `1px solid ${T.line}`, padding: '24px 20px', textAlign: 'center' };
 const funnelGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 };
+const liveViewCard = { background: T.white, border: `1px solid ${T.line}`, padding: '28px 24px', marginBottom: 24 };
+const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: T.paper, overflow: 'hidden' };
+const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
+// Lightest (browsing) to darkest (just purchased), same "further down the
+// funnel = more solid" convention as the live-activity sparkline below.
+const STAGE_BAR_COLORS = ['rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)', 'rgba(22,20,15,0.65)', T.ink];
 const funnelRangeSelect = {
   height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
   fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
