@@ -424,12 +424,12 @@ export default function ProductPage({ product }) {
 
       {/* Floating add-to-cart bar */}
       <div style={stickyBar}>
-        <div style={stickyBarInner}>
+        <div className="sticky-bar-inner" style={stickyBarInner}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, color: T.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
             <div style={{ fontSize: 13, color: 'rgba(252,251,247,0.7)', marginTop: 2 }}>${unitPrice}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="sticky-bar-actions" style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
             <div style={stickyQtyWrap}>
               <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} style={stickyQtyBtn} aria-label="Decrease quantity">−</button>
               <span style={{ ...qtyValue, color: T.white }}>{quantity}</span>
@@ -447,6 +447,7 @@ export default function ProductPage({ product }) {
         .reel-track { scroll-snap-type: x mandatory; }
         .reel-item { scroll-snap-align: start; flex: 0 0 22%; }
         .thumb-col { flex-direction: column; }
+        .sticky-bar-inner { padding: 0 40px; }
         @media (max-width: 860px) {
           .reel-item { flex: 0 0 calc((100% - 40px) / 3); }
         }
@@ -457,6 +458,8 @@ export default function ProductPage({ product }) {
           .related-grid { grid-template-columns: 1fr; }
           .related-item { border-left: none; }
           .related-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
+          .sticky-bar-inner { padding: 0 16px; gap: 12px; }
+          .sticky-bar-actions { gap: 10px; }
         }
       `}</style>
     </div>
@@ -477,7 +480,7 @@ const pdpRating = {
   display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 14,
   fontFamily: T.sans, width: 'fit-content', borderBottom: `1px solid ${T.line}`, paddingBottom: 2,
 };
-const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(34px,4.4vw,54px)', lineHeight: 1.02, marginBottom: 10 };
+const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(28px,3.6vw,42px)', lineHeight: 1.05, marginBottom: 10 };
 const pdpTagline = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, marginBottom: 14 };
 const pdpDesc = { fontSize: 15, color: '#4a453c', maxWidth: '46ch', marginBottom: 22, lineHeight: 1.6 };
 const pdpPrice = { fontFamily: T.serif, fontWeight: 300, fontSize: 28, marginBottom: 22 };
@@ -541,11 +544,12 @@ const stickyBar = {
   padding: '14px 0',
 };
 const stickyBarInner = {
-  maxWidth: T.maxw, margin: '0 auto', padding: '0 40px',
+  maxWidth: T.maxw, margin: '0 auto',
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
 };
 const stickyQtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.dline}`, height: 40 };
 const stickyQtyBtn = { width: 32, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, color: T.white };
 const stickyAddBtn = {
   ...S.btnFill, background: T.white, color: T.ink, height: 40, padding: '0 22px',
+  whiteSpace: 'nowrap', flexShrink: 0,
 };

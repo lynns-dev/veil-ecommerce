@@ -40,7 +40,7 @@ export default function ShopPage() {
                 <ProductVisual id={p.id} images={p.images} alt={p.name} width={p.id === 'puff' ? 130 : 120} />
               </Link>
               <div style={cardText}>
-                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 22 }}>{p.name}</Link>
+                <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18 }}>{p.name}</Link>
                 {reviews[p.id]?.count > 0 && (
                   <div style={ratingRow}>
                     <span style={{ letterSpacing: '1.5px', color: T.ink }}>{'★'.repeat(Math.round(reviews[p.id].average))}{'☆'.repeat(5 - Math.round(reviews[p.id].average))}</span>

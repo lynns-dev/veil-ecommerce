@@ -97,7 +97,7 @@ export default function HomePage() {
                   <ProductVisual id={p.id} images={p.images} alt={p.name} width={104} />
                 </Link>
                 <div style={pcardText}>
-                  <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 25 }}>{p.name}</Link>
+                  <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19 }}>{p.name}</Link>
                   <div style={pnotes}>{p.tagline}</div>
                   <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
                   <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => c.add(p)}>Add to cart</button>
