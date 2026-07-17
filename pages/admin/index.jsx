@@ -806,7 +806,7 @@ function FunnelStep({ label, value, rate }) {
 
 function Section({ title, action, children }) {
   return (
-    <div style={{ background: T.white, border: `1px solid ${T.line}`, padding: 24, marginBottom: 24 }}>
+    <div style={{ background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: 24, marginBottom: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
         <p style={{ ...S.label, margin: 0 }}>{title}</p>
         {action}
@@ -816,10 +816,13 @@ function Section({ title, action, children }) {
   );
 }
 
+// Same white/border palette as before — this just lifts each card off the
+// paper background a little instead of leaving them perfectly flat.
+const cardShadow = '0 1px 2px rgba(22,20,15,0.04), 0 4px 12px rgba(22,20,15,0.06)';
 const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 };
-const statCard = { background: T.white, border: `1px solid ${T.line}`, padding: '24px 20px', textAlign: 'center' };
+const statCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '24px 20px', textAlign: 'center' };
 const funnelGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 };
-const liveViewCard = { background: T.white, border: `1px solid ${T.line}`, padding: '28px 24px', marginBottom: 24 };
+const liveViewCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '28px 24px', marginBottom: 24 };
 const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: T.paper, overflow: 'hidden' };
 const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // Lightest (browsing) to darkest (just purchased), same "further down the
