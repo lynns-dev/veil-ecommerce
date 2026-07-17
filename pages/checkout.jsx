@@ -27,6 +27,33 @@ function LockIcon(props) {
   );
 }
 
+function ShipIcon(props) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M3 7l9-4 9 4-9 4-9-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M3 7v10l9 4 9-4V7M12 11v10" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ReturnIcon(props) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M4 12a8 8 0 1 1 2.34 5.66" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M4 8v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function LeafIcon(props) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M5 19c9 0 14-5 14-14-9 0-14 5-14 14Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M5 19c0-6 3-9 9-11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 
 // Human labels for the payment method types Stripe's Payment Element and
 // Express Checkout Element can resolve to (reported via their 'change' /
@@ -632,6 +659,25 @@ export default function CheckoutPage() {
         </aside>
       </div>
 
+      <div style={reassuranceWrap}>
+        <div className="reassurance-grid" style={reassuranceGrid}>
+          {[
+            [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
+            [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
+            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Stripe.'],
+            [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
+          ].map(([Icon, title, copy]) => (
+            <div key={title} style={reassuranceItem}>
+              <Icon style={{ color: T.ink, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: T.ink }}>{title}</div>
+                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{copy}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div style={legalLinks}>
         <Link href="/terms">Terms & Conditions</Link>
         <Link href="/privacy">Privacy Policy</Link>
@@ -644,6 +690,13 @@ export default function CheckoutPage() {
         :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 10px; }
         .summary-toggle { display: none; }
         .checkout-grid { grid-template-columns: 1.35fr 1fr; }
+        .reassurance-grid { grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 860px) {
+          .reassurance-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+          .reassurance-grid { grid-template-columns: 1fr; }
+        }
         .order-summary { display: block; }
         @media (min-width: 861px) {
           .order-summary {
@@ -708,6 +761,9 @@ const qtyBadge = {
   width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 const summaryRow = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 };
+const reassuranceWrap = { borderTop: `1px solid ${T.line}`, background: T.paper };
+const reassuranceGrid = { maxWidth: 1280, margin: '0 auto', padding: '32px 40px', display: 'grid', gap: 24 };
+const reassuranceItem = { display: 'flex', alignItems: 'flex-start', gap: 12 };
 const legalLinks = {
   display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20,
   maxWidth: 1280, margin: '0 auto', padding: '24px 40px 36px',
