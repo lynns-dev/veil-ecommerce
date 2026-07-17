@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { CartProvider, useCart } from '../lib/useCart';
 import { loadPixel, fbTrack } from '../lib/fbPixel';
 import { loadClarity } from '../lib/clarity';
-import { captureAttribution } from '../lib/attribution';
+import { captureAttribution, getStoredAttribution, describeTrafficSource } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 
 const HEARTBEAT_MS = 10000;
@@ -63,12 +63,31 @@ function Tracking() {
       return 'browsing';
     };
 
+    // How far down the current page they've scrolled, 0-100 — recomputed
+    // fresh on each 10s tick rather than via a scroll listener, consistent
+    // with the rest of this heartbeat's "poll, don't stream" approach.
+    const scrollPercent = () => {
+      const doc = document.documentElement;
+      const scrollable = doc.scrollHeight - doc.clientHeight;
+      if (scrollable <= 0) return 100;
+      const pct = (window.scrollY / scrollable) * 100;
+      return Math.min(100, Math.max(0, Math.round(pct)));
+    };
+
     const sendHeartbeat = () => {
       if (!sessionIdRef.current) return;
+      const { source, campaign } = describeTrafficSource(getStoredAttribution(), document.referrer);
       fetch('/api/track/heartbeat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sessionIdRef.current, stage: currentStage() }),
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          stage: currentStage(),
+          path: window.location.pathname,
+          source,
+          campaign,
+          scrollPct: scrollPercent(),
+        }),
         keepalive: true,
       }).catch(() => {});
     };

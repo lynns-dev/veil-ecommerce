@@ -29,7 +29,7 @@ async function getLiveVisitors() {
   const keysData = await keysRes.json();
   const keys = keysData.result || [];
 
-  if (keys.length === 0) return { count: 0, byStage: {}, byCountry: {} };
+  if (keys.length === 0) return { count: 0, byStage: {}, byCountry: {}, visitors: [] };
 
   const mgetRes = await fetch(`${KV_URL}/mget/${keys.join('/')}`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
   const mgetData = await mgetRes.json();
@@ -52,7 +52,21 @@ async function getLiveVisitors() {
       .sort((a, b) => b.count - a.count);
   }
 
-  return { count: keys.length, byStage, byCountry };
+  // Per-visitor detail (source/page/scroll depth) for the admin "who's here
+  // right now" list — keys.map so each row still has a stable id (the
+  // session id) even though it's stripped out of the stored JSON blob itself.
+  const detailed = visitors.map((v, i) => ({
+    sessionId: keys[i].slice('visitor:'.length),
+    stage: v.stage || 'browsing',
+    path: v.path || null,
+    source: v.source || null,
+    campaign: v.campaign || null,
+    scrollPct: typeof v.scrollPct === 'number' ? v.scrollPct : null,
+    city: v.city || null,
+    country: v.country || 'XX',
+  }));
+
+  return { count: keys.length, byStage, byCountry, visitors: detailed };
 }
 
 function buildActivity(events) {

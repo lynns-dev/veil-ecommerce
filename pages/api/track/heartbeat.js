@@ -13,13 +13,28 @@ const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const TTL_SECONDS = 25;
 const ALLOWED_STAGES = ['browsing', 'cart_open', 'checkout', 'purchased'];
 
+// Trims a client-supplied string to a sane length so a malformed/hostile
+// payload can't bloat the KV entry — none of these fields are ever used for
+// anything but display in the admin live view.
+function clip(value, maxLength) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
+
+function clampScrollPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).end();
   }
 
-  const { sessionId, stage } = req.body || {};
+  const { sessionId, stage, path, source, campaign, scrollPct } = req.body || {};
   if (
     typeof sessionId === 'string' &&
     sessionId.length > 0 &&
@@ -38,6 +53,10 @@ export default async function handler(req, res) {
         stage,
         city: city ? decodeURIComponent(city) : null,
         country,
+        path: clip(path, 200),
+        source: clip(source, 80),
+        campaign: clip(campaign, 80),
+        scrollPct: clampScrollPct(scrollPct),
       });
       await fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
         method: 'POST',

@@ -43,6 +43,13 @@ const STAGE_LABELS = {
   checkout: 'At checkout',
   purchased: 'Just purchased',
 };
+const STAGE_ORDER = Object.keys(STAGE_LABELS);
+
+function pageLabel(path) {
+  if (!path) return 'Unknown page';
+  if (path === '/') return 'Home';
+  return path;
+}
 const EMPTY_ACTIVITY = { counts: { addtocart: 0, checkout_start: 0, purchase: 0, revenue: 0 }, buckets: [], recent: [] };
 const ACTIVITY_LABELS = {
   addtocart: 'Added to cart',
@@ -107,7 +114,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
   const [funnelRange, setFunnelRange] = React.useState('today');
-  const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, activity: EMPTY_ACTIVITY });
+  const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, visitors: [], activity: EMPTY_ACTIVITY });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
@@ -549,6 +556,46 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              <p style={{ ...S.label, margin: '28px 0 12px' }}>Who's here right now</p>
+              <div>
+                <div style={visitorHeadRow}>
+                  <span style={{ flex: '0 0 110px' }}>Stage</span>
+                  <span style={{ flex: '0 0 150px' }}>Source</span>
+                  <span style={{ flex: 1 }}>Page</span>
+                  <span style={{ flex: '0 0 130px' }}>Scrolled</span>
+                  <span style={{ flex: '0 0 120px' }}>Location</span>
+                </div>
+                {live.visitors
+                  .slice()
+                  .sort((a, b) => STAGE_ORDER.indexOf(b.stage) - STAGE_ORDER.indexOf(a.stage) || (b.scrollPct || 0) - (a.scrollPct || 0))
+                  .map((v) => {
+                    const stageIndex = Math.max(0, STAGE_ORDER.indexOf(v.stage));
+                    return (
+                      <div key={v.sessionId} style={visitorRow}>
+                        <span style={{ flex: '0 0 110px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: STAGE_BAR_COLORS[stageIndex], flexShrink: 0 }} />
+                          {STAGE_LABELS[v.stage] || v.stage}
+                        </span>
+                        <span style={{ flex: '0 0 150px', color: T.soft }} title={v.campaign || undefined}>
+                          {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
+                        </span>
+                        <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
+                          {pageLabel(v.path)}
+                        </span>
+                        <span style={{ flex: '0 0 130px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: T.paper, maxWidth: 60 }}>
+                            <div style={{ height: '100%', width: `${v.scrollPct ?? 0}%`, background: T.ink }} />
+                          </div>
+                          <span style={{ color: T.soft, fontSize: 12, flexShrink: 0 }}>{v.scrollPct != null ? `${v.scrollPct}%` : '—'}</span>
+                        </span>
+                        <span style={{ flex: '0 0 120px', color: T.soft }}>
+                          {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             </>
           )}
@@ -1004,6 +1051,14 @@ const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // Lightest (browsing) to darkest (just purchased), same "further down the
 // funnel = more solid" convention as the live-activity sparkline below.
 const STAGE_BAR_COLORS = ['rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)', 'rgba(22,20,15,0.65)', T.ink];
+const visitorHeadRow = {
+  display: 'flex', gap: 12, padding: '0 0 8px', borderBottom: `1px solid ${T.ink}`,
+  fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
+};
+const visitorRow = {
+  display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${T.line}`,
+  fontSize: 13, alignItems: 'center',
+};
 const funnelRangeSelect = {
   height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
   fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
