@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
 
       <PolicySection title="Payment processing">
         <p>
-          Payments are processed by QuickBooks Payments (Intuit) and PayPal, Inc. When you check out, your payment
+          Payments are processed by Stripe, Inc. and PayPal, Inc. When you check out, your payment
           details are sent directly to whichever processor you choose, under their own privacy policies — we never
           see or store full card numbers.
         </p>

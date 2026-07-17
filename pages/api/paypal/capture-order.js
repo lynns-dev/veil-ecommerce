@@ -1,5 +1,5 @@
 // Captures an approved PayPal order and runs the same post-purchase
-// fulfillment as the QuickBooks card flow. Shipping address and email come
+// fulfillment as the Stripe card flow. Shipping address and email come
 // from PayPal's own capture response, not the on-page form — a customer
 // using the express PayPal button may never have typed anything into the
 // Contact/Delivery section, since PayPal collects that from their account.

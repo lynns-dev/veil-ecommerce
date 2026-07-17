@@ -9,7 +9,7 @@ import PayPalButton from '../components/PayPalButton';
 import GooglePayButton from '../components/GooglePayButton';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
-import { tokenizeCard } from '../lib/qbPayments';
+import { getStripeClient } from '../lib/stripeClient';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
@@ -32,132 +32,26 @@ function LockIcon(props) {
   );
 }
 
-function QuestionIcon(props) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="17" r="1" fill="currentColor" />
-    </svg>
-  );
-}
 
-// IIN-range brand detection — good enough to give the user visual
-// confirmation their card is recognized, not used for validation.
-function detectCardBrand(digits) {
-  if (/^4/.test(digits)) return 'visa';
-  if (/^5[1-5]/.test(digits) || /^2(2[2-9]\d|[3-6]\d{2}|7[01]\d|720)/.test(digits)) return 'mastercard';
-  if (/^3[47]/.test(digits)) return 'amex';
-  if (/^6(?:011|5)/.test(digits)) return 'discover';
-  return null;
-}
+// Human labels for the payment method types Stripe's Payment Element can
+// resolve to (reported via its 'change' event) — used for the order
+// record/analytics label, since Payment Element itself doesn't hand back a
+// pretty name the way the old single-purpose PayPal buttons did.
+const PAYMENT_METHOD_LABELS = {
+  card: 'Card',
+  afterpay_clearpay: 'Afterpay',
+  amazon_pay: 'Amazon Pay',
+  apple_pay: 'Apple Pay',
+  google_pay: 'Google Pay',
+  link: 'Link',
+  cashapp: 'Cash App Pay',
+};
 
-function formatCardNumber(digits) {
-  if (/^3[47]/.test(digits)) {
-    // Amex: 4-6-5
-    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
-  }
-  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
-}
-
-// Small, recognizable renderings of each network's real mark (not a
-// colored text pill) so the "we accept" row reads as legitimate rather
-// than placeholder-ish.
-function CardLogoBadge({ children, bg = '#fff' }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 30, height: 20, borderRadius: 3, background: bg,
-        border: `1px solid ${T.line}`, overflow: 'hidden', flexShrink: 0,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function VisaLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="24" height="10" viewBox="0 0 48 18" aria-label="Visa">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontStyle="italic" fontWeight="800" fontSize="16" fill="#1434CB" letterSpacing="-0.5">VISA</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function MastercardLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="22" height="14" viewBox="0 0 40 26" aria-label="Mastercard">
-        <circle cx="15" cy="13" r="11" fill="#EB001B" />
-        <circle cx="25" cy="13" r="11" fill="#F79E1B" style={{ mixBlendMode: 'multiply' }} />
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function AmexLogo() {
-  return (
-    <CardLogoBadge bg="#006FCF">
-      <svg width="26" height="13" viewBox="0 0 52 22" aria-label="American Express">
-        <text x="1" y="16" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="0.5">AMEX</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function DiscoverLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="28" height="11" viewBox="0 0 66 20" aria-label="Discover">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontWeight="700" fontStyle="italic" fontSize="11" fill="#1B1B1B" letterSpacing="-0.3">Discover</text>
-        <circle cx="62" cy="14" r="4" fill="#FF6600" />
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-const CARD_BRANDS = [
-  { id: 'visa', label: 'Visa', Logo: VisaLogo },
-  { id: 'mastercard', label: 'Mastercard', Logo: MastercardLogo },
-  { id: 'amex', label: 'Amex', Logo: AmexLogo },
-  { id: 'discover', label: 'Discover', Logo: DiscoverLogo },
-];
-
-// Shows a couple of the most recognizable brands plus a "+N" count for the
-// rest — the point is signaling "we take lots of card types," not listing
-// every logo (which also doesn't reliably fit next to the "Credit card"
-// label on a phone screen).
-const VISIBLE_CARD_BRANDS = CARD_BRANDS.slice(0, 2);
-const HIDDEN_CARD_BRAND_COUNT = CARD_BRANDS.length - VISIBLE_CARD_BRANDS.length;
-
-function CardBrandBadges() {
-  return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      {VISIBLE_CARD_BRANDS.map((b) => <b.Logo key={b.id} />)}
-      {HIDDEN_CARD_BRAND_COUNT > 0 && (
-        <span
-          style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 22, height: 20, borderRadius: 3,
-            fontFamily: T.sans, fontSize: 8, fontWeight: 700,
-            color: T.soft, background: T.white, border: `1px solid ${T.line}`,
-          }}
-        >
-          +{HIDDEN_CARD_BRAND_COUNT}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function CardBrandIcon({ brand }) {
-  const b = CARD_BRANDS.find((x) => x.id === brand);
-  if (!b) return null;
-  return <b.Logo />;
-}
+// These always leave the page for an off-site confirmation step, unlike
+// card/Apple Pay/Google Pay/Link which normally resolve without navigating
+// away — handleSubmit uses this to know whether it can rely on running code
+// after stripe.confirmPayment() or needs to prep sessionStorage beforehand.
+const REDIRECT_PAYMENT_TYPES = ['afterpay_clearpay', 'amazon_pay'];
 
 function AddressFields({ value, onChange, idPrefix }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
@@ -199,18 +93,7 @@ export default function CheckoutPage() {
   const [shipping, setShipping] = React.useState(emptyAddress);
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(emptyAddress);
-  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '' });
-  const [cvcTipOpen, setCvcTipOpen] = React.useState(false);
-  const cvcTipRef = React.useRef(null);
 
-  React.useEffect(() => {
-    if (!cvcTipOpen) return;
-    const handler = (e) => {
-      if (cvcTipRef.current && !cvcTipRef.current.contains(e.target)) setCvcTipOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [cvcTipOpen]);
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
@@ -259,8 +142,6 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  const cardBrand = React.useMemo(() => detectCardBrand(card.number.replace(/\D/g, '')), [card.number]);
-
   const hasTassel = cart.some((i) => i.id === TASSEL_GIFT.id);
   const tasselExpired = tasselSeconds <= 0;
   const tasselMins = Math.floor(tasselSeconds / 60);
@@ -272,6 +153,85 @@ export default function CheckoutPage() {
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
   const grandTotal = discountedTotal + shippingCost;
+
+  // Stripe Payment Element: a single Stripe-hosted iframe that shows
+  // whichever methods (card, Afterpay, Amazon Pay, Apple Pay, Link, ...)
+  // are eligible and enabled in the Stripe Dashboard — raw payment details
+  // never touch our own JS. It needs a PaymentIntent client_secret up front
+  // to know what's eligible for this amount, so the intent is created once,
+  // early (intentCreatedRef guards against re-creating it as grandTotal
+  // changes); a separate effect keeps the mounted element's amount in sync
+  // afterward via elements.update() rather than recreating anything.
+  const paymentElementRef = React.useRef(null);
+  const stripeRef = React.useRef(null);
+  const elementsRef = React.useRef(null);
+  const paymentIntentIdRef = React.useRef(null);
+  const intentCreatedRef = React.useRef(false);
+  const [stripeReady, setStripeReady] = React.useState(false);
+  const [activePaymentType, setActivePaymentType] = React.useState('card');
+  const [paymentElementError, setPaymentElementError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!hydrated || cart.length === 0 || grandTotal <= 0 || intentCreatedRef.current) return;
+    intentCreatedRef.current = true;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [stripeInstance, intentRes] = await Promise.all([
+          getStripeClient(),
+          fetch('/api/stripe/create-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: grandTotal }),
+          }).then((r) => r.json()),
+        ]);
+        if (cancelled || !stripeInstance || !paymentElementRef.current) return;
+        if (!intentRes.clientSecret) throw new Error(intentRes.error || 'Could not start checkout.');
+
+        stripeRef.current = stripeInstance;
+        paymentIntentIdRef.current = intentRes.paymentIntentId;
+
+        const elements = stripeInstance.elements({
+          clientSecret: intentRes.clientSecret,
+          appearance: {
+            theme: 'stripe',
+            variables: {
+              fontFamily: T.sans, colorText: T.ink, colorTextPlaceholder: T.soft,
+              colorPrimary: T.ink, borderRadius: '4px', colorDanger: '#a13d2b',
+            },
+          },
+        });
+        elementsRef.current = elements;
+
+        const paymentElement = elements.create('payment', { layout: 'tabs' });
+        paymentElement.mount(paymentElementRef.current);
+        paymentElement.on('change', (e) => {
+          setActivePaymentType(e.value?.type || 'card');
+          setPaymentElementError('');
+        });
+        paymentElement.on('loaderror', (e) => {
+          console.error('Stripe Payment Element failed to load:', e.error);
+        });
+
+        setStripeReady(true);
+      } catch (err) {
+        // Missing/bad publishable key, blocked script, etc. — surfaced via
+        // stripeReady staying false, which disables the submit button below
+        // rather than letting the shopper submit into a broken form.
+        console.error('Stripe setup failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, cart.length, grandTotal]);
+
+  React.useEffect(() => {
+    if (!stripeReady || !elementsRef.current || grandTotal <= 0) return;
+    elementsRef.current.update({ amount: Math.round(grandTotal * 100) });
+  }, [grandTotal, stripeReady]);
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return;
@@ -291,49 +251,87 @@ export default function CheckoutPage() {
     setError('');
     setSubmitting(true);
     try {
-      const purchaseEventId = generateEventId();
-      const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
-      const billingAddress = billingSame ? shipping : billing;
-      const token = await tokenizeCard(
-        {
-          number: card.number,
-          expMonth,
-          expYear: expYear && expYear.length === 2 ? `20${expYear}` : expYear,
-          cvc: card.cvc,
-          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim(),
-          street: billingAddress.address,
-          city: billingAddress.city,
-          region: billingAddress.state,
-          postalCode: billingAddress.zip,
-        },
-        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
-      );
+      const stripeInstance = stripeRef.current;
+      const elements = elementsRef.current;
+      if (!stripeInstance || !elements || !paymentIntentIdRef.current) {
+        throw new Error('Payment form is still loading — please wait a moment and try again.');
+      }
 
-      const res = await fetch('/api/qb-checkout', {
+      const purchaseEventId = generateEventId();
+      const billingAddress = billingSame ? shipping : billing;
+      const paymentMethodLabel = PAYMENT_METHOD_LABELS[activePaymentType] || 'Card';
+
+      // Saves everything the webhook needs to fulfill this order once
+      // Stripe confirms it — the client can't be trusted to do that itself,
+      // since redirect-based methods below never return control to this
+      // function at all.
+      const updateRes = await fetch('/api/stripe/update-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token,
+          paymentIntentId: paymentIntentIdRef.current,
           amount: grandTotal,
           items: cart,
           email,
           shipping,
-          billing: billingSame ? shipping : billing,
           eventId: purchaseEventId,
           url: window.location.href,
-          paymentMethod: CARD_BRANDS.find((b) => b.id === cardBrand)?.label || 'Card',
+          paymentMethod: paymentMethodLabel,
           attribution: getStoredAttribution(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment failed');
+      const updateData = await updateRes.json();
+      if (!updateRes.ok) throw new Error(updateData.error || 'Payment failed');
 
-      sessionStorage.setItem('veil-purchase', JSON.stringify({
+      const purchaseRecord = {
         eventId: purchaseEventId,
         amount: grandTotal,
         contentIds: cart.map((i) => i.id),
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
-      }));
+      };
+
+      // Afterpay/Amazon Pay always redirect off-site — the browser leaves
+      // this page entirely, so /success needs this record to already be
+      // there when Stripe sends the shopper back, not set by code that
+      // never gets to run.
+      if (REDIRECT_PAYMENT_TYPES.includes(activePaymentType)) {
+        sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
+      }
+
+      const { error: confirmError } = await stripeInstance.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/success`,
+          payment_method_data: {
+            billing_details: {
+              name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim() || undefined,
+              email: email || undefined,
+              phone: billingAddress.phone || undefined,
+              address: {
+                line1: billingAddress.address,
+                line2: billingAddress.apt || undefined,
+                city: billingAddress.city,
+                state: billingAddress.state,
+                postal_code: billingAddress.zip,
+                country: 'US',
+              },
+            },
+          },
+        },
+        redirect: 'if_required',
+      });
+
+      if (confirmError) {
+        sessionStorage.removeItem('veil-purchase');
+        throw new Error(confirmError.message);
+      }
+
+      // Reaching this line means nothing redirected — card, Apple Pay,
+      // Google Pay, and Link usually resolve right here in-page — so finish
+      // up ourselves instead of waiting on a navigation that isn't coming.
+      if (!REDIRECT_PAYMENT_TYPES.includes(activePaymentType)) {
+        sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
+      }
 
       await router.push('/success');
       clear();
@@ -502,74 +500,11 @@ export default function CheckoutPage() {
               </span>
             </div>
             <div style={paymentBox}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.ink, whiteSpace: 'nowrap' }}>Credit card</span>
-                <CardBrandBadges />
-              </div>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft, display: 'flex' }}>
-                  <LockIcon />
-                </span>
-                <input
-                  placeholder="Card number"
-                  value={card.number}
-                  onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16)) })}
-                  style={{ ...input, paddingLeft: 34, paddingRight: cardBrand ? 70 : 14 }}
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  required
-                />
-                {cardBrand && (
-                  <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
-                    <CardBrandIcon brand={cardBrand} />
-                  </div>
-                )}
-              </div>
-              <div className="row-2" style={{ marginTop: 8 }}>
-                <input
-                  placeholder="Expiration date (MM/YY)"
-                  value={card.expiry}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
-                    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-                    setCard({ ...card, expiry: formatted });
-                  }}
-                  style={input}
-                  inputMode="numeric"
-                  maxLength={5}
-                  autoComplete="cc-exp"
-                  required
-                />
-                <div style={{ position: 'relative' }} ref={cvcTipRef}>
-                  <input
-                    placeholder="Security code"
-                    value={card.cvc}
-                    onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                    style={{ ...input, paddingRight: 34 }}
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCvcTipOpen((o) => !o)}
-                    aria-label="What is the security code?"
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      color: T.soft, cursor: 'pointer', background: 'none', border: 'none', padding: 0, display: 'flex',
-                    }}
-                  >
-                    <QuestionIcon />
-                  </button>
-                  {cvcTipOpen && (
-                    <div style={cvcTooltip}>
-                      The 3-digit code on the back of your card (4 digits on the front for Amex).
-                    </div>
-                  )}
-                </div>
-              </div>
-              <label style={checkboxLabel}>
+              <div ref={paymentElementRef} />
+              {paymentElementError && (
+                <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{paymentElementError}</p>
+              )}
+              <label style={{ ...checkboxLabel, marginTop: 14 }}>
                 <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
                 Use shipping address as billing address
               </label>
@@ -607,10 +542,10 @@ export default function CheckoutPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !stripeReady}
             style={{
               ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
+              height: 58, fontSize: 13, opacity: submitting || !stripeReady ? 0.6 : 1,
             }}
           >
             {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
@@ -620,7 +555,7 @@ export default function CheckoutPage() {
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by QuickBooks Payments (Intuit)
+            Payments securely processed by Stripe
           </p>
         </form>
 
@@ -749,11 +684,6 @@ const tasselImgWrap = {
   border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
-const cvcTooltip = {
-  position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, width: 200,
-  background: T.ink, color: T.white, fontSize: 11, lineHeight: 1.4,
-  padding: '8px 10px', borderRadius: 4, zIndex: 5,
-};
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,
