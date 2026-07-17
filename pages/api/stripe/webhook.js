@@ -30,6 +30,10 @@ function readRawBody(req) {
 // Stripe's shipping shape ({ name, phone, address: { line1, line2, ... } })
 // vs. the flat one used elsewhere in this codebase (and shown in the admin
 // Orders tab) — normalized here so both payment paths store the same shape.
+// Used only as a fallback below; pending.email/pending.shipping (captured
+// directly from our own checkout form in /api/stripe/update-intent) are
+// authoritative since they don't depend on Stripe echoing back what was set
+// moments earlier on the PaymentIntent.
 function normalizeStripeShipping(shipping) {
   if (!shipping?.address) return null;
   return {
@@ -86,8 +90,8 @@ export default async function handler(req, res) {
           req,
           paymentMethod: pending.paymentMethod,
           attribution: pending.attribution,
-          email: intent.receipt_email || '',
-          shipping: normalizeStripeShipping(intent.shipping),
+          email: pending.email || intent.receipt_email || '',
+          shipping: pending.shipping || normalizeStripeShipping(intent.shipping),
           processor: 'stripe',
         });
         await deletePendingOrder(intent.id);

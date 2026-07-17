@@ -24,6 +24,23 @@ function shippingParam(shipping) {
   };
 }
 
+// Same flat shape used by PayPal's capture-order route and rendered in the
+// admin Orders tab ({ name, address, apt, city, state, zip, phone }) — the
+// raw checkout form uses firstName/lastName instead of a single name field,
+// so that needs collapsing here rather than storing the form's own shape.
+function normalizeFormShipping(shipping) {
+  if (!shipping?.address || !shipping?.city) return null;
+  return {
+    name: `${shipping.firstName || ''} ${shipping.lastName || ''}`.trim(),
+    address: shipping.address,
+    apt: shipping.apt || '',
+    city: shipping.city,
+    state: shipping.state || '',
+    zip: shipping.zip || '',
+    phone: shipping.phone || '',
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -50,10 +67,17 @@ export default async function handler(req, res) {
       shipping: shippingParam(shipping),
     });
 
+    // Also kept here (not just on the PaymentIntent itself) so the webhook
+    // doesn't depend on Stripe echoing receipt_email/shipping back
+    // correctly on the payment_intent.succeeded snapshot — our own form
+    // data is authoritative and guaranteed to be exactly what the shopper
+    // typed, regardless of how Stripe represents it.
     await savePendingOrder(paymentIntentId, {
       amount: Number(amount), items, eventId, url,
       paymentMethod: paymentMethod || 'Card',
       attribution: attribution || null,
+      email: email || '',
+      shipping: normalizeFormShipping(shipping),
     });
 
     return res.status(200).json({ ok: true });
