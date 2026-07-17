@@ -168,11 +168,20 @@ export default function CheckoutPage() {
   // amount server-side right before confirmPayment, so the actual charge
   // is always correct regardless.
   const paymentElementRef = React.useRef(null);
+  const expressCheckoutRef = React.useRef(null);
+  // The 'confirm' listener below is attached once, inside a setup effect
+  // that only re-runs if grandTotal changes before the intent exists — a
+  // handler defined directly in that effect would keep reading whatever
+  // cart/email/shipping looked like at that moment. Routing through a ref
+  // that's reassigned every render keeps it reading current values without
+  // needing to re-subscribe the listener.
+  const handleExpressConfirmRef = React.useRef(() => {});
   const stripeRef = React.useRef(null);
   const elementsRef = React.useRef(null);
   const paymentIntentIdRef = React.useRef(null);
   const intentCreatedRef = React.useRef(false);
   const [stripeReady, setStripeReady] = React.useState(false);
+  const [expressReady, setExpressReady] = React.useState(false);
   const [activePaymentType, setActivePaymentType] = React.useState('card');
   const [paymentElementError, setPaymentElementError] = React.useState('');
 
@@ -219,6 +228,29 @@ export default function CheckoutPage() {
           console.error('Stripe Payment Element failed to load:', e.error);
         });
 
+        // Apple Pay/Google Pay/PayPal are already offered above via the
+        // PayPal SDK buttons — only Link and Amazon Pay are new here, so
+        // the rest are explicitly turned off to avoid showing the same
+        // wallet twice from two different providers.
+        if (expressCheckoutRef.current) {
+          const expressCheckout = elements.create('expressCheckout', {
+            paymentMethods: {
+              applePay: 'never',
+              googlePay: 'never',
+              paypal: 'never',
+              venmo: 'never',
+              link: 'auto',
+              amazonPay: 'auto',
+            },
+          });
+          expressCheckout.mount(expressCheckoutRef.current);
+          expressCheckout.on('ready', ({ availablePaymentMethods }) => {
+            setExpressReady(Boolean(availablePaymentMethods && Object.keys(availablePaymentMethods).length > 0));
+          });
+          expressCheckout.on('click', (event) => event.resolve());
+          expressCheckout.on('confirm', (event) => handleExpressConfirmRef.current(event));
+        }
+
         setStripeReady(true);
       } catch (err) {
         // Missing/bad publishable key, blocked script, etc. — surfaced via
@@ -246,8 +278,11 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Shared by the regular form submit and the Express Checkout Element's
+  // 'confirm' event — both end up doing the same update-intent + confirm +
+  // success dance, just with billing details sourced differently (our own
+  // form fields vs. whatever the express payment method already collected).
+  const completeCheckout = async ({ paymentMethodType, paymentMethodLabel, paymentMethodData }) => {
     setError('');
     setSubmitting(true);
     try {
@@ -258,8 +293,6 @@ export default function CheckoutPage() {
       }
 
       const purchaseEventId = generateEventId();
-      const billingAddress = billingSame ? shipping : billing;
-      const paymentMethodLabel = PAYMENT_METHOD_LABELS[activePaymentType] || 'Card';
 
       // Saves everything the webhook needs to fulfill this order once
       // Stripe confirms it — the client can't be trusted to do that itself,
@@ -294,7 +327,8 @@ export default function CheckoutPage() {
       // this page entirely, so /success needs this record to already be
       // there when Stripe sends the shopper back, not set by code that
       // never gets to run.
-      if (REDIRECT_PAYMENT_TYPES.includes(activePaymentType)) {
+      const isRedirectType = REDIRECT_PAYMENT_TYPES.includes(paymentMethodType);
+      if (isRedirectType) {
         sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
       }
 
@@ -302,21 +336,7 @@ export default function CheckoutPage() {
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/success`,
-          payment_method_data: {
-            billing_details: {
-              name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim() || undefined,
-              email: email || undefined,
-              phone: billingAddress.phone || undefined,
-              address: {
-                line1: billingAddress.address,
-                line2: billingAddress.apt || undefined,
-                city: billingAddress.city,
-                state: billingAddress.state,
-                postal_code: billingAddress.zip,
-                country: 'US',
-              },
-            },
-          },
+          ...(paymentMethodData ? { payment_method_data: paymentMethodData } : {}),
         },
         redirect: 'if_required',
       });
@@ -329,7 +349,7 @@ export default function CheckoutPage() {
       // Reaching this line means nothing redirected — card, Apple Pay,
       // Google Pay, and Link usually resolve right here in-page — so finish
       // up ourselves instead of waiting on a navigation that isn't coming.
-      if (!REDIRECT_PAYMENT_TYPES.includes(activePaymentType)) {
+      if (!isRedirectType) {
         sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
       }
 
@@ -341,6 +361,43 @@ export default function CheckoutPage() {
       setSubmitting(false);
     }
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const billingAddress = billingSame ? shipping : billing;
+    await completeCheckout({
+      paymentMethodType: activePaymentType,
+      paymentMethodLabel: PAYMENT_METHOD_LABELS[activePaymentType] || 'Card',
+      paymentMethodData: {
+        billing_details: {
+          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim() || undefined,
+          email: email || undefined,
+          phone: billingAddress.phone || undefined,
+          address: {
+            line1: billingAddress.address,
+            line2: billingAddress.apt || undefined,
+            city: billingAddress.city,
+            state: billingAddress.state,
+            postal_code: billingAddress.zip,
+            country: 'US',
+          },
+        },
+      },
+    });
+  };
+
+  // Express Checkout Element (Link/Amazon Pay) collects its own billing
+  // details as part of the shopper's one-click flow — passing our own
+  // (possibly still-empty) form fields here would override what the
+  // shopper already provided, so this omits payment_method_data entirely
+  // and lets Stripe use what the express method collected.
+  const handleExpressConfirm = async (event) => {
+    await completeCheckout({
+      paymentMethodType: event.expressPaymentType,
+      paymentMethodLabel: PAYMENT_METHOD_LABELS[event.expressPaymentType] || 'Express checkout',
+    });
+  };
+  handleExpressConfirmRef.current = handleExpressConfirm;
 
   const handlePaypalSuccess = async (result) => {
     sessionStorage.setItem('veil-purchase', JSON.stringify({
@@ -404,6 +461,12 @@ export default function CheckoutPage() {
                 disabled={submitting}
                 onSuccess={handlePaypalSuccess}
                 onError={handlePaypalError}
+              />
+              {/* Stripe's own Link/Amazon Pay — Apple Pay/Google Pay/PayPal are
+                  turned off here since those are already covered above. */}
+              <div
+                ref={expressCheckoutRef}
+                style={{ display: expressReady ? 'block' : 'none', opacity: submitting ? 0.5 : 1, pointerEvents: submitting ? 'none' : 'auto' }}
               />
             </div>
             <div style={dividerRow}>
