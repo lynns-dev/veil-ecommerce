@@ -55,25 +55,25 @@ function LeafIcon(props) {
 }
 
 
-// Human labels for the payment method types Stripe's Payment Element and
-// Express Checkout Element can resolve to (reported via their 'change' /
-// 'confirm' events) — used for the order record/analytics label, since
-// neither element hands back a pretty name on its own.
+// Human labels for the payment method types Stripe's Payment Element can
+// resolve to (reported via its 'change' event) — used for the order
+// record/analytics label, since the element itself doesn't hand back a
+// pretty name.
 const PAYMENT_METHOD_LABELS = {
   card: 'Card',
+  klarna: 'Klarna',
   afterpay_clearpay: 'Afterpay',
-  amazon_pay: 'Amazon Pay',
-  apple_pay: 'Apple Pay',
-  google_pay: 'Google Pay',
   link: 'Link',
+  amazon_pay: 'Amazon Pay',
+  paypal: 'PayPal',
   cashapp: 'Cash App Pay',
 };
 
 // These always leave the page for an off-site confirmation step, unlike
-// card/Apple Pay/Google Pay/Link which normally resolve without navigating
-// away — handleSubmit uses this to know whether it can rely on running code
-// after stripe.confirmPayment() or needs to prep sessionStorage beforehand.
-const REDIRECT_PAYMENT_TYPES = ['afterpay_clearpay', 'amazon_pay'];
+// card/Link/Cash App Pay which normally resolve without navigating away —
+// handleSubmit uses this to know whether it can rely on running code after
+// stripe.confirmPayment() or needs to prep sessionStorage beforehand.
+const REDIRECT_PAYMENT_TYPES = ['klarna', 'afterpay_clearpay', 'amazon_pay', 'paypal'];
 
 function AddressFields({ value, onChange, idPrefix }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
@@ -177,8 +177,8 @@ export default function CheckoutPage() {
   const grandTotal = discountedTotal + shippingCost;
 
   // Stripe Payment Element: a single Stripe-hosted iframe that shows
-  // whichever methods (card, Afterpay, Amazon Pay, Apple Pay, Link, ...)
-  // are eligible and enabled in the Stripe Dashboard — raw payment details
+  // whichever methods (card, Klarna, Afterpay, Link, Amazon Pay, ...) are
+  // eligible and enabled in the Stripe Dashboard — raw payment details
   // never touch our own JS. It needs a PaymentIntent client_secret up front
   // to know what's eligible for this amount, so the intent is created once,
   // early (intentCreatedRef guards against re-creating it as grandTotal
@@ -190,20 +190,11 @@ export default function CheckoutPage() {
   // amount server-side right before confirmPayment, so the actual charge
   // is always correct regardless.
   const paymentElementRef = React.useRef(null);
-  const expressCheckoutRef = React.useRef(null);
-  // The 'confirm' listener below is attached once, inside a setup effect
-  // that only re-runs if grandTotal changes before the intent exists — a
-  // handler defined directly in that effect would keep reading whatever
-  // cart/email/shipping looked like at that moment. Routing through a ref
-  // that's reassigned every render keeps it reading current values without
-  // needing to re-subscribe the listener.
-  const handleExpressConfirmRef = React.useRef(() => {});
   const stripeRef = React.useRef(null);
   const elementsRef = React.useRef(null);
   const paymentIntentIdRef = React.useRef(null);
   const intentCreatedRef = React.useRef(false);
   const [stripeReady, setStripeReady] = React.useState(false);
-  const [expressReady, setExpressReady] = React.useState(false);
   const [activePaymentType, setActivePaymentType] = React.useState('card');
   const [paymentElementError, setPaymentElementError] = React.useState('');
 
@@ -240,7 +231,17 @@ export default function CheckoutPage() {
         });
         elementsRef.current = elements;
 
-        const paymentElement = elements.create('payment', { layout: 'tabs' });
+        // Explicit priority order for the tabs: Card first (most familiar/
+        // trusted), then Klarna, then Afterpay, then whatever else is
+        // enabled in the Dashboard. Apple Pay/Google Pay are deliberately
+        // off — Stripe only offers those as a wallet button rendered above
+        // the tab list, never as a plain tab, so there's no way to place
+        // them below Card; turning them off keeps Card unambiguously first.
+        const paymentElement = elements.create('payment', {
+          layout: 'tabs',
+          paymentMethodOrder: ['card', 'klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
+          wallets: { applePay: 'never', googlePay: 'never' },
+        });
         paymentElement.mount(paymentElementRef.current);
         paymentElement.on('change', (e) => {
           setActivePaymentType(e.value?.type || 'card');
@@ -249,25 +250,6 @@ export default function CheckoutPage() {
         paymentElement.on('loaderror', (e) => {
           console.error('Stripe Payment Element failed to load:', e.error);
         });
-
-        if (expressCheckoutRef.current) {
-          const expressCheckout = elements.create('expressCheckout', {
-            paymentMethods: {
-              applePay: 'auto',
-              googlePay: 'auto',
-              paypal: 'auto',
-              venmo: 'auto',
-              link: 'auto',
-              amazonPay: 'auto',
-            },
-          });
-          expressCheckout.mount(expressCheckoutRef.current);
-          expressCheckout.on('ready', ({ availablePaymentMethods }) => {
-            setExpressReady(Boolean(availablePaymentMethods && Object.keys(availablePaymentMethods).length > 0));
-          });
-          expressCheckout.on('click', (event) => event.resolve());
-          expressCheckout.on('confirm', (event) => handleExpressConfirmRef.current(event));
-        }
 
         setStripeReady(true);
       } catch (err) {
@@ -296,10 +278,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // Shared by the regular form submit and the Express Checkout Element's
-  // 'confirm' event — both end up doing the same update-intent + confirm +
-  // success dance, just with billing details sourced differently (our own
-  // form fields vs. whatever the express payment method already collected).
   const completeCheckout = async ({ paymentMethodType, paymentMethodLabel, paymentMethodData }) => {
     setError('');
     setSubmitting(true);
@@ -364,9 +342,9 @@ export default function CheckoutPage() {
         throw new Error(confirmError.message);
       }
 
-      // Reaching this line means nothing redirected — card, Apple Pay,
-      // Google Pay, and Link usually resolve right here in-page — so finish
-      // up ourselves instead of waiting on a navigation that isn't coming.
+      // Reaching this line means nothing redirected — card, Link, and Cash
+      // App Pay usually resolve right here in-page — so finish up ourselves
+      // instead of waiting on a navigation that isn't coming.
       if (!isRedirectType) {
         sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
       }
@@ -404,19 +382,6 @@ export default function CheckoutPage() {
     });
   };
 
-  // Express Checkout Element (Link/Amazon Pay) collects its own billing
-  // details as part of the shopper's one-click flow — passing our own
-  // (possibly still-empty) form fields here would override what the
-  // shopper already provided, so this omits payment_method_data entirely
-  // and lets Stripe use what the express method collected.
-  const handleExpressConfirm = async (event) => {
-    await completeCheckout({
-      paymentMethodType: event.expressPaymentType,
-      paymentMethodLabel: PAYMENT_METHOD_LABELS[event.expressPaymentType] || 'Express checkout',
-    });
-  };
-  handleExpressConfirmRef.current = handleExpressConfirm;
-
   if (!hydrated || cart.length === 0) return null;
 
   return (
@@ -437,23 +402,8 @@ export default function CheckoutPage() {
 
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
-          <section>
-            <p style={{ ...S.label, marginBottom: 10 }}>Express checkout</p>
-            <div style={expressStack}>
-              <div
-                ref={expressCheckoutRef}
-                style={{ display: expressReady ? 'block' : 'none', opacity: submitting ? 0.5 : 1, pointerEvents: submitting ? 'none' : 'auto' }}
-              />
-            </div>
-            <div style={dividerRow}>
-              <span style={dividerLine} />
-              <span style={dividerText}>OR PAY WITH CARD</span>
-              <span style={dividerLine} />
-            </div>
-          </section>
-
           {!tasselExpired && (
-            <section style={{ marginTop: 24 }}>
+            <section>
               <div style={tasselCard}>
                 <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
                 <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -730,10 +680,6 @@ const summaryToggle = {
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
 const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.paper };
-const expressStack = { display: 'flex', flexDirection: 'column', gap: 10 };
-const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '14px 0 0' };
-const dividerLine = { flex: 1, height: 1, background: T.line };
-const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0 };
