@@ -63,6 +63,40 @@ function timeAgo(ts) {
   return `${Math.round(seconds / 60)}m ago`;
 }
 
+// Same Pacific-calendar-day convention as lib/analyticsStore.js's
+// todayKey() (duplicated here rather than imported, since that module also
+// pulls in server-only KV env vars that have no business in the client
+// bundle) — keeps "today"/"yesterday" in the date picker matching whatever
+// day the order data is actually bucketed under.
+const PACIFIC_DATE_FORMATTER = typeof Intl !== 'undefined'
+  ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
+  : null;
+
+function dateKey(date) {
+  return PACIFIC_DATE_FORMATTER ? PACIFIC_DATE_FORMATTER.format(date) : date.toISOString().slice(0, 10);
+}
+
+function todayDateKey() {
+  return dateKey(new Date());
+}
+
+function yesterdayDateKey() {
+  return dateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+}
+
+const ORDER_RETENTION_DAYS = 45;
+
+function oldestAvailableDateKey() {
+  return dateKey(new Date(Date.now() - (ORDER_RETENTION_DAYS - 1) * 24 * 60 * 60 * 1000));
+}
+
+function revenueDateLabel(selectedDate) {
+  if (selectedDate === todayDateKey()) return 'Today';
+  if (selectedDate === yesterdayDateKey()) return 'Yesterday';
+  const [y, m, d] = selectedDate.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 const countryNames = typeof Intl !== 'undefined' && Intl.DisplayNames
   ? new Intl.DisplayNames(['en'], { type: 'region' })
   : null;
@@ -114,6 +148,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [dashboard, setDashboard] = React.useState(null);
   const [funnelRange, setFunnelRange] = React.useState('today');
+  const [revenueDate, setRevenueDate] = React.useState(todayDateKey());
   const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, visitors: [], activity: EMPTY_ACTIVITY });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
@@ -257,8 +292,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const loadDashboard = React.useCallback((range) => {
-    fetch(`/api/admin/dashboard?range=${range}`).then((r) => r.json()).then(setDashboard).catch(() => {});
+  const loadDashboard = React.useCallback((range, date) => {
+    fetch(`/api/admin/dashboard?range=${range}&date=${date}`).then((r) => r.json()).then(setDashboard).catch(() => {});
   }, []);
 
   const loadReviews = React.useCallback(() => {
@@ -278,11 +313,11 @@ export default function AdminDashboard() {
     loadDiscounts();
   }, [loadReviews, loadDiscounts]);
 
-  // Covers both the initial load and refetching when the funnel time
-  // filter changes.
+  // Covers the initial load and refetching when the funnel time filter or
+  // the revenue/orders date picker changes.
   React.useEffect(() => {
-    loadDashboard(funnelRange);
-  }, [loadDashboard, funnelRange]);
+    loadDashboard(funnelRange, revenueDate);
+  }, [loadDashboard, funnelRange, revenueDate]);
 
   React.useEffect(() => {
     const poll = () => fetch('/api/admin/live').then((r) => r.json()).then(setLive).catch(() => {});
@@ -482,9 +517,36 @@ export default function AdminDashboard() {
         </Section>
 
         {/* TOP STATS */}
+        <div style={revenueDateRow}>
+          <p style={{ ...S.label, margin: 0 }}>{revenueDateLabel(revenueDate)}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setRevenueDate(todayDateKey())}
+              style={revenueDate === todayDateKey() ? { ...dateQuickBtn, ...dateQuickBtnActive } : dateQuickBtn}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => setRevenueDate(yesterdayDateKey())}
+              style={revenueDate === yesterdayDateKey() ? { ...dateQuickBtn, ...dateQuickBtnActive } : dateQuickBtn}
+            >
+              Yesterday
+            </button>
+            <input
+              type="date"
+              value={revenueDate}
+              min={oldestAvailableDateKey()}
+              max={todayDateKey()}
+              onChange={(e) => e.target.value && setRevenueDate(e.target.value)}
+              style={funnelRangeSelect}
+            />
+          </div>
+        </div>
         <div className="stat-grid" style={statGrid}>
-          <StatCard label="Revenue today" value={dashboard ? `$${dashboard.revenueToday.toFixed(2)}` : '—'} />
-          <StatCard label="Orders today" value={dashboard ? dashboard.ordersToday : '—'} />
+          <StatCard label="Revenue" value={dashboard ? `$${dashboard.revenue.toFixed(2)}` : '—'} />
+          <StatCard label="Orders" value={dashboard ? dashboard.orderCount : '—'} />
         </div>
 
         {/* LIVE VIEW — Shopify-style unified live module: big visitor count,
@@ -657,9 +719,9 @@ export default function AdminDashboard() {
         </Section>
 
         {/* PAYMENT METHODS */}
-        <Section title="Payment methods today">
+        <Section title={`Payment methods — ${revenueDateLabel(revenueDate)}`}>
           {!dashboard || dashboard.paymentMethods.length === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No orders yet today.</p>
+            <p style={{ color: T.soft, fontSize: 14 }}>No orders on this date.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {dashboard.paymentMethods.map(({ method, count, revenue }) => {
@@ -1082,6 +1144,15 @@ const funnelRangeSelect = {
   height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
   fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
 };
+const revenueDateRow = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  flexWrap: 'wrap', gap: 12, marginBottom: 12,
+};
+const dateQuickBtn = {
+  height: 34, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 12, color: T.soft, cursor: 'pointer',
+};
+const dateQuickBtnActive = { color: T.ink, borderColor: T.ink, fontWeight: 600 };
 const orderHeadRow = {
   display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.ink}`,
   fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft,

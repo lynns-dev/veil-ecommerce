@@ -1,6 +1,7 @@
-import { getOrders, getEventCounts, dateKeysForRange } from '../../../lib/analyticsStore';
+import { getOrders, getEventCounts, dateKeysForRange, todayKey } from '../../../lib/analyticsStore';
 
 const VALID_FUNNEL_RANGES = new Set(['today', 'yesterday', '7d', '30d']);
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -9,9 +10,14 @@ export default async function handler(req, res) {
   }
 
   const funnelRange = VALID_FUNNEL_RANGES.has(req.query.range) ? req.query.range : 'today';
+  // Revenue/orders/payment-methods are scoped to a single day, independent
+  // of the funnel's range selector (which can span several days) — defaults
+  // to today when no date is given or it's not a well-formed YYYY-MM-DD, so
+  // it can't be used to reach an arbitrary/malformed KV key.
+  const revenueDate = DATE_KEY_RE.test(req.query.date || '') ? req.query.date : todayKey();
 
   try {
-    const [orders, events] = await Promise.all([getOrders(), getEventCounts(dateKeysForRange(funnelRange))]);
+    const [orders, events] = await Promise.all([getOrders(revenueDate), getEventCounts(dateKeysForRange(funnelRange))]);
     const revenue = orders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
     const rate = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
@@ -29,8 +35,9 @@ export default async function handler(req, res) {
       .sort((a, b) => b.count - a.count);
 
     return res.status(200).json({
-      revenueToday: revenue,
-      ordersToday: orders.length,
+      revenue,
+      orderCount: orders.length,
+      revenueDate,
       paymentMethods,
       funnelRange,
       funnel: {
