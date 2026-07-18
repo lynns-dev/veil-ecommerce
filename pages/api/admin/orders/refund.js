@@ -7,6 +7,7 @@
 
 import { getStripe } from '../../../../lib/stripeServer';
 import { refundCapture } from '../../../../lib/paypal';
+import { refundCharge } from '../../../../lib/qbPaymentsServer';
 import { updateOrderStatus } from '../../../../lib/analyticsStore';
 
 export default async function handler(req, res) {
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { orderId, processor, captureId } = req.body || {};
+    const { orderId, processor, captureId, amount } = req.body || {};
     if (!orderId || !processor) return res.status(400).json({ error: 'Missing order id or processor' });
 
     if (processor === 'stripe') {
@@ -25,6 +26,9 @@ export default async function handler(req, res) {
     } else if (processor === 'paypal') {
       if (!captureId) return res.status(400).json({ error: 'Missing PayPal capture id — this order predates refund support.' });
       await refundCapture(captureId);
+    } else if (processor === 'quickbooks') {
+      if (!amount) return res.status(400).json({ error: 'Missing order amount — QuickBooks refunds require the amount to refund.' });
+      await refundCharge(orderId, amount);
     } else {
       return res.status(400).json({ error: `Don't know how to refund a "${processor}" order.` });
     }

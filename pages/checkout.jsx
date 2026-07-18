@@ -5,6 +5,7 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
 import { getStripeClient } from '../lib/stripeClient';
+import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
@@ -198,6 +199,14 @@ export default function CheckoutPage() {
   const [activePaymentType, setActivePaymentType] = React.useState('card');
   const [paymentElementError, setPaymentElementError] = React.useState('');
 
+  // Which processor the shopper is paying through — Stripe (Payment
+  // Element, all its methods) or QuickBooks (a raw card form, tokenized
+  // client-side via lib/qbPayments.js so the card number never touches our
+  // server). Both UIs stay mounted; only visibility toggles, so switching
+  // back to Stripe doesn't require re-mounting its Elements instance.
+  const [processor, setProcessor] = React.useState('stripe');
+  const [qbCard, setQbCard] = React.useState({ number: '', expMonth: '', expYear: '', cvc: '' });
+
   React.useEffect(() => {
     if (!hydrated || cart.length === 0 || grandTotal <= 0 || intentCreatedRef.current) return;
     intentCreatedRef.current = true;
@@ -358,8 +367,71 @@ export default function CheckoutPage() {
     }
   };
 
+  // QuickBooks has no redirect step and no webhook — the charge either
+  // succeeds or fails in this same call, so fulfillment/success-navigation
+  // happen directly here rather than through completeCheckout's Stripe-
+  // specific redirect handling.
+  const handleQuickBooksSubmit = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      const billingAddress = billingSame ? shipping : billing;
+      const token = await tokenizeCard(
+        {
+          number: qbCard.number,
+          expMonth: qbCard.expMonth,
+          expYear: qbCard.expYear,
+          cvc: qbCard.cvc,
+          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim(),
+          street: billingAddress.address,
+          city: billingAddress.city,
+          region: billingAddress.state,
+          postalCode: billingAddress.zip,
+          country: 'US',
+        },
+        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
+      );
+
+      const purchaseEventId = generateEventId();
+      const res = await fetch('/api/qb-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          amount: grandTotal,
+          items: cart,
+          email,
+          shipping,
+          eventId: purchaseEventId,
+          url: window.location.href,
+          paymentMethod: 'QuickBooks',
+          attribution: getStoredAttribution(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment failed');
+
+      sessionStorage.setItem('veil-purchase', JSON.stringify({
+        eventId: purchaseEventId,
+        amount: grandTotal,
+        contentIds: cart.map((i) => i.id),
+        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+      }));
+      await router.push('/success');
+      clear();
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (processor === 'quickbooks') {
+      await handleQuickBooksSubmit();
+      return;
+    }
     const billingAddress = billingSame ? shipping : billing;
     await completeCheckout({
       paymentMethodType: activePaymentType,
@@ -488,10 +560,68 @@ export default function CheckoutPage() {
                 All transactions are secure and encrypted.
               </span>
             </div>
+            <div style={processorToggle}>
+              <button
+                type="button"
+                onClick={() => setProcessor('stripe')}
+                style={processor === 'stripe' ? { ...processorBtn, ...processorBtnActive } : processorBtn}
+              >
+                Card, Klarna &amp; more
+              </button>
+              <button
+                type="button"
+                onClick={() => setProcessor('quickbooks')}
+                style={processor === 'quickbooks' ? { ...processorBtn, ...processorBtnActive } : processorBtn}
+              >
+                QuickBooks
+              </button>
+            </div>
             <div style={paymentBox}>
-              <div ref={paymentElementRef} />
-              {paymentElementError && (
+              <div ref={paymentElementRef} style={{ display: processor === 'stripe' ? 'block' : 'none' }} />
+              {processor === 'stripe' && paymentElementError && (
                 <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{paymentElementError}</p>
+              )}
+              {processor === 'quickbooks' && (
+                <div>
+                  <input
+                    placeholder="Card number"
+                    value={qbCard.number}
+                    onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
+                    style={input}
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    required
+                  />
+                  <div className="row-3" style={{ marginTop: 8 }}>
+                    <input
+                      placeholder="MM"
+                      value={qbCard.expMonth}
+                      onChange={(e) => setQbCard({ ...qbCard, expMonth: e.target.value })}
+                      style={input}
+                      inputMode="numeric"
+                      autoComplete="cc-exp-month"
+                      required
+                    />
+                    <input
+                      placeholder="YYYY"
+                      value={qbCard.expYear}
+                      onChange={(e) => setQbCard({ ...qbCard, expYear: e.target.value })}
+                      style={input}
+                      inputMode="numeric"
+                      autoComplete="cc-exp-year"
+                      required
+                    />
+                    <input
+                      placeholder="CVC"
+                      value={qbCard.cvc}
+                      onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
+                      style={input}
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                      required
+                    />
+                  </div>
+                </div>
               )}
               <label style={{ ...checkboxLabel, marginTop: 14 }}>
                 <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
@@ -531,10 +661,10 @@ export default function CheckoutPage() {
 
           <button
             type="submit"
-            disabled={submitting || !stripeReady}
+            disabled={submitting || (processor === 'stripe' && !stripeReady)}
             style={{
               ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting || !stripeReady ? 0.6 : 1,
+              height: 58, fontSize: 13, opacity: submitting || (processor === 'stripe' && !stripeReady) ? 0.6 : 1,
             }}
           >
             {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
@@ -544,7 +674,7 @@ export default function CheckoutPage() {
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by Stripe
+            Payments securely processed by {processor === 'stripe' ? 'Stripe' : 'QuickBooks'}
           </p>
         </form>
 
@@ -614,7 +744,7 @@ export default function CheckoutPage() {
           {[
             [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
-            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Stripe.'],
+            [LockIcon, 'Secure checkout', `Payments encrypted and processed by ${processor === 'stripe' ? 'Stripe' : 'QuickBooks'}.`],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
           ].map(([Icon, title, copy]) => (
             <div key={title} style={reassuranceItem}>
@@ -689,6 +819,12 @@ const input = {
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
+const processorToggle = { display: 'flex', gap: 8, marginBottom: 10 };
+const processorBtn = {
+  height: 34, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 12, color: T.soft, cursor: 'pointer',
+};
+const processorBtnActive = { color: T.ink, borderColor: T.ink, fontWeight: 600 };
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,

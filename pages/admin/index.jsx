@@ -197,7 +197,7 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/orders/refund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id, processor: order.processor, captureId: order.captureId }),
+        body: JSON.stringify({ orderId: order.id, processor: order.processor, captureId: order.captureId, amount: order.amount }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Refund failed.');
