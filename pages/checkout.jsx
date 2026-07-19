@@ -276,23 +276,19 @@ export default function CheckoutPage() {
         });
         elementsRef.current = elements;
 
-        // Accordion layout (radio rows that expand in place) instead of
-        // tabs, so this reads as a continuation of the same payment-method
-        // list the "Credit card" row above it starts — matching the
-        // Shopify-style checkout this is modeled on, rather than a
-        // separately-styled tab strip. 'card' isn't in paymentMethodOrder
-        // (the QuickBooks form above is the card option) but may still show
-        // up here anyway if Cards is enabled in the Stripe Dashboard —
-        // automatic_payment_methods on the PaymentIntent (see
-        // /api/stripe/create-intent.js) can't exclude a single type without
-        // risking the whole intent failing if some other type isn't
-        // enabled, so a redundant Card row is the safer failure mode; turn
-        // off Cards in the Dashboard if that shows up and bothers you.
-        // Apple Pay/Google Pay are deliberately off too — Stripe only
-        // offers those as a wallet button rendered above the accordion,
-        // never as a plain row.
+        // Accordion layout, radio buttons (not chevrons) on each row, rows
+        // flush against each other with no gaps — so this reads as a
+        // continuation of the same radio-list the "Credit card" row above
+        // it starts, matching the Shopify-style checkout this is modeled
+        // on, rather than a separately-styled tab strip. 'card' and
+        // 'us_bank_account' (ACH direct debit) are deliberately left out of
+        // both this order and /api/stripe/create-intent.js's requested
+        // method list — the QuickBooks form above is the card option, and
+        // direct debit isn't offered here at all. Apple Pay/Google Pay are
+        // off too — Stripe only offers those as a wallet button rendered
+        // above the accordion, never as a plain row.
         const paymentElement = elements.create('payment', {
-          layout: 'accordion',
+          layout: { type: 'accordion', radios: true, spacedAccordionItems: false },
           paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
           wallets: { applePay: 'never', googlePay: 'never' },
         });
