@@ -276,22 +276,23 @@ export default function CheckoutPage() {
         });
         elementsRef.current = elements;
 
-        // Accordion layout (radio rows that expand in place) instead of
-        // tabs, so this reads as a continuation of the same payment-method
-        // list the "Credit card" row above it starts. Plain string form —
-        // the object form ({ type: 'accordion', radios: true, ... }) has
-        // caused the whole section to stop rendering anything in
-        // production twice now, for reasons not yet root-caused against
-        // the real Stripe account; don't reintroduce it without confirming
-        // against a live checkout first. 'card' isn't in paymentMethodOrder
-        // (the QuickBooks form above is the card option) but may still
-        // appear here if Cards is enabled in the Stripe Dashboard, since
-        // automatic_payment_methods on the intent (see
-        // /api/stripe/create-intent.js) can't exclude a single type.
-        // Apple Pay/Google Pay are off too — Stripe only offers those as a
-        // wallet button rendered above the accordion, never as a plain row.
+        // Accordion layout with radio buttons on each row (instead of the
+        // default chevron), so this reads as a continuation of the same
+        // radio-list the "Credit card" row above it starts. This object
+        // form, combined with automatic_payment_methods on the intent (see
+        // /api/stripe/create-intent.js), has rendered successfully in
+        // production before — the actual regression both prior times
+        // traced to also pairing it with an explicit payment_method_types
+        // list on the intent, which is what's now reverted and should stay
+        // reverted. If methods stop showing again, check that file first
+        // before assuming this layout object is the cause. 'card' isn't in
+        // paymentMethodOrder (the QuickBooks form above is the card option)
+        // but may still appear here if Cards is enabled in the Stripe
+        // Dashboard, since automatic_payment_methods can't exclude a single
+        // type. Apple Pay/Google Pay are off too — Stripe only offers those
+        // as a wallet button rendered above the accordion, never as a row.
         const paymentElement = elements.create('payment', {
-          layout: 'accordion',
+          layout: { type: 'accordion', radios: true },
           paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
           wallets: { applePay: 'never', googlePay: 'never' },
         });
