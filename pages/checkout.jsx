@@ -55,6 +55,14 @@ function LeafIcon(props) {
   );
 }
 
+// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
+// field convention shoppers already know from their physical card.
+function formatExpiry(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
+}
+
 
 // Human labels for the payment method types Stripe's Payment Element can
 // resolve to (reported via its 'change' event) — used for the order
@@ -208,7 +216,7 @@ export default function CheckoutPage() {
   // which one to actually charge at submit time, updated by whichever
   // field group the shopper focuses into.
   const [processor, setProcessor] = React.useState('card');
-  const [qbCard, setQbCard] = React.useState({ number: '', expMonth: '', expYear: '', cvc: '' });
+  const [qbCard, setQbCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
 
   React.useEffect(() => {
     if (!hydrated || cart.length === 0 || grandTotal <= 0 || intentCreatedRef.current) return;
@@ -243,13 +251,18 @@ export default function CheckoutPage() {
         });
         elementsRef.current = elements;
 
-        // Card isn't in this list — the QuickBooks form above handles card,
-        // so /api/stripe/create-intent.js only enables the rest server-side
+        // Accordion layout (radio rows that expand in place) instead of
+        // tabs, so this reads as a continuation of the same payment-method
+        // list the "Credit card" row above it starts — matching the
+        // Shopify-style checkout this is modeled on, rather than a
+        // separately-styled tab strip. Card isn't in this list — the
+        // QuickBooks form above handles card, so
+        // /api/stripe/create-intent.js only enables the rest server-side
         // and this just orders them. Apple Pay/Google Pay are deliberately
         // off too — Stripe only offers those as a wallet button rendered
-        // above the tab list, never as a plain tab.
+        // above the accordion, never as a plain row.
         const paymentElement = elements.create('payment', {
-          layout: 'tabs',
+          layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: false },
           paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
           wallets: { applePay: 'never', googlePay: 'never' },
         });
@@ -380,8 +393,9 @@ export default function CheckoutPage() {
   // specific redirect handling.
   const handleQuickBooksSubmit = async () => {
     setError('');
-    if (!qbCard.number.trim() || !qbCard.expMonth.trim() || !qbCard.expYear.trim() || !qbCard.cvc.trim()) {
-      setError('Enter your card number, expiration, and CVC, or choose one of the payment methods below instead.');
+    const [expMonth, expYear] = qbCard.expiry.split('/').map((s) => s.trim());
+    if (!qbCard.number.trim() || !expMonth || !expYear || !qbCard.cvc.trim() || !qbCard.name.trim()) {
+      setError('Fill in your card details, or choose one of the payment methods below instead.');
       return;
     }
     setSubmitting(true);
@@ -390,10 +404,10 @@ export default function CheckoutPage() {
       const token = await tokenizeCard(
         {
           number: qbCard.number,
-          expMonth: qbCard.expMonth,
-          expYear: qbCard.expYear,
+          expMonth,
+          expYear: `20${expYear}`,
           cvc: qbCard.cvc,
-          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim(),
+          name: qbCard.name.trim(),
           street: billingAddress.address,
           city: billingAddress.city,
           region: billingAddress.state,
@@ -571,66 +585,73 @@ export default function CheckoutPage() {
                 All transactions are secure and encrypted.
               </span>
             </div>
-            <div style={paymentBox}>
-              <p style={{ ...S.label, marginBottom: 10 }}>Card</p>
-              <input
-                placeholder="Card number"
-                value={qbCard.number}
-                onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
-                onFocus={() => setProcessor('card')}
-                style={input}
-                inputMode="numeric"
-                autoComplete="cc-number"
-              />
-              <div className="row-3" style={{ marginTop: 8 }}>
-                <input
-                  placeholder="MM"
-                  value={qbCard.expMonth}
-                  onChange={(e) => setQbCard({ ...qbCard, expMonth: e.target.value })}
-                  onFocus={() => setProcessor('card')}
-                  style={input}
-                  inputMode="numeric"
-                  autoComplete="cc-exp-month"
-                />
-                <input
-                  placeholder="YYYY"
-                  value={qbCard.expYear}
-                  onChange={(e) => setQbCard({ ...qbCard, expYear: e.target.value })}
-                  onFocus={() => setProcessor('card')}
-                  style={input}
-                  inputMode="numeric"
-                  autoComplete="cc-exp-year"
-                />
-                <input
-                  placeholder="CVC"
-                  value={qbCard.cvc}
-                  onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
-                  onFocus={() => setProcessor('card')}
-                  style={input}
-                  inputMode="numeric"
-                  autoComplete="cc-csc"
-                />
+            <div style={paymentList}>
+              <div style={accordionRow} onClick={() => setProcessor('card')}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={processor === 'card' ? radioOuterActive : radioOuter}>
+                    {processor === 'card' && <span style={radioInner} />}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>Credit card</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span style={cardBadge}>VISA</span>
+                  <span style={cardBadge}>MC</span>
+                  <span style={cardBadge}>AMEX</span>
+                </div>
               </div>
-
-              <div style={dividerRow}>
-                <span style={dividerLine} />
-                <span style={dividerText}>OR PAY WITH</span>
-                <span style={dividerLine} />
-              </div>
+              {processor === 'card' && (
+                <div style={accordionBody}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      placeholder="Card number"
+                      value={qbCard.number}
+                      onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
+                      style={{ ...input, paddingRight: 40 }}
+                      inputMode="numeric"
+                      autoComplete="cc-number"
+                    />
+                    <LockIcon style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                  </div>
+                  <div className="row-2" style={{ marginTop: 8 }}>
+                    <input
+                      placeholder="Expiration date (MM / YY)"
+                      value={qbCard.expiry}
+                      onChange={(e) => setQbCard({ ...qbCard, expiry: formatExpiry(e.target.value) })}
+                      style={input}
+                      inputMode="numeric"
+                      autoComplete="cc-exp"
+                    />
+                    <input
+                      placeholder="Security code"
+                      value={qbCard.cvc}
+                      onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
+                      style={input}
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                    />
+                  </div>
+                  <input
+                    placeholder="Name on card"
+                    value={qbCard.name}
+                    onChange={(e) => setQbCard({ ...qbCard, name: e.target.value })}
+                    style={{ ...input, marginTop: 8 }}
+                    autoComplete="cc-name"
+                  />
+                  <label style={{ ...checkboxLabel, marginTop: 14 }}>
+                    <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
+                    Use shipping address as billing address
+                  </label>
+                  {!billingSame && (
+                    <div style={{ marginTop: 10 }}>
+                      <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div ref={paymentElementRef} />
               {processor === 'stripe' && paymentElementError && (
-                <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{paymentElementError}</p>
-              )}
-
-              <label style={{ ...checkboxLabel, marginTop: 14 }}>
-                <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
-                Use shipping address as billing address
-              </label>
-              {!billingSame && (
-                <div style={{ marginTop: 10 }}>
-                  <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
-                </div>
+                <p style={{ fontSize: 12, color: '#a13d2b', margin: '8px 14px' }}>{paymentElementError}</p>
               )}
             </div>
           </section>
@@ -818,10 +839,27 @@ const input = {
   fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
-const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0' };
-const dividerLine = { flex: 1, height: 1, background: T.line };
-const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
+// Shopify-checkout-style radio list: one bordered container, each payment
+// method a row inside it (accordionRow) that expands into accordionBody
+// when selected. Stripe's own accordion-layout Payment Element mounts as
+// more rows directly inside the same paymentList container, so the two
+// read as one continuous list rather than two separately-styled blocks.
+const paymentList = { border: `1px solid ${T.line}`, borderRadius: 4, background: T.white, overflow: 'hidden' };
+const accordionRow = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  padding: '16px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.line}`,
+};
+const accordionBody = { padding: '0 14px 18px', borderBottom: `1px solid ${T.line}` };
+const radioOuter = {
+  width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${T.line}`,
+  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+const radioOuterActive = { ...radioOuter, borderColor: T.ink };
+const radioInner = { width: 10, height: 10, borderRadius: '50%', background: T.ink };
+const cardBadge = {
+  fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', color: T.soft,
+  border: `1px solid ${T.line}`, borderRadius: 3, padding: '3px 6px',
+};
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,
