@@ -18,12 +18,16 @@ export default async function handler(req, res) {
 
   try {
     const [orders, events] = await Promise.all([getOrders(revenueDate), getEventCounts(dateKeysForRange(funnelRange))]);
-    const revenue = orders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
+    // Cancelled/refunded orders didn't keep the money — exclude them from
+    // revenue and the order/payment-method breakdowns. Archived orders are
+    // just hidden from the default admin view, not reversed, so they still count.
+    const revenueOrders = orders.filter((o) => o.status !== 'cancelled' && o.status !== 'refunded');
+    const revenue = revenueOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
     const rate = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
 
     const methodTotals = new Map();
-    for (const o of orders) {
+    for (const o of revenueOrders) {
       const method = o.paymentMethod || 'Unknown';
       const entry = methodTotals.get(method) || { count: 0, revenue: 0 };
       entry.count += 1;
@@ -36,7 +40,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       revenue,
-      orderCount: orders.length,
+      orderCount: revenueOrders.length,
       revenueDate,
       paymentMethods,
       funnelRange,
