@@ -197,8 +197,14 @@ export default function CheckoutPage() {
   const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
   const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
 
-  const shippingCost = total >= 50 || cart.length === 0 ? 0 : 5;
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
+  // Don't add shipping to the total until there's an address to base it on —
+  // showing $5 on top of what the shopper expected from the product/cart
+  // page, before they've typed anything, just reads as an unexplained price
+  // jump. It only enters the total once addressEntered flips true, same
+  // moment the Shipping method section below stops saying "enter your
+  // address" and starts showing an actual rate.
+  const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
   const grandTotal = discountedTotal + shippingCost;
@@ -766,7 +772,7 @@ export default function CheckoutPage() {
           )}
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Shipping</span>
-            <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+            <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
           </div>
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
