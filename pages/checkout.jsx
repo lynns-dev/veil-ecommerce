@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
-import { tokenizeCard } from '../lib/qbPayments';
 import { TASSEL_GIFT } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
@@ -215,36 +214,29 @@ export default function CheckoutPage() {
     setSubmitting(true);
     try {
       const billingAddress = billingSame ? shipping : billing;
-      const token = await tokenizeCard(
-        {
-          number: card.number,
-          expMonth,
-          expYear: `20${expYear}`,
-          cvc: card.cvc,
-          name: card.name.trim(),
-          street: billingAddress.address,
-          city: billingAddress.city,
-          region: billingAddress.state,
-          postalCode: billingAddress.zip,
-          country: 'US',
-        },
-        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
-      );
-
       const purchaseEventId = generateEventId();
 
       // QuickBooks has no redirect step and no webhook — the charge either
       // succeeds or fails in this same call, so fulfillment/success-navigation
-      // happen directly here.
+      // happen directly here. The card is sent straight to the charge
+      // request (not tokenized client-side first) so AVS/CVV verification
+      // actually runs at authorization time — see lib/qbPaymentsServer.js.
       const res = await fetch('/api/qb-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token,
+          card: {
+            number: card.number.replace(/\s+/g, ''),
+            expMonth,
+            expYear: `20${expYear}`,
+            cvc: card.cvc,
+            name: card.name.trim(),
+          },
           amount: grandTotal,
           items: cart,
           email,
           shipping,
+          billing: billingAddress,
           eventId: purchaseEventId,
           url: window.location.href,
           paymentMethod: 'QuickBooks',
@@ -480,7 +472,7 @@ export default function CheckoutPage() {
           </button>
           <div style={secureNote}>
             <LockIcon />
-            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
+            <span>256-bit SSL encrypted &middot; your card details are never stored</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
             Payments securely processed by QuickBooks

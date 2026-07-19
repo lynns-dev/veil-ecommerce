@@ -13,8 +13,9 @@ export default function PrivacyPolicy() {
       <PolicySection title="Information we collect">
         <p>
           <strong>Information you give us</strong> — name, email, shipping and billing address, phone number, and
-          payment details when you place an order, sign up for emails, or leave a review. Card numbers are entered
-          directly into our payment processor's systems and never touch our servers.
+          payment details when you place an order, sign up for emails, or leave a review. Card details you enter
+          at checkout are submitted securely over HTTPS and forwarded directly to our payment processor — we do
+          not store your card number, expiration date, or security code.
         </p>
         <p style={{ marginTop: 12 }}>
           <strong>Information collected automatically</strong> — pages viewed, products added to cart, general
@@ -55,8 +56,8 @@ export default function PrivacyPolicy() {
 
       <PolicySection title="Payment processing">
         <p>
-          Payments are processed by QuickBooks Payments (Intuit Inc.). Your card details are sent directly
-          to Intuit under its own privacy policy — we never see or store full card numbers.
+          Payments are processed by QuickBooks Payments (Intuit Inc.). Card details submitted at checkout are
+          forwarded directly to Intuit under its own privacy policy and are not stored on our servers.
         </p>
       </PolicySection>
 
