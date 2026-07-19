@@ -28,6 +28,25 @@ function LockIcon(props) {
   );
 }
 
+function LockIconSolid(props) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      <rect x="5" y="11" width="14" height="9" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function HelpIcon(props) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9.5 9.3a2.5 2.5 0 1 1 3.3 2.36c-.6.22-1 .78-1 1.44v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="16.8" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
 function ShipIcon(props) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -245,7 +264,7 @@ export default function CheckoutPage() {
             theme: 'stripe',
             variables: {
               fontFamily: T.sans, colorText: T.ink, colorTextPlaceholder: T.soft,
-              colorPrimary: T.ink, borderRadius: '4px', colorDanger: '#a13d2b',
+              colorPrimary: T.ink, borderRadius: '8px', colorDanger: '#a13d2b',
             },
           },
         });
@@ -578,25 +597,27 @@ export default function CheckoutPage() {
           </section>
 
           <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Payment</h2>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.soft }}>
-                <LockIcon />
-                All transactions are secure and encrypted.
-              </span>
-            </div>
+            <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
+            <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
             <div style={paymentList}>
-              <div style={accordionRow} onClick={() => setProcessor('card')}>
+              <div
+                style={{ ...accordionRow, background: processor === 'card' ? T.paper : T.white }}
+                onClick={() => setProcessor('card')}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={processor === 'card' ? radioOuterActive : radioOuter}>
                     {processor === 'card' && <span style={radioInner} />}
                   </span>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>Credit card</span>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span style={cardBadge}>VISA</span>
-                  <span style={cardBadge}>MC</span>
-                  <span style={cardBadge}>AMEX</span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
+                  <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
+                    <span style={mcCircle('#EB001B', 0)} />
+                    <span style={mcCircle('#F79E1B', -6)} />
+                  </span>
+                  <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
+                  <span style={moreBadge}>+1</span>
                 </div>
               </div>
               {processor === 'card' && (
@@ -606,40 +627,46 @@ export default function CheckoutPage() {
                       placeholder="Card number"
                       value={qbCard.number}
                       onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
-                      style={{ ...input, paddingRight: 40 }}
+                      style={{ ...pillInput, paddingRight: 42 }}
                       inputMode="numeric"
                       autoComplete="cc-number"
                     />
-                    <LockIcon style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                    <LockIconSolid style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
                   </div>
-                  <div className="row-2" style={{ marginTop: 8 }}>
-                    <input
-                      placeholder="Expiration date (MM / YY)"
-                      value={qbCard.expiry}
-                      onChange={(e) => setQbCard({ ...qbCard, expiry: formatExpiry(e.target.value) })}
-                      style={input}
-                      inputMode="numeric"
-                      autoComplete="cc-exp"
-                    />
+                  <input
+                    placeholder="Expiration date (MM / YY)"
+                    value={qbCard.expiry}
+                    onChange={(e) => setQbCard({ ...qbCard, expiry: formatExpiry(e.target.value) })}
+                    style={{ ...pillInput, marginTop: 10 }}
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
+                  />
+                  <div style={{ position: 'relative' }}>
                     <input
                       placeholder="Security code"
                       value={qbCard.cvc}
                       onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
-                      style={input}
+                      style={{ ...pillInput, marginTop: 10, paddingRight: 42 }}
                       inputMode="numeric"
                       autoComplete="cc-csc"
                     />
+                    <HelpIcon style={{ position: 'absolute', right: 16, top: 'calc(50% + 5px)', transform: 'translateY(-50%)', color: T.soft }} />
                   </div>
                   <input
                     placeholder="Name on card"
                     value={qbCard.name}
                     onChange={(e) => setQbCard({ ...qbCard, name: e.target.value })}
-                    style={{ ...input, marginTop: 8 }}
+                    style={{ ...pillInput, marginTop: 10 }}
                     autoComplete="cc-name"
                   />
-                  <label style={{ ...checkboxLabel, marginTop: 14 }}>
-                    <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
-                    Use shipping address as billing address
+                  <label style={{ ...checkboxLabel, marginTop: 16 }}>
+                    <input
+                      type="checkbox"
+                      checked={billingSame}
+                      onChange={(e) => setBillingSame(e.target.checked)}
+                      style={{ accentColor: T.ink, width: 18, height: 18 }}
+                    />
+                    <span style={{ color: T.ink }}>Use shipping address as billing address</span>
                   </label>
                   {!billingSame && (
                     <div style={{ marginTop: 10 }}>
@@ -839,26 +866,45 @@ const input = {
   fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-// Shopify-checkout-style radio list: one bordered container, each payment
-// method a row inside it (accordionRow) that expands into accordionBody
-// when selected. Stripe's own accordion-layout Payment Element mounts as
-// more rows directly inside the same paymentList container, so the two
-// read as one continuous list rather than two separately-styled blocks.
-const paymentList = { border: `1px solid ${T.line}`, borderRadius: 4, background: T.white, overflow: 'hidden' };
+// Shopify-checkout-style radio list: one black-bordered container, each
+// payment method a row inside it (accordionRow) that expands into
+// accordionBody when selected. Stripe's own accordion-layout Payment
+// Element mounts as more rows directly inside the same paymentList
+// container, so the two read as one continuous list rather than two
+// separately-styled blocks.
+const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
 const accordionRow = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   padding: '16px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.line}`,
 };
-const accordionBody = { padding: '0 14px 18px', borderBottom: `1px solid ${T.line}` };
+const accordionBody = { padding: '14px 14px 18px', background: T.paper, borderBottom: `1px solid ${T.line}` };
 const radioOuter = {
   width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${T.line}`,
-  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.white,
 };
-const radioOuterActive = { ...radioOuter, borderColor: T.ink };
-const radioInner = { width: 10, height: 10, borderRadius: '50%', background: T.ink };
-const cardBadge = {
-  fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', color: T.soft,
-  border: `1px solid ${T.line}`, borderRadius: 3, padding: '3px 6px',
+const radioOuterActive = { ...radioOuter, border: `2px solid ${T.ink}` };
+const radioInner = { width: 9, height: 9, borderRadius: '50%', background: T.ink };
+const networkBadge = {
+  fontSize: 10, fontWeight: 700, letterSpacing: '0.02em', color: '#fff',
+  borderRadius: 4, padding: '5px 7px', lineHeight: 1, display: 'flex', alignItems: 'center',
+};
+const moreBadge = {
+  fontSize: 10, fontWeight: 600, color: T.soft, border: `1px solid ${T.line}`,
+  borderRadius: 4, padding: '5px 7px', lineHeight: 1, background: T.white,
+};
+// Two overlapping circles standing in for the Mastercard mark inside a
+// black chip — offset controls how far the second circle tucks under the
+// first, same look as the badge in the reference checkout.
+function mcCircle(color, offset) {
+  return { width: 12, height: 12, borderRadius: '50%', background: color, marginLeft: offset, display: 'inline-block' };
+}
+// Pill-shaped fields sitting on the gray accordion body, matching the
+// reference's very rounded card-detail inputs (vs. the site's normal
+// 4px-radius fields elsewhere on this page).
+const pillInput = {
+  width: '100%', height: 48, padding: '0 16px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none',
+  boxSizing: 'border-box', borderRadius: 24,
 };
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
