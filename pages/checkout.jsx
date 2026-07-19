@@ -274,12 +274,17 @@ export default function CheckoutPage() {
         // tabs, so this reads as a continuation of the same payment-method
         // list the "Credit card" row above it starts — matching the
         // Shopify-style checkout this is modeled on, rather than a
-        // separately-styled tab strip. Card isn't in this list — the
-        // QuickBooks form above handles card, so
-        // /api/stripe/create-intent.js only enables the rest server-side
-        // and this just orders them. Apple Pay/Google Pay are deliberately
-        // off too — Stripe only offers those as a wallet button rendered
-        // above the accordion, never as a plain row.
+        // separately-styled tab strip. 'card' isn't in paymentMethodOrder
+        // (the QuickBooks form above is the card option) but may still show
+        // up here anyway if Cards is enabled in the Stripe Dashboard —
+        // automatic_payment_methods on the PaymentIntent (see
+        // /api/stripe/create-intent.js) can't exclude a single type without
+        // risking the whole intent failing if some other type isn't
+        // enabled, so a redundant Card row is the safer failure mode; turn
+        // off Cards in the Dashboard if that shows up and bothers you.
+        // Apple Pay/Google Pay are deliberately off too — Stripe only
+        // offers those as a wallet button rendered above the accordion,
+        // never as a plain row.
         const paymentElement = elements.create('payment', {
           layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: false },
           paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],

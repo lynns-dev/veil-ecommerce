@@ -121,15 +121,16 @@ There's no processor toggle to click — both payment groups sit on the page at 
 
 1. Go to your deployed domain
 2. Add a product to the cart and click "Checkout"
-3. Fill in the "Card" fields at the top of the Payment section with one of Intuit's [sandbox test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards) — real card numbers don't work against the sandbox environment
+3. The "Credit card" row at the top of the Payment section is selected by default — fill it in with one of Intuit's [sandbox test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards) — real card numbers don't work against the sandbox environment
 4. Submit and check your QuickBooks Payments dashboard — the charge should appear
 5. This is the integration that hit an unresolved 403 previously (see Step 1B) — if it fails, work through that section's two gotchas before assuming something else is broken
 
 ### Step 4B: Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App Pay (Stripe)
 
-1. On the same checkout page, leave the "Card" fields empty and select one of the tabs below "OR PAY WITH" instead — that's Stripe's Payment Element, and card isn't one of its options here (QuickBooks handles card)
+1. On the same checkout page, click one of the rows below "Credit card" instead — those are Stripe's Payment Element, rendered as more rows in the same list
 2. Use one of Stripe's [test values](https://docs.stripe.com/testing) for whichever method you're testing
 3. Check your Stripe dashboard (Payments) — the charge should appear
+4. If this whole section is missing/empty instead of showing rows, open the browser console — the most common cause is `/api/stripe/create-intent` failing outright, which happens if a payment method type gets hardcoded into an explicit `payment_method_types` list without actually being enabled in the Dashboard first (this bit us once already — see the comment above the `stripe.paymentIntents.create` call). Keep that call on `automatic_payment_methods` and it degrades gracefully instead of failing the whole section
 
 ---
 
