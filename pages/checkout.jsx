@@ -35,6 +35,24 @@ function LockIconSolid(props) {
   );
 }
 
+function HelpIcon(props) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9.5 9.3a2.5 2.5 0 1 1 3.3 2.36c-.6.22-1 .78-1 1.44v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="16.8" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
+// field convention shoppers already know from their physical card.
+function formatExpiry(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
+}
+
 function ShipIcon(props) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -100,6 +118,9 @@ export default function CheckoutPage() {
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(emptyAddress);
+  const [billingSame, setBillingSame] = React.useState(true);
+  const [billing, setBilling] = React.useState(emptyAddress);
+  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
 
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
@@ -183,38 +204,55 @@ export default function CheckoutPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
+    if (!card.number.trim() || !expMonth || !expYear || !card.cvc.trim() || !card.name.trim()) {
+      setError('Fill in your card details to place your order.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const purchaseEventId = generateEventId();
+      const billingAddress = billingSame ? shipping : billing;
+
+      // A Bankful charge either succeeds or fails in this same call — no
+      // redirect, no webhook to wait on — so fulfillment/success-navigation
+      // happen directly here.
       const res = await fetch('/api/bankful-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          card: {
+            number: card.number.replace(/\s+/g, ''),
+            expMonth,
+            expYear: `20${expYear}`,
+            cvc: card.cvc,
+          },
           amount: grandTotal,
           items: cart,
           email,
           shipping,
+          billing: billingAddress,
           eventId: purchaseEventId,
           url: window.location.href,
           attribution: getStoredAttribution(),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
+      if (!res.ok) throw new Error(data.error || 'Payment failed');
 
-      // Bankful's hosted page always redirects the browser off-site to pay,
-      // so /success needs this record to already be there when the shopper
-      // is sent back — not set by code that never gets to run.
       sessionStorage.setItem('veil-purchase', JSON.stringify({
         eventId: purchaseEventId,
         amount: grandTotal,
         contentIds: cart.map((i) => i.id),
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
       }));
-
-      window.location.href = data.redirectUrl;
+      await router.push('/success');
+      clear();
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -320,23 +358,76 @@ export default function CheckoutPage() {
           <section style={{ marginTop: 24 }}>
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
-            <div style={paymentNotice}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <LockIconSolid style={{ color: T.ink, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>Pay by card</div>
-                  <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>
-                    You&rsquo;ll enter your card details on our payment partner&rsquo;s secure page next.
-                  </div>
+            <div style={paymentList}>
+              <div style={accordionRow}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
+                  <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
+                    <span style={mcCircle('#EB001B', 0)} />
+                    <span style={mcCircle('#F79E1B', -6)} />
+                  </span>
+                  <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
-                <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
-                  <span style={mcCircle('#EB001B', 0)} />
-                  <span style={mcCircle('#F79E1B', -6)} />
-                </span>
-                <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
+              <div style={accordionBody}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    placeholder="Card number"
+                    value={card.number}
+                    onChange={(e) => setCard({ ...card, number: e.target.value })}
+                    style={{ ...pillInput, paddingRight: 42 }}
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    required
+                  />
+                  <LockIconSolid style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                </div>
+                <input
+                  placeholder="Expiration date (MM / YY)"
+                  value={card.expiry}
+                  onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
+                  style={{ ...pillInput, marginTop: 10 }}
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  required
+                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    placeholder="Security code"
+                    value={card.cvc}
+                    onChange={(e) => setCard({ ...card, cvc: e.target.value })}
+                    style={{ ...pillInput, marginTop: 10, paddingRight: 42 }}
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                    required
+                  />
+                  <HelpIcon style={{ position: 'absolute', right: 16, top: 'calc(50% + 5px)', transform: 'translateY(-50%)', color: T.soft }} />
+                </div>
+                <input
+                  placeholder="Name on card"
+                  value={card.name}
+                  onChange={(e) => setCard({ ...card, name: e.target.value })}
+                  style={{ ...pillInput, marginTop: 10 }}
+                  autoComplete="cc-name"
+                  required
+                />
+                <label style={{ ...checkboxLabel, marginTop: 16 }}>
+                  <input
+                    type="checkbox"
+                    checked={billingSame}
+                    onChange={(e) => setBillingSame(e.target.checked)}
+                    style={{ accentColor: T.ink, width: 18, height: 18 }}
+                  />
+                  <span style={{ color: T.ink }}>Use shipping address as billing address</span>
+                </label>
+                {!billingSame && (
+                  <div style={{ marginTop: 10 }}>
+                    <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -377,7 +468,7 @@ export default function CheckoutPage() {
           </button>
           <div style={secureNote}>
             <LockIcon />
-            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
+            <span>256-bit SSL encrypted &middot; your card details are never stored</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
             Payments securely processed by Bankful
@@ -524,10 +615,12 @@ const input = {
   fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-const paymentNotice = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-  border: `1px solid ${T.line}`, borderRadius: 10, padding: '16px 14px', background: T.paper,
+const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
+const accordionRow = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.paper,
 };
+const accordionBody = { padding: '14px 14px 18px', background: T.paper };
 const networkBadge = {
   fontSize: 10, fontWeight: 700, letterSpacing: '0.02em', color: '#fff',
   borderRadius: 4, padding: '5px 7px', lineHeight: 1, display: 'flex', alignItems: 'center',
@@ -538,6 +631,14 @@ const networkBadge = {
 function mcCircle(color, offset) {
   return { width: 12, height: 12, borderRadius: '50%', background: color, marginLeft: offset, display: 'inline-block' };
 }
+// Pill-shaped fields sitting on the gray accordion body, matching the
+// reference's very rounded card-detail inputs (vs. the site's normal
+// 4px-radius fields elsewhere on this page).
+const pillInput = {
+  width: '100%', height: 48, padding: '0 16px', border: `1px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none',
+  boxSizing: 'border-box', borderRadius: 24,
+};
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,

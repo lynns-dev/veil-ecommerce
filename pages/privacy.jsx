@@ -55,9 +55,9 @@ export default function PrivacyPolicy() {
 
       <PolicySection title="Payment processing">
         <p>
-          Payments are processed by Bankful. At checkout you're redirected to Bankful's own secure payment
-          page to enter your card details — they're sent directly to Bankful under its own privacy policy,
-          and we never see or store full card numbers.
+          Payments are processed by Bankful. Card details you enter at checkout are submitted securely over
+          HTTPS and forwarded directly to Bankful for processing under its own privacy policy — we do not
+          store your card number, expiration date, or security code.
         </p>
       </PolicySection>
 

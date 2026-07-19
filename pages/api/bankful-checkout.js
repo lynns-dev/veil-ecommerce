@@ -1,19 +1,17 @@
-// Starts a Bankful hosted-page payment. No card data ever reaches this
-// route — the shopper enters it on Bankful's own page after being
-// redirected there, so this only ever handles order metadata (items,
-// amount, address) plus building the signed payload Bankful requires.
+// Charges a card directly via Bankful's Payment Service (CAPTURE) API.
 //
-// Fulfillment does NOT happen here — Bankful's hosted flow always
-// navigates the shopper's browser off-site, so a client-triggered "it
-// worked" call back to us can't be relied on to ever fire. This route's
-// only job is: save the order details we'll need later (see
-// lib/bankfulPendingOrders.js) keyed by our own order id, then hand back
-// the URL to redirect to. The actual order gets recorded by
-// /api/bankful-webhook, once Bankful's signed async callback confirms the
-// payment really went through.
+// Unlike a hosted-page/redirect integration, the card fields collected on
+// /checkout are sent straight through to Bankful from this route — see the
+// PCI-scope note at the top of lib/bankfulServer.js. Nothing here is
+// logged or persisted; the card fields exist only for the duration of this
+// request.
+//
+// A Bankful charge always completes in this same request/response — there's
+// no off-site hop — so fulfillment happens directly here rather than via a
+// webhook.
 
-import { buildHostedPagePayload, initiateHostedPagePayment } from '../../lib/bankfulServer';
-import { savePendingOrder } from '../../lib/bankfulPendingOrders';
+import { chargeCard } from '../../lib/bankfulServer';
+import { fulfillOrder } from '../../lib/orderFulfillment';
 
 // Same flat shape used by the retired Stripe/PayPal/QuickBooks checkout
 // paths and rendered in the admin Orders tab
@@ -37,47 +35,55 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-  if (!baseUrl) {
-    return res.status(500).json({ error: 'NEXT_PUBLIC_BASE_URL is not set.' });
-  }
-
   try {
-    const { amount, items, email, shipping, eventId, url, attribution } = req.body || {};
+    const { card, amount, items, email, shipping, billing, eventId, url, attribution } = req.body || {};
 
+    if (!card?.number || !card?.expMonth || !card?.expYear || !card?.cvc) {
+      return res.status(400).json({ error: 'Missing card details' });
+    }
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
     if (!items || items.length === 0) return res.status(400).json({ error: 'No items in cart' });
     if (!eventId) return res.status(400).json({ error: 'Missing order reference' });
 
-    await savePendingOrder(eventId, {
+    // Billing address (for the card's AVS check) defaults to the shipping
+    // address, but can differ if the shopper unchecked "same as shipping".
+    const billingAddress = billing || shipping;
+
+    const charge = await chargeCard({
+      amount,
+      orderId: eventId,
+      cardNumber: card.number,
+      expMonth: card.expMonth,
+      expYear: card.expYear,
+      cvc: card.cvc,
+      email,
+      firstName: billingAddress?.firstName,
+      lastName: billingAddress?.lastName,
+      phone: billingAddress?.phone,
+      address: billingAddress?.address,
+      city: billingAddress?.city,
+      state: billingAddress?.state,
+      zip: billingAddress?.zip,
+      country: 'US',
+    });
+
+    await fulfillOrder({
+      id: String(charge.TRANS_ORDER_ID),
       amount: Number(amount),
       items,
       eventId,
       url,
+      req,
+      paymentMethod: 'Card',
+      attribution,
       email: email || '',
       shipping: normalizeFormShipping(shipping),
-      attribution: attribution || null,
+      processor: 'bankful',
     });
 
-    const payload = buildHostedPagePayload({
-      amount,
-      orderId: eventId,
-      email,
-      firstName: shipping?.firstName,
-      lastName: shipping?.lastName,
-      phone: shipping?.phone,
-      address: shipping?.address,
-      city: shipping?.city,
-      state: shipping?.state,
-      zip: shipping?.zip,
-      country: 'US',
-      baseUrl,
-    });
-
-    const redirectUrl = await initiateHostedPagePayment(payload);
-    return res.status(200).json({ redirectUrl });
+    return res.status(200).json({ id: charge.TRANS_ORDER_ID, status: charge.TRANS_STATUS_NAME });
   } catch (err) {
     console.error('Bankful checkout error:', err);
-    return res.status(500).json({ error: err.message || 'Could not start checkout.' });
+    return res.status(500).json({ error: err.message || 'Payment failed' });
   }
 }
