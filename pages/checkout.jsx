@@ -61,7 +61,6 @@ function LeafIcon(props) {
 // record/analytics label, since the element itself doesn't hand back a
 // pretty name.
 const PAYMENT_METHOD_LABELS = {
-  card: 'Card',
   klarna: 'Klarna',
   afterpay_clearpay: 'Afterpay',
   link: 'Link',
@@ -196,15 +195,19 @@ export default function CheckoutPage() {
   const paymentIntentIdRef = React.useRef(null);
   const intentCreatedRef = React.useRef(false);
   const [stripeReady, setStripeReady] = React.useState(false);
-  const [activePaymentType, setActivePaymentType] = React.useState('card');
+  const [activePaymentType, setActivePaymentType] = React.useState('klarna');
   const [paymentElementError, setPaymentElementError] = React.useState('');
 
-  // Which processor the shopper is paying through — Stripe (Payment
-  // Element, all its methods) or QuickBooks (a raw card form, tokenized
-  // client-side via lib/qbPayments.js so the card number never touches our
-  // server). Both UIs stay mounted; only visibility toggles, so switching
-  // back to Stripe doesn't require re-mounting its Elements instance.
-  const [processor, setProcessor] = React.useState('stripe');
+  // Which set of fields the shopper last touched — 'card' (the QuickBooks
+  // card form, tokenized client-side via lib/qbPayments.js so the card
+  // number never touches our server) or 'stripe' (the Payment Element
+  // below it, covering Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App
+  // Pay — card is deliberately excluded from that list server-side, see
+  // /api/stripe/create-intent.js, since the QuickBooks form above is the
+  // card option). Both stay mounted and visible at once; this just tracks
+  // which one to actually charge at submit time, updated by whichever
+  // field group the shopper focuses into.
+  const [processor, setProcessor] = React.useState('card');
   const [qbCard, setQbCard] = React.useState({ number: '', expMonth: '', expYear: '', cvc: '' });
 
   React.useEffect(() => {
@@ -240,22 +243,26 @@ export default function CheckoutPage() {
         });
         elementsRef.current = elements;
 
-        // Explicit priority order for the tabs: Card first (most familiar/
-        // trusted), then Klarna, then Afterpay, then whatever else is
-        // enabled in the Dashboard. Apple Pay/Google Pay are deliberately
-        // off — Stripe only offers those as a wallet button rendered above
-        // the tab list, never as a plain tab, so there's no way to place
-        // them below Card; turning them off keeps Card unambiguously first.
+        // Card isn't in this list — the QuickBooks form above handles card,
+        // so /api/stripe/create-intent.js only enables the rest server-side
+        // and this just orders them. Apple Pay/Google Pay are deliberately
+        // off too — Stripe only offers those as a wallet button rendered
+        // above the tab list, never as a plain tab.
         const paymentElement = elements.create('payment', {
           layout: 'tabs',
-          paymentMethodOrder: ['card', 'klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
+          paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
           wallets: { applePay: 'never', googlePay: 'never' },
         });
         paymentElement.mount(paymentElementRef.current);
         paymentElement.on('change', (e) => {
-          setActivePaymentType(e.value?.type || 'card');
+          setActivePaymentType(e.value?.type || 'klarna');
           setPaymentElementError('');
         });
+        // Fires when the shopper actually focuses into the element (unlike
+        // 'change', which also fires once on mount for its default type) —
+        // this is what flips the submit target from the QuickBooks card
+        // form to whichever Stripe method they're now filling in.
+        paymentElement.on('focus', () => setProcessor('stripe'));
         paymentElement.on('loaderror', (e) => {
           console.error('Stripe Payment Element failed to load:', e.error);
         });
@@ -373,6 +380,10 @@ export default function CheckoutPage() {
   // specific redirect handling.
   const handleQuickBooksSubmit = async () => {
     setError('');
+    if (!qbCard.number.trim() || !qbCard.expMonth.trim() || !qbCard.expYear.trim() || !qbCard.cvc.trim()) {
+      setError('Enter your card number, expiration, and CVC, or choose one of the payment methods below instead.');
+      return;
+    }
     setSubmitting(true);
     try {
       const billingAddress = billingSame ? shipping : billing;
@@ -428,14 +439,14 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (processor === 'quickbooks') {
+    if (processor === 'card') {
       await handleQuickBooksSubmit();
       return;
     }
     const billingAddress = billingSame ? shipping : billing;
     await completeCheckout({
       paymentMethodType: activePaymentType,
-      paymentMethodLabel: PAYMENT_METHOD_LABELS[activePaymentType] || 'Card',
+      paymentMethodLabel: PAYMENT_METHOD_LABELS[activePaymentType] || 'Other',
       paymentMethodData: {
         billing_details: {
           name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim() || undefined,
@@ -560,69 +571,58 @@ export default function CheckoutPage() {
                 All transactions are secure and encrypted.
               </span>
             </div>
-            <div style={processorToggle}>
-              <button
-                type="button"
-                onClick={() => setProcessor('stripe')}
-                style={processor === 'stripe' ? { ...processorBtn, ...processorBtnActive } : processorBtn}
-              >
-                Card, Klarna &amp; more
-              </button>
-              <button
-                type="button"
-                onClick={() => setProcessor('quickbooks')}
-                style={processor === 'quickbooks' ? { ...processorBtn, ...processorBtnActive } : processorBtn}
-              >
-                QuickBooks
-              </button>
-            </div>
             <div style={paymentBox}>
-              <div ref={paymentElementRef} style={{ display: processor === 'stripe' ? 'block' : 'none' }} />
+              <p style={{ ...S.label, marginBottom: 10 }}>Card</p>
+              <input
+                placeholder="Card number"
+                value={qbCard.number}
+                onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
+                onFocus={() => setProcessor('card')}
+                style={input}
+                inputMode="numeric"
+                autoComplete="cc-number"
+              />
+              <div className="row-3" style={{ marginTop: 8 }}>
+                <input
+                  placeholder="MM"
+                  value={qbCard.expMonth}
+                  onChange={(e) => setQbCard({ ...qbCard, expMonth: e.target.value })}
+                  onFocus={() => setProcessor('card')}
+                  style={input}
+                  inputMode="numeric"
+                  autoComplete="cc-exp-month"
+                />
+                <input
+                  placeholder="YYYY"
+                  value={qbCard.expYear}
+                  onChange={(e) => setQbCard({ ...qbCard, expYear: e.target.value })}
+                  onFocus={() => setProcessor('card')}
+                  style={input}
+                  inputMode="numeric"
+                  autoComplete="cc-exp-year"
+                />
+                <input
+                  placeholder="CVC"
+                  value={qbCard.cvc}
+                  onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
+                  onFocus={() => setProcessor('card')}
+                  style={input}
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                />
+              </div>
+
+              <div style={dividerRow}>
+                <span style={dividerLine} />
+                <span style={dividerText}>OR PAY WITH</span>
+                <span style={dividerLine} />
+              </div>
+
+              <div ref={paymentElementRef} />
               {processor === 'stripe' && paymentElementError && (
                 <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{paymentElementError}</p>
               )}
-              {processor === 'quickbooks' && (
-                <div>
-                  <input
-                    placeholder="Card number"
-                    value={qbCard.number}
-                    onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
-                    style={input}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    required
-                  />
-                  <div className="row-3" style={{ marginTop: 8 }}>
-                    <input
-                      placeholder="MM"
-                      value={qbCard.expMonth}
-                      onChange={(e) => setQbCard({ ...qbCard, expMonth: e.target.value })}
-                      style={input}
-                      inputMode="numeric"
-                      autoComplete="cc-exp-month"
-                      required
-                    />
-                    <input
-                      placeholder="YYYY"
-                      value={qbCard.expYear}
-                      onChange={(e) => setQbCard({ ...qbCard, expYear: e.target.value })}
-                      style={input}
-                      inputMode="numeric"
-                      autoComplete="cc-exp-year"
-                      required
-                    />
-                    <input
-                      placeholder="CVC"
-                      value={qbCard.cvc}
-                      onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
-                      style={input}
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
+
               <label style={{ ...checkboxLabel, marginTop: 14 }}>
                 <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} />
                 Use shipping address as billing address
@@ -819,12 +819,9 @@ const input = {
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
 const paymentBox = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
-const processorToggle = { display: 'flex', gap: 8, marginBottom: 10 };
-const processorBtn = {
-  height: 34, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 12, color: T.soft, cursor: 'pointer',
-};
-const processorBtnActive = { color: T.ink, borderColor: T.ink, fontWeight: 600 };
+const dividerRow = { display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0' };
+const dividerLine = { flex: 1, height: 1, background: T.line };
+const dividerText = { fontSize: 10, letterSpacing: '0.14em', color: T.soft, fontFamily: T.sans };
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,

@@ -1,15 +1,24 @@
 // Creates a PaymentIntent as soon as checkout is ready to show payment
 // options — Payment Element needs a client_secret up front to know which
-// methods (card, Afterpay, Amazon Pay, Apple Pay, Link, ...) are actually
-// eligible for this amount/currency/customer. automatic_payment_methods
-// lets Stripe decide which of those to show based on what's enabled in the
-// Dashboard, rather than us hardcoding a method list here.
+// methods are actually eligible for this amount/currency/customer.
+//
+// 'card' is deliberately excluded: checkout.jsx has its own QuickBooks card
+// form for that, so Stripe here only needs to cover everything else
+// (Klarna, Afterpay, Link, Amazon Pay, PayPal, Cash App Pay, ...). That
+// means this can't use automatic_payment_methods (all-or-nothing — no way
+// to exclude just one type) and has to list payment_method_types
+// explicitly instead. The tradeoff: every type listed here must actually
+// be enabled in the Stripe Dashboard (Settings > Payment methods) or this
+// call fails outright, instead of automatic_payment_methods' graceful
+// per-method skip — trim this list to match whatever's actually turned on.
 //
 // Only amount is known this early — items/email/shipping aren't filled in
 // yet. Those get attached later via /api/stripe/update-intent, right before
 // the shopper actually submits.
 
 import { getStripe } from '../../../lib/stripeServer';
+
+const NON_CARD_PAYMENT_METHOD_TYPES = ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -31,7 +40,7 @@ export default async function handler(req, res) {
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(Number(amount) * 100),
       currency: 'usd',
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: NON_CARD_PAYMENT_METHOD_TYPES,
     });
 
     return res.status(200).json({ clientSecret: intent.client_secret, paymentIntentId: intent.id });

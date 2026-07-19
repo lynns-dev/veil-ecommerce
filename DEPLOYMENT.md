@@ -8,7 +8,7 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 - **Product catalog page** with all VEIL offerings
 - **Individual product detail pages** with full descriptions, scent notes, and product specifications
 - **Shopping cart** (persists across pages via localStorage, sticky sidebar)
-- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) with a processor toggle — Stripe's Payment Element (card, Klarna, Afterpay/Clearpay, Link, Amazon Pay, PayPal, Cash App Pay, all in one embedded element) or a QuickBooks Payments card form, shopper picks either
+- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) — a QuickBooks Payments card form up front (the "Card" option), with Stripe's Payment Element below it for everything else (Klarna, Afterpay/Clearpay, Link, Amazon Pay, PayPal, Cash App Pay). Whichever one the shopper actually fills in is what gets charged
 - **Deployed to Vercel** (free, automatic scaling, HTTPS included)
 
 ---
@@ -115,20 +115,21 @@ If charges still fail after both of the above are correct, the remaining possibi
 
 ## Step 4: Test the Checkout
 
-### Step 4A: Stripe
+There's no processor toggle to click — both payment groups sit on the page at once, and whichever one the shopper actually fills in and submits is what gets charged. Test them separately.
+
+### Step 4A: Card (QuickBooks)
 
 1. Go to your deployed domain
 2. Add a product to the cart and click "Checkout"
-3. Leave the "Card, Klarna & more" processor selected (default)
-4. With test-mode keys, use one of Stripe's [test cards](https://docs.stripe.com/testing#cards) — e.g. `4242 4242 4242 4242`, any future expiry, any CVC, to test a 3D Secure challenge use `4000 0027 6000 3184`
-5. Check your Stripe dashboard (Payments) — the charge should appear
+3. Fill in the "Card" fields at the top of the Payment section with one of Intuit's [sandbox test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards) — real card numbers don't work against the sandbox environment
+4. Submit and check your QuickBooks Payments dashboard — the charge should appear
+5. This is the integration that hit an unresolved 403 previously (see Step 1B) — if it fails, work through that section's two gotchas before assuming something else is broken
 
-### Step 4B: QuickBooks (if enabled)
+### Step 4B: Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App Pay (Stripe)
 
-1. On the same checkout page, click the "QuickBooks" processor toggle
-2. Use one of Intuit's [sandbox test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards) — real card numbers don't work against the sandbox environment
-3. Check your QuickBooks Payments dashboard — the charge should appear
-4. This is the integration that hit an unresolved 403 previously (see Step 1B) — if it fails, work through that section's two gotchas before assuming something else is broken
+1. On the same checkout page, leave the "Card" fields empty and select one of the tabs below "OR PAY WITH" instead — that's Stripe's Payment Element, and card isn't one of its options here (QuickBooks handles card)
+2. Use one of Stripe's [test values](https://docs.stripe.com/testing) for whichever method you're testing
+3. Check your Stripe dashboard (Payments) — the charge should appear
 
 ---
 

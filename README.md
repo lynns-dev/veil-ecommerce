@@ -1,11 +1,12 @@
 # VEIL — E-commerce (Next.js + Stripe + QuickBooks Payments)
 
 Minimal black-and-white storefront for VEIL scented body powder. Next.js 14
-(Pages Router) with a custom, Shopify-style single-page checkout offering a
-choice of two processors: a Stripe Payment Element — card, Klarna,
-Afterpay/Clearpay, Link, Amazon Pay, PayPal, and Cash App Pay all show up in
-the same embedded element, gated by whatever's enabled in the Stripe
-Dashboard — or a QuickBooks Payments card form.
+(Pages Router) with a custom, Shopify-style single-page checkout: a
+QuickBooks Payments card form up front, and a Stripe Payment Element below
+it for everything else — Klarna, Afterpay/Clearpay, Link, Amazon Pay,
+PayPal, and Cash App Pay, gated by whatever's enabled in the Stripe
+Dashboard. No toggle — whichever one the shopper actually fills in and
+submits is what gets charged.
 
 ## Deploy to Vercel
 
@@ -83,9 +84,10 @@ npm run dev
   individually enabled in the Stripe Dashboard (Settings → Payment methods)
   before they'll actually show up — see `DEPLOYMENT.md`.
 - QuickBooks Payments is optional and off by default (no `QB_CLIENT_ID` set
-  = the toggle just won't work) — this integration previously hit an
-  unresolved 403 on this site and hasn't been re-verified working since
-  being restored; test a real sandbox charge before relying on it.
+  = the "Card" fields at checkout will fail with a clear error if someone
+  tries to submit them) — this integration previously hit an unresolved 403
+  on this site and hasn't been re-verified working since being restored;
+  test a real sandbox charge before relying on it.
 - Ratings and reviews on the homepage/product pages are **placeholders**.
   Connect a verified-review app and display only real reviews before launch.
 - Confirm scent names, notes, and prices in `lib/products.js` match your catalog.
