@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
+import { tokenizeCard } from '../lib/qbPayments';
 import { TASSEL_GIFT } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
@@ -213,29 +214,40 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const purchaseEventId = generateEventId();
       const billingAddress = billingSame ? shipping : billing;
+      const token = await tokenizeCard(
+        {
+          number: card.number,
+          expMonth,
+          expYear: `20${expYear}`,
+          cvc: card.cvc,
+          name: card.name.trim(),
+          street: billingAddress.address,
+          city: billingAddress.city,
+          region: billingAddress.state,
+          postalCode: billingAddress.zip,
+          country: 'US',
+        },
+        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
+      );
 
-      // A Bankful charge either succeeds or fails in this same call — no
-      // redirect, no webhook to wait on — so fulfillment/success-navigation
+      const purchaseEventId = generateEventId();
+
+      // QuickBooks has no redirect step and no webhook — the charge either
+      // succeeds or fails in this same call, so fulfillment/success-navigation
       // happen directly here.
-      const res = await fetch('/api/bankful-checkout', {
+      const res = await fetch('/api/qb-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          card: {
-            number: card.number.replace(/\s+/g, ''),
-            expMonth,
-            expYear: `20${expYear}`,
-            cvc: card.cvc,
-          },
+          token,
           amount: grandTotal,
           items: cart,
           email,
           shipping,
-          billing: billingAddress,
           eventId: purchaseEventId,
           url: window.location.href,
+          paymentMethod: 'QuickBooks',
           attribution: getStoredAttribution(),
         }),
       });
@@ -468,10 +480,10 @@ export default function CheckoutPage() {
           </button>
           <div style={secureNote}>
             <LockIcon />
-            <span>256-bit SSL encrypted &middot; your card details are never stored</span>
+            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by Bankful
+            Payments securely processed by QuickBooks
           </p>
         </form>
 
@@ -541,7 +553,7 @@ export default function CheckoutPage() {
           {[
             [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
-            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Bankful.'],
+            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by QuickBooks.'],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
           ].map(([Icon, title, copy]) => (
             <div key={title} style={reassuranceItem}>

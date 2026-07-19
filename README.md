@@ -1,9 +1,9 @@
-# VEIL — E-commerce (Next.js + Bankful)
+# VEIL — E-commerce (Next.js + QuickBooks Payments)
 
 Minimal black-and-white storefront for VEIL scented body powder. Next.js 14
 (Pages Router) with a custom, Shopify-style single-page checkout: card
-details are entered right on `/checkout` and charged directly through
-Bankful's Payment Service API — no redirect off-site.
+details are tokenized client-side against Intuit's API and charged via
+QuickBooks Payments — the card number never touches our own server.
 
 ## Deploy to Vercel
 
@@ -15,32 +15,17 @@ Bankful's Payment Service API — no redirect off-site.
 
    | Name | Value |
    |------|-------|
-   | `BANKFUL_USERNAME` / `BANKFUL_PASSWORD` | your Bankful merchant credentials |
-   | `BANKFUL_ENVIRONMENT` | `sandbox` or `live` — picks the default Bankful API host |
-   | `BANKFUL_BASE_URL` | optional — overrides the host `BANKFUL_ENVIRONMENT` picks, if Bankful support gives you a different one for your account |
-   | `STRIPE_SECRET_KEY` | optional — only needed to refund orders placed before the Bankful switch |
-   | `QB_CLIENT_ID` / `QB_CLIENT_SECRET` | optional — only needed to refund orders placed before the Bankful switch |
-   | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV / Upstash Redis store, used for admin sessions/reviews/discounts/analytics |
+   | `QB_CLIENT_ID` / `QB_CLIENT_SECRET` | from an Intuit Developer app with Payments enabled |
+   | `QB_ENVIRONMENT` / `NEXT_PUBLIC_QB_ENVIRONMENT` | both `sandbox` or both `production`, must match which `QB_CLIENT_ID`/`QB_CLIENT_SECRET` pair you're using |
+   | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV / Upstash Redis store, used for admin sessions/reviews/discounts/analytics, and the QuickBooks refresh token |
    | `NEXT_PUBLIC_BASE_URL` | your deployed URL, e.g. `https://veil.vercel.app` |
+   | `STRIPE_SECRET_KEY` | optional — only needed to refund older Stripe orders |
 
-The site builds and renders fully without Bankful configured — only the
-final **Place order** button on `/checkout` needs it. A Bankful charge
-completes synchronously in the same request (no webhook, no redirect) —
-card fields are collected on `/checkout` and sent straight through to
-Bankful from `pages/api/bankful-checkout.js`.
-
-**PCI note**: because card details are entered directly on this site rather
-than on a processor-hosted page, raw card data does pass through this app's
-server for the duration of each charge request (never logged, never
-stored). That generally puts this integration in PCI DSS SAQ D scope,
-rather than the lighter SAQ A a redirect/hosted-page integration would get
-— worth confirming your compliance obligations with Bankful/your acquirer
-before taking real charges.
-
-See `DEPLOYMENT.md` for the full walkthrough, including documentation
-ambiguities worth confirming with Bankful support before going live
-(sandbox vs. live host, and confirming decline/error field names against a
-real sandbox transaction).
+The site builds and renders fully without QuickBooks configured — only the
+final **Place order** button on `/checkout` needs it. Visit
+`/api/qb-auth/connect` once after deploying to authorize — see
+`DEPLOYMENT.md` for the full walkthrough, including two non-obvious ways
+the QuickBooks Charges API can fail even with a valid connection.
 
 ## Run locally
 
@@ -57,11 +42,13 @@ npm run dev
 - `pages/product/[id].jsx` — product detail (static-generated per product)
 - `pages/checkout.jsx` — custom single-page checkout (contact, delivery, payment, order summary)
 - `pages/success.jsx` — post-checkout thank-you
-- `pages/api/bankful-checkout.js` — charges the card via Bankful's Payment Service API and fulfills the order directly (no webhook needed)
-- `lib/bankfulServer.js` — Bankful charge/refund calls
-- `lib/stripeServer.js` — kept for refunding legacy Stripe orders only; no longer used at checkout
-- `pages/api/qb-auth/connect.js` / `callback.js` — one-time QuickBooks OAuth authorization, kept for refunding legacy QuickBooks orders only
-- `lib/qbPaymentsServer.js`, `lib/qbServerAuth.js` / `qbTokenStore.js` — QuickBooks refund/token-refresh calls, kept for legacy orders only
+- `pages/api/qb-checkout.js` — charges a QuickBooks card token and fulfills the order directly (no webhook needed)
+- `pages/api/qb-auth/connect.js` / `callback.js` — one-time QuickBooks OAuth authorization
+- `lib/qbPayments.js` — client-side card tokenization directly against Intuit's API
+- `lib/qbPaymentsServer.js` — server-side QuickBooks charge/refund calls
+- `lib/qbServerAuth.js` / `qbTokenStore.js` — QuickBooks access token refresh, persisted in KV
+- `lib/stripeServer.js` — kept for refunding older Stripe orders only; no longer used at checkout
+- `lib/bankfulServer.js` — an alternate checkout integration, not currently wired up to `/checkout` (see Notes below)
 - `lib/products.js` — product data (edit scents/prices here)
 - `lib/theme.js` — design tokens (colors, fonts, shared styles)
 - `lib/useCart.js` — cart Context provider, persisted to `localStorage` so it survives navigating to `/checkout`
@@ -69,19 +56,18 @@ npm run dev
 
 ## Notes before launch
 
-- Card details are entered directly on `/checkout` and sent to Bankful from
-  our own server — see the PCI note above.
-- This integration has **not been tested against a live Bankful
-  transaction** — Bankful's own documentation had a few inconsistencies
-  (flagged in comments in `lib/bankfulServer.js`: sandbox vs. live host,
-  and which response fields carry a decline reason for the Sale/Auth
-  endpoints specifically, since that's only explicitly documented for the
-  Cancel endpoint) that could only be resolved by testing against a real
-  account. Run a real sandbox transaction — and a refund — before relying
-  on this in production.
-- Refunding orders placed under the old processors (Stripe, PayPal,
-  QuickBooks) still works from the admin Orders tab; new orders always
-  refund through Bankful.
+- Payment details are tokenized directly against Intuit's API from the
+  browser — the server only ever sees a one-time card token, never raw
+  card data.
+- QuickBooks Payments Charges API has two non-obvious failure modes even
+  with a valid OAuth connection (a Development/Production credential
+  mismatch, and requesting the accounting scope alongside the payment
+  scope) — see `DEPLOYMENT.md` Step 1 before assuming something else is wrong.
+- A Bankful integration also exists in the codebase (`lib/bankfulServer.js`,
+  plus a `bankful` branch in the admin refund route) but isn't currently
+  wired up to `/checkout` — it returned a "merchant not configured, please
+  contact Gateway" error from Bankful's own API that needs to be resolved
+  with Bankful support before it can be used again.
 - Ratings and reviews on the homepage/product pages are **placeholders**.
   Connect a verified-review app and display only real reviews before launch.
 - Confirm scent names, notes, and prices in `lib/products.js` match your catalog.

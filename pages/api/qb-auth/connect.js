@@ -1,11 +1,8 @@
 // One-time setup step. Visit this route in a browser once, log into the
 // QuickBooks Online account that has Payments enabled, and authorize this
-// app. From then on the admin refund route (/api/admin/orders/refund)
-// refreshes its own access token automatically (see lib/qbServerAuth.js) —
-// this route never needs to be visited again unless the connection is
-// revoked or goes unused for 100+ days. QuickBooks is no longer used at
-// checkout (see lib/bankfulServer.js); this authorization only supports
-// refunding orders placed before the switch to Bankful.
+// app. From then on /api/qb-checkout refreshes its own access token
+// automatically (see lib/qbServerAuth.js) — this route never needs to be
+// visited again unless the connection is revoked or goes unused for 100+ days.
 
 export default function handler(req, res) {
   const clientId = process.env.QB_CLIENT_ID;
