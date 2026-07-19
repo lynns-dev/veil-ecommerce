@@ -286,7 +286,7 @@ export default function CheckoutPage() {
         // offers those as a wallet button rendered above the accordion,
         // never as a plain row.
         const paymentElement = elements.create('payment', {
-          layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: false },
+          layout: 'accordion',
           paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
           wallets: { applePay: 'never', googlePay: 'never' },
         });
