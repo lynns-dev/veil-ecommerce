@@ -8,6 +8,7 @@
 import { getStripe } from '../../../../lib/stripeServer';
 import { refundCapture } from '../../../../lib/paypal';
 import { refundCharge } from '../../../../lib/qbPaymentsServer';
+import { refundHostedTransaction } from '../../../../lib/bankfulServer';
 import { updateOrderStatus } from '../../../../lib/analyticsStore';
 
 export default async function handler(req, res) {
@@ -29,6 +30,9 @@ export default async function handler(req, res) {
     } else if (processor === 'quickbooks') {
       if (!amount) return res.status(400).json({ error: 'Missing order amount — QuickBooks refunds require the amount to refund.' });
       await refundCharge(orderId, amount);
+    } else if (processor === 'bankful') {
+      if (!amount) return res.status(400).json({ error: 'Missing order amount — Bankful refunds require the amount to refund.' });
+      await refundHostedTransaction(orderId, amount);
     } else {
       return res.status(400).json({ error: `Don't know how to refund a "${processor}" order.` });
     }

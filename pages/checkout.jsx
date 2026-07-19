@@ -4,8 +4,6 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { TASSEL_GIFT } from '../lib/products';
-import { getStripeClient } from '../lib/stripeClient';
-import { tokenizeCard } from '../lib/qbPayments';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
@@ -37,16 +35,6 @@ function LockIconSolid(props) {
   );
 }
 
-function HelpIcon(props) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M9.5 9.3a2.5 2.5 0 1 1 3.3 2.36c-.6.22-1 .78-1 1.44v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="16.8" r="0.9" fill="currentColor" />
-    </svg>
-  );
-}
-
 function ShipIcon(props) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -73,34 +61,6 @@ function LeafIcon(props) {
     </svg>
   );
 }
-
-// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
-// field convention shoppers already know from their physical card.
-function formatExpiry(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
-}
-
-
-// Human labels for the payment method types Stripe's Payment Element can
-// resolve to (reported via its 'change' event) — used for the order
-// record/analytics label, since the element itself doesn't hand back a
-// pretty name.
-const PAYMENT_METHOD_LABELS = {
-  klarna: 'Klarna',
-  afterpay_clearpay: 'Afterpay',
-  link: 'Link',
-  amazon_pay: 'Amazon Pay',
-  paypal: 'PayPal',
-  cashapp: 'Cash App Pay',
-};
-
-// These always leave the page for an off-site confirmation step, unlike
-// card/Link/Cash App Pay which normally resolve without navigating away —
-// handleSubmit uses this to know whether it can rely on running code after
-// stripe.confirmPayment() or needs to prep sessionStorage beforehand.
-const REDIRECT_PAYMENT_TYPES = ['klarna', 'afterpay_clearpay', 'amazon_pay', 'paypal'];
 
 function AddressFields({ value, onChange, idPrefix }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
@@ -140,8 +100,6 @@ export default function CheckoutPage() {
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(emptyAddress);
-  const [billingSame, setBillingSame] = React.useState(true);
-  const [billing, setBilling] = React.useState(emptyAddress);
 
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
@@ -209,120 +167,6 @@ export default function CheckoutPage() {
   const discountTotal = subtotal - total;
   const grandTotal = discountedTotal + shippingCost;
 
-  // Stripe Payment Element: a single Stripe-hosted iframe that shows
-  // whichever methods (card, Klarna, Afterpay, Link, Amazon Pay, ...) are
-  // eligible and enabled in the Stripe Dashboard — raw payment details
-  // never touch our own JS. It needs a PaymentIntent client_secret up front
-  // to know what's eligible for this amount, so the intent is created once,
-  // early (intentCreatedRef guards against re-creating it as grandTotal
-  // changes). elements.update({amount}) only works for the "deferred"
-  // Elements setup (mode: 'payment'), not this clientSecret-based one, so
-  // if the total changes later (a discount code applied after the element
-  // is already mounted) the displayed amount/eligibility won't reflect it
-  // until submit — /api/stripe/update-intent syncs the real PaymentIntent
-  // amount server-side right before confirmPayment, so the actual charge
-  // is always correct regardless.
-  const paymentElementRef = React.useRef(null);
-  const stripeRef = React.useRef(null);
-  const elementsRef = React.useRef(null);
-  const paymentIntentIdRef = React.useRef(null);
-  const intentCreatedRef = React.useRef(false);
-  const [stripeReady, setStripeReady] = React.useState(false);
-  const [activePaymentType, setActivePaymentType] = React.useState('klarna');
-  const [paymentElementError, setPaymentElementError] = React.useState('');
-
-  // Which set of fields the shopper last touched — 'card' (the QuickBooks
-  // card form, tokenized client-side via lib/qbPayments.js so the card
-  // number never touches our server) or 'stripe' (the Payment Element
-  // below it, covering Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App
-  // Pay — card is deliberately excluded from that list server-side, see
-  // /api/stripe/create-intent.js, since the QuickBooks form above is the
-  // card option). Both stay mounted and visible at once; this just tracks
-  // which one to actually charge at submit time, updated by whichever
-  // field group the shopper focuses into.
-  const [processor, setProcessor] = React.useState('card');
-  const [qbCard, setQbCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
-
-  React.useEffect(() => {
-    if (!hydrated || cart.length === 0 || grandTotal <= 0 || intentCreatedRef.current) return;
-    intentCreatedRef.current = true;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const [stripeInstance, intentRes] = await Promise.all([
-          getStripeClient(),
-          fetch('/api/stripe/create-intent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: grandTotal }),
-          }).then((r) => r.json()),
-        ]);
-        if (cancelled || !stripeInstance || !paymentElementRef.current) return;
-        if (!intentRes.clientSecret) throw new Error(intentRes.error || 'Could not start checkout.');
-
-        stripeRef.current = stripeInstance;
-        paymentIntentIdRef.current = intentRes.paymentIntentId;
-
-        const elements = stripeInstance.elements({
-          clientSecret: intentRes.clientSecret,
-          appearance: {
-            theme: 'stripe',
-            variables: {
-              fontFamily: T.sans, colorText: T.ink, colorTextPlaceholder: T.soft,
-              colorPrimary: T.ink, borderRadius: '8px', colorDanger: '#a13d2b',
-            },
-          },
-        });
-        elementsRef.current = elements;
-
-        // Accordion layout (radio rows that expand in place) instead of
-        // tabs. Plain string form ONLY — three separate attempts to pass an
-        // object here instead ({ type: 'accordion', ...one or more of
-        // defaultCollapsed/radios/spacedAccordionItems }) have each broken
-        // payment methods in production, regardless of which sub-keys were
-        // included or what create-intent.js was doing at the time. Do not
-        // reintroduce the object form without a way to test it against the
-        // real Stripe account first — this has cost working checkout three
-        // times now. 'card' isn't in paymentMethodOrder (the QuickBooks
-        // form above is the card option) but may still appear here if
-        // Cards is enabled in the Stripe Dashboard, since
-        // automatic_payment_methods can't exclude a single type. Apple
-        // Pay/Google Pay are off too — Stripe only offers those as a
-        // wallet button rendered above the accordion, never as a row.
-        const paymentElement = elements.create('payment', {
-          layout: 'accordion',
-          paymentMethodOrder: ['klarna', 'afterpay_clearpay', 'link', 'amazon_pay', 'paypal', 'cashapp'],
-          wallets: { applePay: 'never', googlePay: 'never' },
-        });
-        paymentElement.mount(paymentElementRef.current);
-        paymentElement.on('change', (e) => {
-          setActivePaymentType(e.value?.type || 'klarna');
-          setPaymentElementError('');
-        });
-        // Fires when the shopper actually focuses into the element (unlike
-        // 'change', which also fires once on mount for its default type) —
-        // this is what flips the submit target from the QuickBooks card
-        // form to whichever Stripe method they're now filling in.
-        paymentElement.on('focus', () => setProcessor('stripe'));
-        paymentElement.on('loaderror', (e) => {
-          console.error('Stripe Payment Element failed to load:', e.error);
-        });
-
-        setStripeReady(true);
-      } catch (err) {
-        // Missing/bad publishable key, blocked script, etc. — surfaced via
-        // stripeReady staying false, which disables the submit button below
-        // rather than letting the shopper submit into a broken form.
-        console.error('Stripe setup failed:', err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hydrated, cart.length, grandTotal]);
-
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return;
     setDiscountMessage('Checking…');
@@ -336,176 +180,43 @@ export default function CheckoutPage() {
     }
   };
 
-  const completeCheckout = async ({ paymentMethodType, paymentMethodLabel, paymentMethodData }) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      const stripeInstance = stripeRef.current;
-      const elements = elementsRef.current;
-      if (!stripeInstance || !elements || !paymentIntentIdRef.current) {
-        throw new Error('Payment form is still loading — please wait a moment and try again.');
-      }
-
       const purchaseEventId = generateEventId();
-
-      // Saves everything the webhook needs to fulfill this order once
-      // Stripe confirms it — the client can't be trusted to do that itself,
-      // since redirect-based methods below never return control to this
-      // function at all.
-      const updateRes = await fetch('/api/stripe/update-intent', {
+      const res = await fetch('/api/bankful-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentIntentId: paymentIntentIdRef.current,
           amount: grandTotal,
           items: cart,
           email,
           shipping,
           eventId: purchaseEventId,
           url: window.location.href,
-          paymentMethod: paymentMethodLabel,
-          attribution: getStoredAttribution(),
-        }),
-      });
-      const updateData = await updateRes.json();
-      if (!updateRes.ok) throw new Error(updateData.error || 'Payment failed');
-
-      const purchaseRecord = {
-        eventId: purchaseEventId,
-        amount: grandTotal,
-        contentIds: cart.map((i) => i.id),
-        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
-      };
-
-      // Afterpay/Amazon Pay always redirect off-site — the browser leaves
-      // this page entirely, so /success needs this record to already be
-      // there when Stripe sends the shopper back, not set by code that
-      // never gets to run.
-      const isRedirectType = REDIRECT_PAYMENT_TYPES.includes(paymentMethodType);
-      if (isRedirectType) {
-        sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
-      }
-
-      const { error: confirmError } = await stripeInstance.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}/success`,
-          ...(paymentMethodData ? { payment_method_data: paymentMethodData } : {}),
-        },
-        redirect: 'if_required',
-      });
-
-      if (confirmError) {
-        sessionStorage.removeItem('veil-purchase');
-        throw new Error(confirmError.message);
-      }
-
-      // Reaching this line means nothing redirected — card, Link, and Cash
-      // App Pay usually resolve right here in-page — so finish up ourselves
-      // instead of waiting on a navigation that isn't coming.
-      if (!isRedirectType) {
-        sessionStorage.setItem('veil-purchase', JSON.stringify(purchaseRecord));
-      }
-
-      await router.push('/success');
-      clear();
-    } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // QuickBooks has no redirect step and no webhook — the charge either
-  // succeeds or fails in this same call, so fulfillment/success-navigation
-  // happen directly here rather than through completeCheckout's Stripe-
-  // specific redirect handling.
-  const handleQuickBooksSubmit = async () => {
-    setError('');
-    const [expMonth, expYear] = qbCard.expiry.split('/').map((s) => s.trim());
-    if (!qbCard.number.trim() || !expMonth || !expYear || !qbCard.cvc.trim() || !qbCard.name.trim()) {
-      setError('Fill in your card details, or choose one of the payment methods below instead.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const billingAddress = billingSame ? shipping : billing;
-      const token = await tokenizeCard(
-        {
-          number: qbCard.number,
-          expMonth,
-          expYear: `20${expYear}`,
-          cvc: qbCard.cvc,
-          name: qbCard.name.trim(),
-          street: billingAddress.address,
-          city: billingAddress.city,
-          region: billingAddress.state,
-          postalCode: billingAddress.zip,
-          country: 'US',
-        },
-        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
-      );
-
-      const purchaseEventId = generateEventId();
-      const res = await fetch('/api/qb-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          amount: grandTotal,
-          items: cart,
-          email,
-          shipping,
-          eventId: purchaseEventId,
-          url: window.location.href,
-          paymentMethod: 'QuickBooks',
           attribution: getStoredAttribution(),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment failed');
+      if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
 
+      // Bankful's hosted page always redirects the browser off-site to pay,
+      // so /success needs this record to already be there when the shopper
+      // is sent back — not set by code that never gets to run.
       sessionStorage.setItem('veil-purchase', JSON.stringify({
         eventId: purchaseEventId,
         amount: grandTotal,
         contentIds: cart.map((i) => i.id),
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
       }));
-      await router.push('/success');
-      clear();
+
+      window.location.href = data.redirectUrl;
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
-    } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (processor === 'card') {
-      await handleQuickBooksSubmit();
-      return;
-    }
-    const billingAddress = billingSame ? shipping : billing;
-    await completeCheckout({
-      paymentMethodType: activePaymentType,
-      paymentMethodLabel: PAYMENT_METHOD_LABELS[activePaymentType] || 'Other',
-      paymentMethodData: {
-        billing_details: {
-          name: `${billingAddress.firstName} ${billingAddress.lastName}`.trim() || undefined,
-          email: email || undefined,
-          phone: billingAddress.phone || undefined,
-          address: {
-            line1: billingAddress.address,
-            line2: billingAddress.apt || undefined,
-            city: billingAddress.city,
-            state: billingAddress.state,
-            postal_code: billingAddress.zip,
-            country: 'US',
-          },
-        },
-      },
-    });
   };
 
   if (!hydrated || cart.length === 0) return null;
@@ -609,87 +320,24 @@ export default function CheckoutPage() {
           <section style={{ marginTop: 24 }}>
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
-            <div style={paymentList}>
-              <div
-                style={{ ...accordionRow, background: processor === 'card' ? T.paper : T.white }}
-                onClick={() => setProcessor('card')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={processor === 'card' ? radioOuterActive : radioOuter}>
-                    {processor === 'card' && <span style={radioInner} />}
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
-                  <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
-                    <span style={mcCircle('#EB001B', 0)} />
-                    <span style={mcCircle('#F79E1B', -6)} />
-                  </span>
-                  <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
-                  <span style={moreBadge}>+1</span>
+            <div style={paymentNotice}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <LockIconSolid style={{ color: T.ink, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>Pay by card</div>
+                  <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>
+                    You&rsquo;ll enter your card details on our payment partner&rsquo;s secure page next.
+                  </div>
                 </div>
               </div>
-              {processor === 'card' && (
-                <div style={accordionBody}>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      placeholder="Card number"
-                      value={qbCard.number}
-                      onChange={(e) => setQbCard({ ...qbCard, number: e.target.value })}
-                      style={{ ...pillInput, paddingRight: 42 }}
-                      inputMode="numeric"
-                      autoComplete="cc-number"
-                    />
-                    <LockIconSolid style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
-                  </div>
-                  <input
-                    placeholder="Expiration date (MM / YY)"
-                    value={qbCard.expiry}
-                    onChange={(e) => setQbCard({ ...qbCard, expiry: formatExpiry(e.target.value) })}
-                    style={{ ...pillInput, marginTop: 10 }}
-                    inputMode="numeric"
-                    autoComplete="cc-exp"
-                  />
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      placeholder="Security code"
-                      value={qbCard.cvc}
-                      onChange={(e) => setQbCard({ ...qbCard, cvc: e.target.value })}
-                      style={{ ...pillInput, marginTop: 10, paddingRight: 42 }}
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                    />
-                    <HelpIcon style={{ position: 'absolute', right: 16, top: 'calc(50% + 5px)', transform: 'translateY(-50%)', color: T.soft }} />
-                  </div>
-                  <input
-                    placeholder="Name on card"
-                    value={qbCard.name}
-                    onChange={(e) => setQbCard({ ...qbCard, name: e.target.value })}
-                    style={{ ...pillInput, marginTop: 10 }}
-                    autoComplete="cc-name"
-                  />
-                  <label style={{ ...checkboxLabel, marginTop: 16 }}>
-                    <input
-                      type="checkbox"
-                      checked={billingSame}
-                      onChange={(e) => setBillingSame(e.target.checked)}
-                      style={{ accentColor: T.ink, width: 18, height: 18 }}
-                    />
-                    <span style={{ color: T.ink }}>Use shipping address as billing address</span>
-                  </label>
-                  {!billingSame && (
-                    <div style={{ marginTop: 10 }}>
-                      <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div ref={paymentElementRef} />
-              {processor === 'stripe' && paymentElementError && (
-                <p style={{ fontSize: 12, color: '#a13d2b', margin: '8px 14px' }}>{paymentElementError}</p>
-              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
+                <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
+                  <span style={mcCircle('#EB001B', 0)} />
+                  <span style={mcCircle('#F79E1B', -6)} />
+                </span>
+                <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
+              </div>
             </div>
           </section>
 
@@ -719,10 +367,10 @@ export default function CheckoutPage() {
 
           <button
             type="submit"
-            disabled={submitting || (processor === 'stripe' && !stripeReady)}
+            disabled={submitting}
             style={{
               ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting || (processor === 'stripe' && !stripeReady) ? 0.6 : 1,
+              height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
             }}
           >
             {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
@@ -732,7 +380,7 @@ export default function CheckoutPage() {
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by {processor === 'stripe' ? 'Stripe' : 'QuickBooks'}
+            Payments securely processed by Bankful
           </p>
         </form>
 
@@ -802,7 +450,7 @@ export default function CheckoutPage() {
           {[
             [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
-            [LockIcon, 'Secure checkout', `Payments encrypted and processed by ${processor === 'stripe' ? 'Stripe' : 'QuickBooks'}.`],
+            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Bankful.'],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
           ].map(([Icon, title, copy]) => (
             <div key={title} style={reassuranceItem}>
@@ -876,31 +524,13 @@ const input = {
   fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-// Shopify-checkout-style radio list: one black-bordered container, each
-// payment method a row inside it (accordionRow) that expands into
-// accordionBody when selected. Stripe's own accordion-layout Payment
-// Element mounts as more rows directly inside the same paymentList
-// container, so the two read as one continuous list rather than two
-// separately-styled blocks.
-const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
-const accordionRow = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '16px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.line}`,
+const paymentNotice = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+  border: `1px solid ${T.line}`, borderRadius: 10, padding: '16px 14px', background: T.paper,
 };
-const accordionBody = { padding: '14px 14px 18px', background: T.paper, borderBottom: `1px solid ${T.line}` };
-const radioOuter = {
-  width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${T.line}`,
-  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.white,
-};
-const radioOuterActive = { ...radioOuter, border: `2px solid ${T.ink}` };
-const radioInner = { width: 9, height: 9, borderRadius: '50%', background: T.ink };
 const networkBadge = {
   fontSize: 10, fontWeight: 700, letterSpacing: '0.02em', color: '#fff',
   borderRadius: 4, padding: '5px 7px', lineHeight: 1, display: 'flex', alignItems: 'center',
-};
-const moreBadge = {
-  fontSize: 10, fontWeight: 600, color: T.soft, border: `1px solid ${T.line}`,
-  borderRadius: 4, padding: '5px 7px', lineHeight: 1, background: T.white,
 };
 // Two overlapping circles standing in for the Mastercard mark inside a
 // black chip — offset controls how far the second circle tucks under the
@@ -908,14 +538,6 @@ const moreBadge = {
 function mcCircle(color, offset) {
   return { width: 12, height: 12, borderRadius: '50%', background: color, marginLeft: offset, display: 'inline-block' };
 }
-// Pill-shaped fields sitting on the gray accordion body, matching the
-// reference's very rounded card-detail inputs (vs. the site's normal
-// 4px-radius fields elsewhere on this page).
-const pillInput = {
-  width: '100%', height: 48, padding: '0 16px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none',
-  boxSizing: 'border-box', borderRadius: 24,
-};
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,

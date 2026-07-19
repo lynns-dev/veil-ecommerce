@@ -55,10 +55,9 @@ export default function PrivacyPolicy() {
 
       <PolicySection title="Payment processing">
         <p>
-          Payments are processed by Stripe, Inc., including card payments and wallet options such as
-          PayPal, Klarna, and Afterpay offered through Stripe, or — if you choose that option at checkout —
-          by QuickBooks Payments (Intuit Inc.). Either way, your payment details are sent directly to the
-          processor you choose under its own privacy policy — we never see or store full card numbers.
+          Payments are processed by Bankful. At checkout you're redirected to Bankful's own secure payment
+          page to enter your card details — they're sent directly to Bankful under its own privacy policy,
+          and we never see or store full card numbers.
         </p>
       </PolicySection>
 

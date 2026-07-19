@@ -12,19 +12,27 @@ export default function SuccessPage() {
   const router = useRouter();
   const { clear } = useCart();
   const [failed, setFailed] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
 
   React.useEffect(() => {
     if (!router.isReady) return;
 
-    // Stripe redirect-based methods (Afterpay, Amazon Pay) send the shopper
-    // back here with this query param instead of returning control to
-    // checkout.jsx's own JS — which also means checkout.jsx's clear() call
-    // never runs for that path. This effect is what has to do it instead.
-    const redirectStatus = router.query.redirect_status;
+    // Bankful's hosted payment page always redirects the shopper back here
+    // rather than returning control to checkout.jsx's own JS — which also
+    // means checkout.jsx's clear() call never runs for that path. This
+    // effect is what has to do it instead. url_failed/url_pending point at
+    // distinct ?status= values (see lib/bankfulServer.js); url_complete has
+    // none, since actual fulfillment is decided by the signature-verified
+    // webhook, not anything in this query string.
+    const status = router.query.status;
     const raw = sessionStorage.getItem('veil-purchase');
     sessionStorage.removeItem('veil-purchase');
 
-    if (redirectStatus && redirectStatus !== 'succeeded') {
+    if (status === 'pending') {
+      setPending(true);
+      return;
+    }
+    if (status === 'failed') {
       setFailed(true);
       return;
     }
@@ -43,7 +51,27 @@ export default function SuccessPage() {
       // malformed sessionStorage value — nothing to track
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady, router.query.redirect_status]);
+  }, [router.isReady, router.query.status]);
+
+  if (pending) {
+    return (
+      <div>
+        <Header cartCount={0} onCartClick={() => {}} />
+        <section style={{ maxWidth: 640, margin: '0 auto', padding: '120px 40px', textAlign: 'center' }}>
+          <p style={S.label}>Payment pending</p>
+          <h1 style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(32px,5vw,48px)', margin: '16px 0 20px' }}>
+            Your payment is still processing.
+          </h1>
+          <p style={{ color: T.soft, fontSize: 16, marginBottom: 34 }}>
+            We&rsquo;ll confirm your order by email as soon as it clears — no need to try again.
+          </p>
+          <Link href="/" style={S.btnOutline}>Return home</Link>
+        </section>
+        <Marquee />
+        <Footer />
+      </div>
+    );
+  }
 
   if (failed) {
     return (

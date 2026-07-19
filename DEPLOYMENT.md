@@ -1,6 +1,6 @@
 # VEIL Full E-Commerce Site — Deployment Guide
 
-This is a Next.js e-commerce site with a full product catalog, detailed product pages, shopping cart, and a custom checkout page that charges cards directly via Stripe or QuickBooks Payments — shopper's choice (no Shopify, no hosted redirect). Built entirely in VEIL's quiet-luxury aesthetic.
+This is a Next.js e-commerce site with a full product catalog, detailed product pages, shopping cart, and a custom checkout page that redirects to Bankful's Hosted Payment Page to take the card (no Shopify). Built entirely in VEIL's quiet-luxury aesthetic.
 
 ## What You Get
 
@@ -8,65 +8,35 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 - **Product catalog page** with all VEIL offerings
 - **Individual product detail pages** with full descriptions, scent notes, and product specifications
 - **Shopping cart** (persists across pages via localStorage, sticky sidebar)
-- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) — a QuickBooks Payments card form up front (the "Card" option), with Stripe's Payment Element below it for everything else (Klarna, Afterpay/Clearpay, Link, Amazon Pay, PayPal, Cash App Pay). Whichever one the shopper actually fills in is what gets charged
+- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) — shopper enters contact/shipping details here, then **Place order** redirects to Bankful's own hosted page to enter their card and redirects back afterward
 - **Deployed to Vercel** (free, automatic scaling, HTTPS included)
 
 ---
 
-## Step 1: Set Up Stripe
+## Step 1: Set Up Bankful
 
-1. Go to https://dashboard.stripe.com and sign in (or create a Stripe account).
-2. Go to **Developers → API keys**. You'll see a **Publishable key** (`pk_test_...` or `pk_live_...`) and a **Secret key** (`sk_test_...` or `sk_live_...`).
-3. Use the **test mode** keys first (toggle at the top of the dashboard) — these go in `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
-4. When ready for real charges, switch the dashboard to **live mode** and swap both keys for their live-mode equivalents.
+1. Get your Bankful merchant credentials (username/password) from Bankful — these go in `BANKFUL_USERNAME` / `BANKFUL_PASSWORD`.
+2. Set `BANKFUL_ENVIRONMENT` to `sandbox` while testing, `live` once you're ready for real charges.
+3. Ask Bankful support to confirm which API host your sandbox and live credentials actually work against, and set `BANKFUL_BASE_URL` explicitly if it differs from the default this codebase picks based on `BANKFUL_ENVIRONMENT`. **This matters** — Bankful's own documentation lists `api-dev1.bankfulportal.com` as the sandbox host, but its curl examples (even ones using sandbox credentials) target `api.paybybankful.com`. That inconsistency was never resolved during this integration; don't assume the default in `lib/bankfulServer.js` is correct without confirming.
+4. Register `https://YOUR_DOMAIN/api/bankful-webhook` with Bankful as your callback URL, if they require registering it separately from what's sent per-request — this codebase already sends it automatically as `url_callback` on every hosted-page request, so this may not be a separate step depending on how Bankful's account is set up. Confirm with Bankful support either way, since this webhook is the **only** thing that actually fulfills an order (see below).
 
-Unlike a lot of payment integrations, there's no separate "environment" setting to keep in sync — the key prefix (`sk_test_`/`pk_test_` vs `sk_live_`/`pk_live_`) *is* the environment. The one thing to get right: `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` must come from the **same mode** (both test, or both live).
+### How the payment flow works
 
-3D Secure / SCA (the "verify with your bank" popup some cards require) is handled automatically — no extra setup needed.
+1. Shopper fills in contact/shipping info on `/checkout` and clicks **Place order**.
+2. `/api/bankful-checkout` saves the order details (cart, email, shipping) in the KV store keyed by a generated order id, builds a signed request, and asks Bankful for a hosted-page URL.
+3. The browser is redirected to that URL — Bankful's own page, where the shopper enters their card. Raw card data never touches this app.
+4. Bankful redirects the shopper back to `/success` (or `/success?status=failed` / `/success?status=pending` / `/checkout` for cancel), **and independently** sends a signed async callback to `/api/bankful-webhook`.
+5. Only that webhook — after verifying Bankful's HMAC-SHA256 signature — actually fulfills the order (records the sale, notifies admins, fires the Meta Purchase event). The shopper's browser redirect is cosmetic only; it can't be trusted to fire fulfillment, since Bankful's docs explicitly warn a shopper can close the tab or lose connection before making it back.
 
-### Enable the extra payment methods
+### ⚠️ Things worth confirming with Bankful support before relying on this in production
 
-The checkout shows whichever methods are eligible *and* enabled for your account — none of these turn on by default:
+This integration was built entirely from Bankful's own pasted documentation, without access to a live account to test against. A few inconsistencies in that documentation were resolved with a best guess, documented in comments in `lib/bankfulServer.js`, and should be verified for real before launch:
 
-- **Link**: Settings → Payment methods → toggle on. Usually instant.
-- **Apple Pay**: Settings → Payment methods → toggle on, then add/verify your domain under that same section. Unlike some Apple Pay integrations, Stripe handles domain verification for you — no file to host yourself.
-- **Afterpay/Clearpay**: Settings → Payment methods → toggle on. May require Stripe's approval depending on your account/region — check the status shown next to it.
-- **Amazon Pay**: Settings → Payment methods → "Amazon Pay" → this is a bigger step than the others, it walks you through connecting (or creating) an actual Amazon Pay seller account through Stripe's flow, separate from your Stripe account itself.
+1. **Sandbox vs. live base URL** — see above.
+2. **The `transaction_type` field** — Bankful's hosted-page parameter table lists it as required, but their own curl example for the same endpoint omits it. This codebase sends `transaction_type: 'CAPTURE'`; confirm that's correct.
+3. **Which refund mechanism Bankful's hosted-page transactions actually expect** — Bankful's docs describe two different-looking refund flows in different sections: `transaction_type=REFUND` against the direct transaction API, and `request_action=CCCREDIT` against the same endpoint under a section explicitly titled "Refund Hosted." This codebase uses `CCCREDIT` (`lib/bankfulServer.js`'s `refundHostedTransaction`) since it's the one paired with hosted-page transactions specifically — but this hasn't been tested against a real refund.
 
-Each method just needs to be turned on in the Dashboard — nothing in this codebase hardcodes which ones show up (`automatic_payment_methods` on the PaymentIntent lets Stripe decide based on what's enabled).
-
-### Set up the webhook
-
-Order fulfillment (recording the sale, notifying admins, analytics, the Meta Purchase event) runs from a webhook, not directly from checkout — Afterpay and Amazon Pay send the shopper off-site to pay, so a client-side "it worked" call can't be trusted to always fire.
-
-1. Developers → Webhooks → **Add endpoint**.
-2. Endpoint URL: `https://YOUR_DOMAIN/api/stripe/webhook`
-3. Events to send: `payment_intent.succeeded`
-4. After creating it, copy the **Signing secret** shown on that endpoint's page into `STRIPE_WEBHOOK_SECRET`.
-
-Do this again (a second endpoint) if/when you switch to live mode — test-mode and live-mode webhooks are separate, each with their own signing secret.
-
----
-
-## Step 1B: Set Up QuickBooks Payments (optional second processor)
-
-Checkout offers this as an alternative to Stripe, not a replacement — shoppers pick one or the other. Skip this step entirely if you only want Stripe.
-
-1. Go to https://developer.intuit.com and sign in (or create an Intuit account).
-2. Create a new app → **QuickBooks Online and Payments**.
-3. On the app's **Payments** tab, enable QuickBooks Payments. This is tied to a merchant account — if you don't already have QuickBooks Payments active on your QuickBooks Online account, you'll need to complete Intuit's merchant underwriting first.
-4. Under **Keys & OAuth**, grab the **Client ID** and **Client Secret** for the Sandbox environment (use Production once you're ready to take real charges). These go in `QB_CLIENT_ID` / `QB_CLIENT_SECRET`.
-5. In that same **Keys & OAuth** section, add a redirect URI: `https://YOUR_DOMAIN/api/qb-auth/callback` (use your Vercel URL, or `http://localhost:3000/api/qb-auth/callback` for local testing).
-6. After deploying and setting env vars (Step 2), visit `/api/qb-auth/connect` once to authorize.
-
-### ⚠️ Two non-obvious ways to get the Charges API to fail even with a valid OAuth connection
-
-This exact integration hit an unresolved 403 on a previous attempt on this site. Both of the causes below were root-caused by direct testing against Intuit's sandbox and are easy to hit again — check both before assuming something else is wrong:
-
-1. **Development vs. Production credentials must match `QB_ENVIRONMENT`.** Intuit issues a completely separate Client ID/Secret pair per environment (Keys & Credentials → Development / Production tabs), each with its own Redirect URIs list (Settings → Redirect URIs → Development / Production tabs). Using a Production Client ID while `QB_ENVIRONMENT=sandbox` (or vice versa) produces an access token whose environment doesn't match the API base URL it's sent to — Intuit's gateway rejects it with an **empty-body 403** before the request ever reaches real charge logic. Fix: make sure `QB_CLIENT_ID`/`QB_CLIENT_SECRET` come from the same Development/Production tab as `QB_ENVIRONMENT`, and that the matching redirect URI is registered under that same tab.
-2. **Don't request `com.intuit.quickbooks.accounting` together with `com.intuit.quickbooks.payment`** in the same OAuth authorization. A combined-scope token consistently 401s (`AuthenticationFailed`) on the Payments Charges API even though it's otherwise valid — request `com.intuit.quickbooks.payment` alone (already how `pages/api/qb-auth/connect.js` is written).
-
-If charges still fail after both of the above are correct, the remaining possibility is Intuit's separate Payments production-access approval (business verification / security questionnaire, found under the app's **Payments** tab if applicable). Test with a real sandbox charge (Step 4B below) before relying on this in production — it has not been re-verified working since being restored.
+Run a real sandbox transaction, and a refund of that transaction, before taking this live.
 
 ---
 
@@ -80,14 +50,13 @@ If charges still fail after both of the above are correct, the remaining possibi
 4. Click "Deploy"
 5. After deployment, go to "Settings" → "Environment Variables"
 6. Add:
-   - `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: from Step 1 (test-mode keys to start)
-   - `STRIPE_WEBHOOK_SECRET`: from the webhook you registered in Step 1 — note the webhook URL needs your real deployed domain, so set this up *after* your first deploy, once you know the URL
-   - `QB_CLIENT_ID` / `QB_CLIENT_SECRET`: from Step 1B, if you're offering QuickBooks too
-   - `QB_ENVIRONMENT` and `NEXT_PUBLIC_QB_ENVIRONMENT`: both `sandbox` (or both `production` once approved — see Step 1B), if using QuickBooks
+   - `BANKFUL_USERNAME` / `BANKFUL_PASSWORD`: from Step 1
+   - `BANKFUL_ENVIRONMENT`: `sandbox` to start
+   - `BANKFUL_BASE_URL`: only if Bankful support told you to override the default (see Step 1)
    - `KV_REST_API_URL` / `KV_REST_API_TOKEN`: from a KV store (Vercel Storage → Marketplace → Upstash, or a standalone Upstash Redis database — same REST API either way)
-   - `NEXT_PUBLIC_BASE_URL`: your Vercel domain (e.g., `https://veil-checkout.vercel.app`)
+   - `NEXT_PUBLIC_BASE_URL`: your Vercel domain (e.g., `https://veil-checkout.vercel.app`) — Bankful redirects back here after payment
+   - `STRIPE_SECRET_KEY` / `QB_CLIENT_ID` / `QB_CLIENT_SECRET`: only needed if you still have orders placed under the old processors that you might need to refund
 7. Redeploy by going to "Deployments" → last deployment → "Redeploy"
-8. If using QuickBooks, visit `/api/qb-auth/connect` once to authorize (see Step 1B)
 
 ### Option B: Deploy via Git
 
@@ -115,22 +84,12 @@ If charges still fail after both of the above are correct, the remaining possibi
 
 ## Step 4: Test the Checkout
 
-There's no processor toggle to click — both payment groups sit on the page at once, and whichever one the shopper actually fills in and submits is what gets charged. Test them separately.
-
-### Step 4A: Card (QuickBooks)
-
 1. Go to your deployed domain
 2. Add a product to the cart and click "Checkout"
-3. The "Credit card" row at the top of the Payment section is selected by default — fill it in with one of Intuit's [sandbox test cards](https://developer.intuit.com/app/developer/qbpayments/docs/develop/sandboxes/payments-test-cards) — real card numbers don't work against the sandbox environment
-4. Submit and check your QuickBooks Payments dashboard — the charge should appear
-5. This is the integration that hit an unresolved 403 previously (see Step 1B) — if it fails, work through that section's two gotchas before assuming something else is broken
-
-### Step 4B: Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App Pay (Stripe)
-
-1. On the same checkout page, click one of the rows below "Credit card" instead — those are Stripe's Payment Element, rendered as more rows in the same list
-2. Use one of Stripe's [test values](https://docs.stripe.com/testing) for whichever method you're testing
-3. Check your Stripe dashboard (Payments) — the charge should appear
-4. If this whole section is missing/empty instead of showing rows, open the browser console — the most common cause is `/api/stripe/create-intent` failing outright, which happens if a payment method type gets hardcoded into an explicit `payment_method_types` list without actually being enabled in the Dashboard first (this bit us once already — see the comment above the `stripe.paymentIntents.create` call). Keep that call on `automatic_payment_methods` and it degrades gracefully instead of failing the whole section
+3. Fill in the contact/shipping fields and click **Place order** — you'll be redirected to Bankful's hosted page
+4. Use one of Bankful's sandbox test card values (ask Bankful support for these if their docs don't already show sandbox amount/decline thresholds) to complete the payment
+5. Confirm you're redirected back to `/success`, and that the order actually shows up in the admin Orders tab — if the browser makes it back to `/success` but the order never appears, the webhook isn't reaching `/api/bankful-webhook` (check Bankful's callback delivery logs if they expose any, and confirm `NEXT_PUBLIC_BASE_URL` was set correctly at the time the order was placed, since that's what gets baked into `url_callback`)
+6. Test a decline too, and confirm it lands on `/success?status=failed` with a clear message instead of silently succeeding
 
 ---
 
@@ -153,7 +112,7 @@ To change them:
 - `/shop` — Full product catalog
 - `/product/[id]` — Individual product detail pages
 - `/checkout` — Custom single-page checkout
-- `/success` — Order confirmation page
+- `/success` — Order confirmation page (also handles Bankful's failed/pending/cancel redirect outcomes)
 
 ### Components
 - `Header.jsx` — Navigation, cart button, logo
@@ -163,44 +122,37 @@ To change them:
 ### Architecture
 - **Frontend**: Next.js React app (all pages)
 - **Cart state**: React Context (`lib/useCart.js`), persisted to `localStorage` so it survives navigation to `/checkout`
-- **Backend**: Vercel serverless functions at `/api/stripe/create-intent` (starts a PaymentIntent as soon as checkout is ready to show payment options), `/api/stripe/update-intent` (attaches order details right before submit), and `/api/stripe/webhook` (the only place that actually fulfills a Stripe order, on `payment_intent.succeeded`) — plus `/api/qb-checkout` (charges a QuickBooks card token and fulfills directly, no webhook needed since there's no off-site redirect step) and `/api/qb-auth/connect` + `/api/qb-auth/callback` (one-time QuickBooks OAuth authorization)
-- **Payments**: shopper picks the processor at checkout. Stripe Payment Element (`lib/stripeClient.js`) — a single Stripe-hosted iframe covering card, Klarna, Afterpay/Clearpay, Link, Amazon Pay, PayPal, and Cash App Pay, so raw payment details never reach our own JS or server. QuickBooks Payments — card details are tokenized client-side (`lib/qbPayments.js`, a direct call to Intuit's Payments Tokens REST endpoint) before ever reaching the server
-- **QuickBooks token refresh**: `lib/qbServerAuth.js` transparently refreshes the QuickBooks access token using a refresh token persisted in the KV store (`lib/qbTokenStore.js`) before every charge — no manual token rotation
+- **Backend**: Vercel serverless functions at `/api/bankful-checkout` (saves the pending order, starts the hosted-page payment) and `/api/bankful-webhook` (the only place that actually fulfills a Bankful order, on Bankful's signature-verified async callback) — plus legacy-refund-only routes for orders placed before the Bankful switch (`lib/stripeServer.js`, `lib/qbPaymentsServer.js` + `/api/qb-auth/connect` + `/api/qb-auth/callback`)
+- **Payments**: card details are collected entirely on Bankful's own hosted page (`lib/bankfulServer.js` builds and signs the request that starts it) — this app never sees raw card data
 - **Hosting**: Vercel (free tier handles all traffic)
 
 ---
 
 ## Security Notes
 
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `QB_CLIENT_SECRET`, and the KV-stored QuickBooks tokens live only in Vercel's environment variables / KV store (never in code)
-- Payment details never reach our server or our own client-side JS — the Stripe Payment Element collects them directly into Stripe-controlled iframes, and the QuickBooks card form tokenizes directly against Intuit's API from the browser; either way, the server only ever sees a reference (PaymentIntent id or one-time card token), never a raw card number
-- The Stripe webhook verifies Stripe's signature on every request (`stripe.webhooks.constructEvent`) before trusting it — an unsigned or forged request can't trigger fulfillment
+- `BANKFUL_PASSWORD` (also the HMAC-SHA256 signing key for every Bankful request/callback), `STRIPE_SECRET_KEY`, `QB_CLIENT_SECRET`, and the KV-stored QuickBooks tokens live only in Vercel's environment variables / KV store (never in code)
+- Payment details never reach our server or our own client-side JS — the shopper enters their card directly on Bankful's hosted page; this app only ever sees Bankful's own order/transaction ids, never a raw card number
+- The Bankful webhook verifies Bankful's HMAC-SHA256 signature on every request (`verifyCallbackSignature` in `lib/bankfulServer.js`) before trusting it — an unsigned or forged request can't trigger fulfillment
 - HTTPS is automatic (Vercel provides free SSL)
 
 ---
 
 ## Troubleshooting
 
-**"STRIPE_SECRET_KEY is not set" error:**
-- Add `STRIPE_SECRET_KEY` in Vercel's Environment Variables and redeploy
+**"BANKFUL_USERNAME / BANKFUL_PASSWORD are not set" error:**
+- Add both in Vercel's Environment Variables and redeploy
 
-**Payment fails immediately with a generic error:**
-- Confirm `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` are from the same mode (both `_test_` or both `_live_`) — a mismatch here is the most common cause
+**Redirected to Bankful, but "Could not start Bankful checkout" appears before that:**
+- Check the server logs for the actual error Bankful returned — a wrong `BANKFUL_BASE_URL` for your credentials (see Step 1) is a likely cause
 
-**Payment succeeds but no order shows up / admin wasn't notified:**
-- The webhook likely isn't registered, or `STRIPE_WEBHOOK_SECRET` doesn't match — check Developers → Webhooks → your endpoint → recent deliveries for the actual error, and confirm the endpoint URL matches your real deployed domain exactly
-
-**Afterpay/Amazon Pay/Apple Pay/Link don't show up in the Payment Element:**
-- They need to be individually enabled in Settings → Payment methods (see Step 1) — being a valid Stripe account isn't enough on its own, and some (Afterpay, Amazon Pay) need additional approval/setup beyond just a toggle
+**Payment succeeds on Bankful's page but no order shows up / admin wasn't notified:**
+- The webhook likely never reached `/api/bankful-webhook`, or its signature failed verification — check whatever delivery logs Bankful exposes for the callback, and confirm `NEXT_PUBLIC_BASE_URL` was correct (and matched your real deployed domain) when the order was placed, since that's what `url_callback` was built from
 
 **"KV_REST_API_URL / KV_REST_API_TOKEN are not set" error:**
 - Provision a KV store (Vercel Storage → Marketplace → Upstash, or a standalone Upstash Redis database) and add its REST URL/token to your environment variables
 
-**"QuickBooks Payments is not connected yet" error:**
-- Visit `/api/qb-auth/connect` once to authorize (see Step 1B) — this only needs to happen once per environment (sandbox/production each need their own authorization)
-
-**QuickBooks charge fails with an empty-body 403, or a 401 "AuthenticationFailed":**
-- See the two gotchas under Step 1B — a Development/Production credential mismatch with `QB_ENVIRONMENT`, and requesting the accounting scope alongside the payment scope, are both far more common causes than an actual account/approval problem
+**Refunding a legacy Stripe/PayPal/QuickBooks order fails:**
+- Those refund paths need their original processor's credentials (`STRIPE_SECRET_KEY`, or `QB_CLIENT_ID`/`QB_CLIENT_SECRET` with a valid `/api/qb-auth/connect` authorization) still set, even though checkout itself no longer uses them
 
 **Domain not connecting:**
 - DNS can take 24–48 hours to propagate
@@ -211,10 +163,9 @@ To change them:
 ## Next Steps
 
 1. Deploy this to Vercel
-2. Provision a KV store and add `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `KV_REST_API_URL` / `KV_REST_API_TOKEN` (test-mode Stripe keys to start — see Step 1)
-3. Register the webhook (needs your real deployed URL — see Step 1) and add `STRIPE_WEBHOOK_SECRET`
-4. Enable whichever of Klarna/Afterpay/Link/Amazon Pay/PayPal/Cash App Pay you want to offer (see Step 1)
-5. Test a full checkout with a Stripe test card
-6. If also offering QuickBooks: set up an Intuit app (Step 1B), add `QB_CLIENT_ID`/`QB_CLIENT_SECRET`/`QB_ENVIRONMENT`/`NEXT_PUBLIC_QB_ENVIRONMENT`, visit `/api/qb-auth/connect` once, and test a sandbox charge (Step 4B) — treat this path as unverified until that test actually succeeds
-7. When ready for real charges, switch the Stripe dashboard to live mode, swap both Stripe keys for their live-mode equivalents, and register a second (live-mode) webhook; for QuickBooks, swap to the Production Client ID/Secret + redirect URI and switch `QB_ENVIRONMENT`/`NEXT_PUBLIC_QB_ENVIRONMENT` to `production`
-8. Connect your domain
+2. Provision a KV store and add `BANKFUL_USERNAME` / `BANKFUL_PASSWORD` / `BANKFUL_ENVIRONMENT` / `KV_REST_API_URL` / `KV_REST_API_TOKEN` (sandbox Bankful credentials to start — see Step 1)
+3. Confirm with Bankful support which base URL your sandbox credentials actually work against, and set `BANKFUL_BASE_URL` if it differs from the default
+4. Test a full checkout with a Bankful sandbox card, and confirm the order actually shows up in the admin Orders tab (not just that the browser redirect looked successful)
+5. Test a refund of that order from the admin Orders tab
+6. When ready for real charges, switch `BANKFUL_ENVIRONMENT` to `live` and swap in live Bankful credentials
+7. Connect your domain
