@@ -8,7 +8,7 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 - **Product catalog page** with all VEIL offerings
 - **Individual product detail pages** with full descriptions, scent notes, and product specifications
 - **Shopping cart** (persists across pages via localStorage, sticky sidebar)
-- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) — card number/expiry/CVC/name charged directly via QuickBooks Payments, with the billing address included in the same charge request so AVS/CVV verification runs at authorization time
+- **Custom single-page checkout** (`/checkout`, styled after Shopify's checkout) — card number/expiry/CVC/name tokenized client-side against Intuit's API, then charged via QuickBooks Payments
 - **Deployed to Vercel** (free, automatic scaling, HTTPS included)
 
 ---
@@ -21,10 +21,6 @@ This is a Next.js e-commerce site with a full product catalog, detailed product 
 4. Under **Keys & OAuth**, grab the **Client ID** and **Client Secret** for the Sandbox environment (use Production once you're ready to take real charges). These go in `QB_CLIENT_ID` / `QB_CLIENT_SECRET`.
 5. In that same **Keys & OAuth** section, add a redirect URI: `https://YOUR_DOMAIN/api/qb-auth/callback` (use your Vercel URL, or `http://localhost:3000/api/qb-auth/callback` for local testing).
 6. After deploying and setting env vars (Step 2), visit `/api/qb-auth/connect` once to authorize.
-
-### ⚠️ PCI compliance note
-
-The checkout form sends card number/expiry/CVC directly to `/api/qb-checkout`, which charges it server-side (`lib/qbPaymentsServer.js`) rather than tokenizing it client-side first. This is deliberate: an earlier version of this integration tokenized the card in the browser and charged with just the resulting token, and real transactions came back with every verification field (AVS address, AVS zip, CVV) as `N/A` and got auto-voided by Intuit's risk engine — tokens are meant for saving a card for later/repeat use, and card network rules generally prevent re-verifying CVV through a stored token, so that flow never actually ran AVS/CVV checks against the network. Charging directly keeps the card and billing address in the same request that authorizes against the network. The tradeoff: raw card data now passes through this app's server for the duration of each charge request (never logged or stored), which generally puts the site in PCI DSS **SAQ D** scope rather than the lighter SAQ A. Confirm your actual compliance obligations with Intuit/your acquirer.
 
 ### ⚠️ Two non-obvious ways to get the Charges API to fail even with a valid OAuth connection
 
@@ -48,7 +44,7 @@ If charges still fail after both of the above are correct, the remaining possibi
 5. After deployment, go to "Settings" → "Environment Variables"
 6. Add:
    - `QB_CLIENT_ID` / `QB_CLIENT_SECRET`: from Step 1
-   - `QB_ENVIRONMENT`: `sandbox` (or `production` once approved — see Step 1)
+   - `QB_ENVIRONMENT` and `NEXT_PUBLIC_QB_ENVIRONMENT`: both `sandbox` (or both `production` once approved — see Step 1)
    - `KV_REST_API_URL` / `KV_REST_API_TOKEN`: from a KV store (Vercel Storage → Marketplace → Upstash, or a standalone Upstash Redis database — same REST API either way)
    - `NEXT_PUBLIC_BASE_URL`: your Vercel domain (e.g., `https://veil-checkout.vercel.app`)
    - `STRIPE_SECRET_KEY`: only needed if you still have orders placed via Stripe that you might need to refund
@@ -118,8 +114,8 @@ To change them:
 ### Architecture
 - **Frontend**: Next.js React app (all pages)
 - **Cart state**: React Context (`lib/useCart.js`), persisted to `localStorage` so it survives navigation to `/checkout`
-- **Backend**: Vercel serverless function at `/api/qb-checkout` (charges the card directly via QuickBooks Payments and fulfills the order, no webhook needed since there's no off-site redirect step) plus `/api/qb-auth/connect` + `/api/qb-auth/callback` (one-time QuickBooks OAuth authorization)
-- **Payments**: card details are sent from `/checkout` to `/api/qb-checkout`, which charges them directly against the QuickBooks Payments Charges API (`lib/qbPaymentsServer.js`) — see the PCI note in Step 1
+- **Backend**: Vercel serverless function at `/api/qb-checkout` (charges a QuickBooks card token and fulfills directly, no webhook needed since there's no off-site redirect step) plus `/api/qb-auth/connect` + `/api/qb-auth/callback` (one-time QuickBooks OAuth authorization)
+- **Payments**: card details are tokenized client-side (`lib/qbPayments.js`, a direct call to Intuit's Payments Tokens REST endpoint) before ever reaching the server — the server only ever sees a one-time card token
 - **QuickBooks token refresh**: `lib/qbServerAuth.js` transparently refreshes the QuickBooks access token using a refresh token persisted in the KV store (`lib/qbTokenStore.js`) before every charge — no manual token rotation
 - **Hosting**: Vercel (free tier handles all traffic)
 
@@ -128,7 +124,7 @@ To change them:
 ## Security Notes
 
 - `QB_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, and the KV-stored QuickBooks tokens live only in Vercel's environment variables / KV store (never in code)
-- Card details submitted on `/checkout` are sent over HTTPS to `/api/qb-checkout`, forwarded directly to QuickBooks Payments, and never logged or persisted anywhere in this app — but they do pass through this app's server (see the PCI note in Step 1)
+- Payment details never reach our server — the QuickBooks card form tokenizes directly against Intuit's API from the browser, so the server only ever sees a one-time card token, never a raw card number
 - HTTPS is automatic (Vercel provides free SSL)
 
 ---
@@ -159,8 +155,8 @@ A Bankful checkout integration also exists in the codebase (`lib/bankfulServer.j
 ## Next Steps
 
 1. Deploy this to Vercel
-2. Provision a KV store and add `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `QB_ENVIRONMENT` / `KV_REST_API_URL` / `KV_REST_API_TOKEN` (sandbox QuickBooks keys to start — see Step 1)
+2. Provision a KV store and add `QB_CLIENT_ID` / `QB_CLIENT_SECRET` / `QB_ENVIRONMENT` / `NEXT_PUBLIC_QB_ENVIRONMENT` / `KV_REST_API_URL` / `KV_REST_API_TOKEN` (sandbox QuickBooks keys to start — see Step 1)
 3. Visit `/api/qb-auth/connect` once to authorize
-4. Test a full checkout with a QuickBooks sandbox card, and confirm the Merchant Center transaction shows real AVS/CVV match results (not `N/A`)
-5. When ready for real charges, swap to the Production Client ID/Secret + redirect URI and switch `QB_ENVIRONMENT` to `production`
+4. Test a full checkout with a QuickBooks sandbox card
+5. When ready for real charges, swap to the Production Client ID/Secret + redirect URI and switch `QB_ENVIRONMENT`/`NEXT_PUBLIC_QB_ENVIRONMENT` to `production`
 6. Connect your domain

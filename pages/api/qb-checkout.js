@@ -1,12 +1,4 @@
-// Charges a card directly via the QuickBooks Payments Charges API.
-//
-// The card is sent straight to the charge request rather than tokenized
-// client-side first — see the comment on chargeCard in lib/qbPaymentsServer.js
-// for why: a separate tokenize-then-charge-via-token flow returned every
-// verification field (AVS, CVV) as N/A on real transactions and got
-// auto-voided by Intuit's risk engine. Charging directly means raw card
-// data does pass through this server for the duration of the request
-// (never logged or stored).
+// Charges a QuickBooks Payments card token via the Payments API.
 //
 // The access token is fetched from lib/qbServerAuth.js, which transparently
 // refreshes it (using a refresh token persisted in the KV store) whenever
@@ -44,33 +36,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { card, amount, items, email, shipping, billing, eventId, url, paymentMethod, attribution } = req.body || {};
+    const { token, amount, items, email, shipping, eventId, url, paymentMethod, attribution } = req.body;
 
-    if (!card?.number || !card?.expMonth || !card?.expYear || !card?.cvc) {
-      return res.status(400).json({ error: 'Missing card details' });
-    }
+    if (!token) return res.status(400).json({ error: 'Missing card token' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
     if (!items || items.length === 0) return res.status(400).json({ error: 'No items in cart' });
 
-    // Billing address (for AVS) defaults to the shipping address, but can
-    // differ if the shopper unchecked "same as shipping".
-    const billingAddress = billing || shipping;
-
-    const charge = await chargeCard({
-      card: {
-        number: card.number,
-        expMonth: card.expMonth,
-        expYear: card.expYear,
-        cvc: card.cvc,
-        name: card.name,
-        street: billingAddress?.address,
-        city: billingAddress?.city,
-        region: billingAddress?.state,
-        postalCode: billingAddress?.zip,
-        country: 'US',
-      },
-      amount,
-    });
+    const charge = await chargeCard(token, amount);
 
     await fulfillOrder({
       id: charge.id,
