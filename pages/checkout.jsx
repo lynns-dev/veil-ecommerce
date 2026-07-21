@@ -16,7 +16,8 @@ const US_STATES = [
   'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
 ];
 
-const emptyAddress = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
+const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
+const EMPTY_CARD = { number: '', expiry: '', cvc: '', name: '' };
 
 function LockIcon(props) {
   return (
@@ -46,14 +47,6 @@ function HelpIcon(props) {
   );
 }
 
-// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
-// field convention shoppers already know from their physical card.
-function formatExpiry(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
-}
-
 function ShipIcon(props) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -79,6 +72,22 @@ function LeafIcon(props) {
       <path d="M5 19c0-6 3-9 9-11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
+}
+
+// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
+// field convention shoppers already know from their physical card.
+function formatExpiry(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
+}
+
+// Splits a "12 / 28" expiry field into { expMonth: "12", expYear: "2028" }.
+// Returns null if the field isn't a complete MM/YY yet.
+function parseExpiry(raw) {
+  const [month, year] = raw.split('/').map((s) => s.trim());
+  if (!month || !year || year.length !== 2) return null;
+  return { expMonth: month, expYear: `20${year}` };
 }
 
 function AddressFields({ value, onChange, idPrefix }) {
@@ -116,13 +125,17 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
 
+  // Contact + delivery
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
-  const [shipping, setShipping] = React.useState(emptyAddress);
-  const [billingSame, setBillingSame] = React.useState(true);
-  const [billing, setBilling] = React.useState(emptyAddress);
-  const [card, setCard] = React.useState({ number: '', expiry: '', cvc: '', name: '' });
+  const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
 
+  // Payment
+  const [card, setCard] = React.useState(EMPTY_CARD);
+  const [billingSame, setBillingSame] = React.useState(true);
+  const [billing, setBilling] = React.useState(EMPTY_ADDRESS);
+
+  // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [summaryOpen, setSummaryOpen] = React.useState(false);
@@ -206,20 +219,28 @@ export default function CheckoutPage() {
     e.preventDefault();
     setError('');
 
-    const [expMonth, expYear] = card.expiry.split('/').map((s) => s.trim());
-    if (!card.number.trim() || !expMonth || !expYear || !card.cvc.trim() || !card.name.trim()) {
+    const expiry = parseExpiry(card.expiry);
+    if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
       setError('Fill in your card details to place your order.');
       return;
     }
 
     setSubmitting(true);
     try {
+      // Billing address feeds AVS (address verification) on the card
+      // network side — falls back to the shipping address unless the
+      // shopper explicitly unchecked "same as shipping".
       const billingAddress = billingSame ? shipping : billing;
+
+      // Step 1: tokenize the card directly against Intuit's Payments Tokens
+      // API from the browser (lib/qbPayments.js) — the raw card number
+      // never reaches our own server. The token is single-use and tied to
+      // this exact card + billing address + CVC.
       const token = await tokenizeCard(
         {
           number: card.number,
-          expMonth,
-          expYear: `20${expYear}`,
+          expMonth: expiry.expMonth,
+          expYear: expiry.expYear,
           cvc: card.cvc,
           name: card.name.trim(),
           street: billingAddress.address,
@@ -233,9 +254,11 @@ export default function CheckoutPage() {
 
       const purchaseEventId = generateEventId();
 
-      // QuickBooks has no redirect step and no webhook — the charge either
-      // succeeds or fails in this same call, so fulfillment/success-navigation
-      // happen directly here.
+      // Step 2: charge that token server-side (/api/qb-checkout). A
+      // QuickBooks charge has no redirect step and no webhook — it either
+      // succeeds or fails in this same request — so fulfillment and the
+      // success-page navigation both happen right here, not from a
+      // separate async confirmation.
       const res = await fetch('/api/qb-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
