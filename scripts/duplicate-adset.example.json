@@ -1,0 +1,8 @@
+{
+  "adAccountId": "act_1234567890",
+  "sourceAdSetId": "23851XXXXXXXXXX",
+  "creatives": [
+    { "creativeId": "23851YYYYYYYYYY", "label": "hook-a" },
+    { "creativeId": "23851ZZZZZZZZZZ", "label": "hook-b" }
+  ]
+}
