@@ -90,6 +90,65 @@ function parseExpiry(raw) {
   return { expMonth: month, expYear: `20${year}` };
 }
 
+// Small, recognizable renderings of each network's real mark (not a
+// colored text pill) so the "we accept" row reads as legitimate rather
+// than placeholder-ish.
+function CardLogoBadge({ children, bg = '#fff' }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 20, borderRadius: 3, background: bg,
+        border: `1px solid ${T.line}`, overflow: 'hidden', flexShrink: 0,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function VisaLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="24" height="10" viewBox="0 0 48 18" aria-label="Visa">
+        <text x="0" y="14" fontFamily="Arial, sans-serif" fontStyle="italic" fontWeight="800" fontSize="16" fill="#1434CB" letterSpacing="-0.5">VISA</text>
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function MastercardLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="22" height="14" viewBox="0 0 40 26" aria-label="Mastercard">
+        <circle cx="15" cy="13" r="11" fill="#EB001B" />
+        <circle cx="25" cy="13" r="11" fill="#F79E1B" style={{ mixBlendMode: 'multiply' }} />
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function AmexLogo() {
+  return (
+    <CardLogoBadge bg="#006FCF">
+      <svg width="26" height="13" viewBox="0 0 52 22" aria-label="American Express">
+        <text x="1" y="16" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="0.5">AMEX</text>
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
+function DiscoverLogo() {
+  return (
+    <CardLogoBadge>
+      <svg width="28" height="11" viewBox="0 0 66 20" aria-label="Discover">
+        <text x="0" y="14" fontFamily="Arial, sans-serif" fontWeight="700" fontStyle="italic" fontSize="11" fill="#1B1B1B" letterSpacing="-0.3">Discover</text>
+        <circle cx="62" cy="14" r="4" fill="#FF6600" />
+      </svg>
+    </CardLogoBadge>
+  );
+}
+
 function AddressFields({ value, onChange, idPrefix }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
   const section = idPrefix === 'bill' ? 'billing' : 'shipping';
@@ -399,12 +458,10 @@ export default function CheckoutPage() {
                   <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ ...networkBadge, background: '#1434CB' }}>VISA</span>
-                  <span style={{ ...networkBadge, background: '#000', padding: '0 8px' }}>
-                    <span style={mcCircle('#EB001B', 0)} />
-                    <span style={mcCircle('#F79E1B', -6)} />
-                  </span>
-                  <span style={{ ...networkBadge, background: '#006FCF' }}>AMEX</span>
+                  <VisaLogo />
+                  <MastercardLogo />
+                  <AmexLogo />
+                  <DiscoverLogo />
                 </div>
               </div>
               <div style={accordionBody}>
@@ -656,16 +713,6 @@ const accordionRow = {
   padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.paper,
 };
 const accordionBody = { padding: '14px 14px 18px', background: T.paper };
-const networkBadge = {
-  fontSize: 10, fontWeight: 700, letterSpacing: '0.02em', color: '#fff',
-  borderRadius: 4, padding: '5px 7px', lineHeight: 1, display: 'flex', alignItems: 'center',
-};
-// Two overlapping circles standing in for the Mastercard mark inside a
-// black chip — offset controls how far the second circle tucks under the
-// first, same look as the badge in the reference checkout.
-function mcCircle(color, offset) {
-  return { width: 12, height: 12, borderRadius: '50%', background: color, marginLeft: offset, display: 'inline-block' };
-}
 // Pill-shaped fields sitting on the gray accordion body, matching the
 // reference's very rounded card-detail inputs (vs. the site's normal
 // 4px-radius fields elsewhere on this page).
