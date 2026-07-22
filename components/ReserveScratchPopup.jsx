@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSessionId } from '../lib/session';
 
 // "Reveal Your Reserve" — a quiet, single-shot scratch-off card, not a
 // gamified wheel. Self-contained: the discount code (and everything else
@@ -9,6 +10,15 @@ import React from 'react';
 // a dwell timer, whichever comes first — never on load. sessionStorage
 // keeps it to once per session; closing early or letting it reveal both
 // count as "shown," so it won't reappear later in the same session either way.
+//
+// Scratching only confirms there's something to claim — the actual code
+// stays masked until email + phone are submitted, at which point it's
+// recorded as a lead (lib/checkoutLeadsStore.js, source: 'scratch-popup')
+// feeding the same subscriber pipeline as abandoned-checkout capture. The
+// code itself is a client-side prop either way, so this gate is a UX/lead
+// step, not a security boundary — it's not meant to stop someone from
+// reading it out of the page source, only to make giving contact info the
+// path of least resistance for getting it normally.
 
 const INK = '#16140F';
 const PAPER = '#FAF8F4';
@@ -61,6 +71,11 @@ export default function ReserveScratchPopup({
   const [revealed, setRevealed] = React.useState(false);
   const [fadingCanvas, setFadingCanvas] = React.useState(false);
   const [canvasGone, setCanvasGone] = React.useState(false);
+  const [unlocked, setUnlocked] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [formError, setFormError] = React.useState('');
 
   const canvasRef = React.useRef(null);
   const scratchZoneRef = React.useRef(null);
@@ -193,6 +208,39 @@ export default function ReserveScratchPopup({
     return () => clearTimeout(t);
   }, [fadingCanvas]);
 
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    if (!email.trim() || !email.includes('@')) {
+      setFormError('Enter a valid email to unlock your reserve.');
+      return;
+    }
+    if (!phone.trim()) {
+      setFormError('Enter a phone number to unlock your reserve.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await fetch('/api/checkout-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          phone,
+          source: 'scratch-popup',
+          status: 'subscribed',
+          sessionId: getSessionId(),
+          url: window.location.href,
+        }),
+      });
+      setUnlocked(true);
+    } catch {
+      setFormError('Something went wrong — please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const close = () => setVisible(false);
 
   if (!visible) return null;
@@ -212,7 +260,9 @@ export default function ReserveScratchPopup({
 
         <div ref={scratchZoneRef} style={scratchZoneStyle} className="reserve-scratch-zone">
           <div style={revealContentStyle}>
-            <div style={codeStyle}>{discountCode}</div>
+            <div style={unlocked ? codeStyle : readyStyle}>
+              {unlocked ? discountCode : 'Your reserve is ready.'}
+            </div>
           </div>
           {!canvasGone && (
             <canvas
@@ -226,7 +276,33 @@ export default function ReserveScratchPopup({
           )}
         </div>
 
-        {revealed && (
+        {revealed && !unlocked && (
+          <form onSubmit={handleUnlock} style={formStyle}>
+            <p style={formLeadStyle}>Enter your email and phone to unlock it.</p>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              className="reserve-field" style={fieldStyle}
+            />
+            <input
+              type="tel"
+              placeholder="Phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="tel"
+              className="reserve-field" style={fieldStyle}
+            />
+            {formError && <p style={formErrorStyle}>{formError}</p>}
+            <button type="submit" disabled={submitting} className="reserve-cta" style={{ ...ctaStyle, width: '100%', opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? 'Unlocking…' : 'Unlock My Reserve'}
+            </button>
+          </form>
+        )}
+
+        {unlocked && (
           <>
             <p style={validityStyle}>{validityNote}</p>
             <a href={ctaHref} className="reserve-cta" style={ctaStyle}>{ctaLabel}</a>
@@ -245,6 +321,9 @@ export default function ReserveScratchPopup({
         }
         .reserve-cta:hover {
           opacity: 0.8;
+        }
+        .reserve-field:focus {
+          border-color: rgba(22,20,15,0.5);
         }
         @media (max-width: 420px) {
           .reserve-scratch-zone {
@@ -303,6 +382,32 @@ const revealContentStyle = {
 
 const codeStyle = {
   fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 30, letterSpacing: '0.04em',
+};
+
+const readyStyle = {
+  fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 19, letterSpacing: '0.01em',
+  padding: '0 20px',
+};
+
+const formStyle = {
+  marginTop: 24, textAlign: 'left',
+};
+
+const formLeadStyle = {
+  fontSize: 12, color: 'rgba(22,20,15,0.6)', margin: '0 0 12px', textAlign: 'center',
+};
+
+const fieldStyle = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '12px 14px', marginBottom: 10,
+  border: '1px solid rgba(22,20,15,0.25)', borderRadius: 3,
+  background: 'transparent',
+  fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 14, color: INK,
+  outline: 'none',
+};
+
+const formErrorStyle = {
+  fontSize: 12, color: '#a13d2b', margin: '0 0 12px', textAlign: 'center',
 };
 
 const canvasStyle = {
