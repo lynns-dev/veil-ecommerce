@@ -186,6 +186,25 @@ export default function Offer3Page() {
   const shippingCost = !addressEntered ? 0 : (subtotal >= 50 ? 0 : 5);
   const grandTotal = discountedSubtotal + shippingCost;
 
+  // Same abandoned-checkout capture as /checkout — fires once the shopper
+  // leaves the email field, so someone who lands here from an ad and
+  // doesn't finish still ends up recorded somewhere, not lost entirely.
+  const handleEmailBlur = () => {
+    if (!email.trim()) return;
+    fetch('/api/checkout-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        cart: [{ id: product.id, name: product.name, quantity }],
+        source: 'offer3',
+        sessionId: getSessionId(),
+        url: window.location.href,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -326,7 +345,7 @@ export default function Offer3Page() {
             <div style={sectionHead}>
               <h2 style={sectionTitle}>2. Shipping</h2>
             </div>
-            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...input, marginBottom: 12 }} autoComplete="email" required />
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={handleEmailBlur} style={{ ...input, marginBottom: 12 }} autoComplete="email" required />
             <AddressFields value={shipping} onChange={setShipping} />
           </section>
 

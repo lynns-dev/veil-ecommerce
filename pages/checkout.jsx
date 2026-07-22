@@ -261,6 +261,27 @@ export default function CheckoutPage() {
   const discountTotal = subtotal - total;
   const grandTotal = discountedTotal + shippingCost;
 
+  // Fires once the shopper's attention leaves the email field — a good
+  // enough proxy for "entered their email" without hammering the KV store
+  // on every keystroke. If they never complete the order, this is the only
+  // record of them; lib/orderFulfillment.js upgrades the same entry to
+  // 'purchased' if they do.
+  const handleEmailBlur = () => {
+    if (!email.trim()) return;
+    fetch('/api/checkout-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        cart: cart.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity })),
+        source: 'checkout',
+        sessionId: getSessionId(),
+        url: window.location.href,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return;
     setDiscountMessage('Checking…');
@@ -412,6 +433,7 @@ export default function CheckoutPage() {
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={handleEmailBlur}
               style={input}
               autoComplete="email"
               required
