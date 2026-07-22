@@ -111,6 +111,19 @@ export default function OfferPage() {
           </button>
         </div>
 
+        {/* UGC — real customer photos, no invented names or quotes pinned
+            to a specific face. */}
+        <section style={{ padding: '8px 0 44px' }}>
+          <p style={{ ...S.label, textAlign: 'center', marginBottom: 16 }}>Real women, real Veil</p>
+          <div className="ugc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, margin: '0 -24px' }}>
+            {['/images/veil-ugc-1.webp', '/images/veil-ugc-2.webp', '/images/veil-ugc-3.webp'].map((src) => (
+              <div key={src} style={{ aspectRatio: '4/5', overflow: 'hidden' }}>
+                <img src={src} alt="A VEIL customer holding her jar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* PROOF */}
         {reviewCount > 0 && (
           <section style={{ padding: '20px 0 40px' }}>
