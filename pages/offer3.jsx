@@ -152,9 +152,28 @@ export default function Offer3Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // This page IS the checkout step of the funnel, so it fires the same
+  // checkout_start tracking /checkout fires on mount — without this, the
+  // admin dashboard's funnel counters see zero checkout activity for
+  // everyone who buys through /offer instead of /shop.
   React.useEffect(() => {
     const eventId = generateEventId();
-    fbTrack('InitiateCheckout', { content_ids: [selectedId], value: product.price * quantity, currency: 'USD', num_items: quantity }, eventId);
+    const value = product.price * quantity;
+    fbTrack('InitiateCheckout', { content_ids: [selectedId], value, currency: 'USD', num_items: quantity }, eventId);
+    fetch('/api/track/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'checkout_start',
+        eventId,
+        value,
+        contentIds: [selectedId],
+        contents: [{ id: selectedId, quantity }],
+        url: window.location.href,
+        sessionId: getSessionId(),
+      }),
+      keepalive: true,
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

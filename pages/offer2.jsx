@@ -6,6 +6,8 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
 import { PRODUCTS, getProductById } from '../lib/products';
+import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { getSessionId } from '../lib/session';
 import { T, S } from '../lib/theme';
 
 // Second step of the ad funnel — a conventional hero/benefits/guarantee/
@@ -84,10 +86,37 @@ export default function Offer2Page() {
 
   // Hands off to /offer3, the single-page order form (scent/quantity +
   // shipping + payment) — that page manages its own order state, so this
-  // just carries the chosen scent along as a query param rather than
-  // touching the shared cart.
+  // never touches the shared cart. Choosing a scent here is this funnel's
+  // equivalent of "add to cart" elsewhere on the site, so it fires the same
+  // addtocart tracking (Pixel/CAPI + the admin dashboard's own counter) that
+  // useCart's add() fires everywhere else — without this, the admin funnel
+  // numbers would show zero cart activity for all of this funnel's traffic.
   const handleClaim = () => {
     setClaiming(true);
+
+    const eventId = generateEventId();
+    fbTrack('AddToCart', {
+      content_ids: [selectedProduct.id],
+      content_name: selectedProduct.name,
+      content_type: 'product',
+      value: selectedProduct.price,
+      currency: 'USD',
+    }, eventId);
+    fetch('/api/track/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'addtocart',
+        productName: selectedProduct.name,
+        eventId,
+        contentId: selectedProduct.id,
+        value: selectedProduct.price,
+        url: window.location.href,
+        sessionId: getSessionId(),
+      }),
+      keepalive: true,
+    }).catch(() => {});
+
     router.push({ pathname: '/offer3', query: { scent: selectedId } });
   };
 
