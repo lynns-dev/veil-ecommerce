@@ -3,7 +3,6 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
-import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
 import { getProductById } from '../lib/products';
 import { T, S } from '../lib/theme';
@@ -18,6 +17,11 @@ import { T, S } from '../lib/theme';
 // live elsewhere on the site (lib/products.js, pages/index.jsx, pages/
 // returns.jsx) — nothing here should promise something the rest of the
 // site doesn't actually back up.
+//
+// This is step one of a two-page funnel: every CTA here hands off to
+// /offer2 (a hero/benefits/guarantee/reviews landing page) rather than
+// straight to /checkout — /offer2 owns the actual add-to-cart, discount
+// application, and scent selection.
 //
 // Reviews are pulled from the same live /api/reviews data every other page
 // uses, not hardcoded — if there are no real reviews yet, that section
@@ -44,7 +48,6 @@ const REASONS = [
 
 export default function OfferPage() {
   const router = useRouter();
-  const { add, applyDiscount } = useCart();
   const product = getProductById(PRODUCT_ID);
   const reviewsByProduct = useAllReviews();
 
@@ -57,11 +60,12 @@ export default function OfferPage() {
 
   const [claiming, setClaiming] = React.useState(false);
 
-  const handleClaim = async () => {
+  // Hands off to /offer2, which owns the actual add-to-cart + discount
+  // application (and lets the visitor pick a scent) before checkout — this
+  // page's job is just the story that gets someone to keep reading.
+  const handleClaim = () => {
     setClaiming(true);
-    add(product, 1);
-    await applyDiscount(DISCOUNT_CODE);
-    router.push('/checkout');
+    router.push('/offer2');
   };
 
   if (!product) return null;
