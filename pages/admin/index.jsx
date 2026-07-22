@@ -31,6 +31,7 @@ function pickField(row, key) {
 }
 
 const LIVE_POLL_MS = 5000;
+const DASHBOARD_POLL_MS = 15000;
 const FUNNEL_RANGE_LABELS = {
   today: "Today's funnel",
   yesterday: "Yesterday's funnel",
@@ -314,9 +315,15 @@ export default function AdminDashboard() {
   }, [loadReviews, loadDiscounts]);
 
   // Covers the initial load and refetching when the funnel time filter or
-  // the revenue/orders date picker changes.
+  // the revenue/orders date picker changes, then keeps polling so new
+  // activity (someone adding to cart, starting checkout) shows up here
+  // without a manual reload — otherwise this panel can look stuck at zero
+  // while the Live view above it (which polls on its own) shows real
+  // activity happening right now.
   React.useEffect(() => {
     loadDashboard(funnelRange, revenueDate);
+    const interval = setInterval(() => loadDashboard(funnelRange, revenueDate), DASHBOARD_POLL_MS);
+    return () => clearInterval(interval);
   }, [loadDashboard, funnelRange, revenueDate]);
 
   React.useEffect(() => {
