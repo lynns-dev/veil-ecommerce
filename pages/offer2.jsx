@@ -10,9 +10,9 @@ import { T, S } from '../lib/theme';
 
 // Second step of the ad funnel — a conventional hero/benefits/guarantee/
 // reviews landing page, distinct in structure from the /offer advertorial
-// "story" page that leads into it. /offer's CTAs navigate here rather than
-// straight to /checkout; this page owns the actual add-to-cart + discount
-// application before sending the visitor on to /checkout.
+// "story" page that leads into it. This page's CTAs carry the chosen scent
+// on to /offer3, the single-page order form (scent/quantity + shipping +
+// payment) — /offer2 itself doesn't touch the cart or checkout directly.
 //
 // Same honesty rule as /offer: every claim, badge, and guarantee term below
 // is something VEIL actually backs up elsewhere on the site (lib/products.js,
@@ -34,7 +34,7 @@ const TRUST_BADGES = ['Talc-Free', 'Vegan & Cruelty-Free', '30-Day Returns', 'Sh
 
 export default function Offer2Page() {
   const router = useRouter();
-  const { add, applyDiscount, appliedDiscount } = useCart();
+  const { applyDiscount, appliedDiscount } = useCart();
   const reviewsByProduct = useAllReviews();
 
   const [selectedId, setSelectedId] = React.useState('original');
@@ -63,11 +63,13 @@ export default function Offer2Page() {
     [allReviews]
   );
 
-  const handleClaim = async () => {
+  // Hands off to /offer3, the single-page order form (scent/quantity +
+  // shipping + payment) — that page manages its own order state, so this
+  // just carries the chosen scent along as a query param rather than
+  // touching the shared cart.
+  const handleClaim = () => {
     setClaiming(true);
-    add(selectedProduct, 1);
-    if (!discountApplied) await applyDiscount(DISCOUNT_CODE);
-    router.push('/checkout');
+    router.push({ pathname: '/offer3', query: { scent: selectedId } });
   };
 
   if (!selectedProduct) return null;
