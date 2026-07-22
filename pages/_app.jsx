@@ -5,6 +5,18 @@ import { loadPixel, fbTrack } from '../lib/fbPixel';
 import { loadClarity } from '../lib/clarity';
 import { captureAttribution, getStoredAttribution, describeTrafficSource } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import ReserveScratchPopup from '../components/ReserveScratchPopup';
+
+// Kept off checkout/admin/the ad-funnel pages — those already have their
+// own single-minded call to action (place the order, review analytics),
+// and a popup mid-checkout or mid-funnel would just compete with it.
+//
+// NOTE: the default discount code shown here (RESERVED15) needs to exist
+// in the live discount store before this ships to real traffic — add it
+// from /admin's Discounts tab (15% off) if it isn't there already. It's
+// only auto-seeded (lib/discountsStore.js) on a store that's never had
+// any codes written to it, which production likely isn't.
+const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
 
 const HEARTBEAT_MS = 10000;
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
@@ -102,6 +114,7 @@ function Tracking() {
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
+  const reservePopupEnabled = !RESERVE_POPUP_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
 
   return (
     <CartProvider>
@@ -109,6 +122,7 @@ export default function App({ Component, pageProps }) {
       <div key={router.asPath} className="page-fade">
         <Component {...pageProps} />
       </div>
+      <ReserveScratchPopup enabled={reservePopupEnabled} />
       <style jsx global>{`
         .page-fade {
           animation: page-fade-in 0.28s ease both;
