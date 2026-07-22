@@ -23,6 +23,16 @@ import { T, S } from '../lib/theme';
 const DISCOUNT_CODE = 'VEIL15';
 const SCENT_IDS = ['original', 'citron', 'violette', 'grand-jar'];
 
+// Same bright, raised "3D" CTA as /offer — kept consistent across the funnel.
+const ctaBtn = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  background: 'linear-gradient(180deg, #FFD54A 0%, #FFB300 100%)',
+  color: '#241900', border: 'none', borderRadius: 8, cursor: 'pointer',
+  fontFamily: T.sans, fontWeight: 800, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase',
+  boxShadow: '0 5px 0 #C98200, 0 10px 18px rgba(201,130,0,0.35)',
+  transition: 'transform .08s ease, box-shadow .08s ease',
+};
+
 const NUMBERED_SECTIONS = [
   ['01', 'Find Your Scent', 'Four compositions, one ritual. Pick the notes that feel like you — or wear a different one every day.'],
   ['02', 'Four Ingredients. Nothing Else.', 'Arrowroot, kaolin clay, rice bran, and mica. Talc-free and finely milled, so it glides on without weight or chalkiness.'],
@@ -118,7 +128,7 @@ export default function Offer2Page() {
                 </div>
               ))}
             </div>
-            <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, marginTop: 28, height: 52, justifyContent: 'center', opacity: claiming ? 0.6 : 1 }}>
+            <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, marginTop: 28, height: 52, opacity: claiming ? 0.6 : 1 }}>
               {claiming ? 'Loading…' : 'Shop VEIL — 15% Off →'}
             </button>
           </div>
@@ -195,7 +205,7 @@ export default function Offer2Page() {
         </section>
 
         <div style={{ textAlign: 'center', margin: '36px 0' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : `Shop ${selectedProduct.name} — 15% Off →`}
           </button>
         </div>
@@ -244,7 +254,7 @@ export default function Offer2Page() {
         </section>
 
         <div style={{ textAlign: 'center', margin: '20px 0 60px' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : `Shop ${selectedProduct.name} — $${selectedProduct.price} →`}
           </button>
           <p style={{ fontSize: 12, color: T.soft, marginTop: 14 }}>30-day returns · Vegan &amp; cruelty-free · Ships within 1 business day</p>
@@ -264,6 +274,11 @@ export default function Offer2Page() {
       <style jsx>{`
         @media (max-width: 680px) {
           .o2-hero-grid { grid-template-columns: 1fr !important; }
+        }
+        :global(.cta-3d:hover:not(:disabled)) { filter: brightness(1.04); }
+        :global(.cta-3d:active:not(:disabled)) {
+          transform: translateY(4px);
+          box-shadow: 0 1px 0 #C98200, 0 3px 8px rgba(201,130,0,0.3);
         }
       `}</style>
     </div>

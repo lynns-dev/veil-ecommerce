@@ -27,6 +27,17 @@ import { T, S } from '../lib/theme';
 // number, or countdown timer that doesn't correspond to something real.
 
 const DISCOUNT_CODE = 'VEIL15';
+
+// Same bright, raised "3D" CTA as /offer and /offer2 — kept consistent
+// across the funnel.
+const ctaBtn = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  background: 'linear-gradient(180deg, #FFD54A 0%, #FFB300 100%)',
+  color: '#241900', border: 'none', borderRadius: 8, cursor: 'pointer',
+  fontFamily: T.sans, fontWeight: 800, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase',
+  boxShadow: '0 5px 0 #C98200, 0 10px 18px rgba(201,130,0,0.35)',
+  transition: 'transform .08s ease, box-shadow .08s ease',
+};
 const SCENT_IDS = ['original', 'citron', 'violette', 'grand-jar'];
 
 const US_STATES = [
@@ -324,7 +335,7 @@ export default function Offer3Page() {
 
           {error && <p style={errorText}>{error}</p>}
 
-          <button type="submit" disabled={submitting} style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 24, height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1 }}>
+          <button className="cta-3d" type="submit" disabled={submitting} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
           </button>
           <div style={secureNote}>
@@ -403,6 +414,11 @@ export default function Offer3Page() {
         }
         @media (max-width: 520px) {
           .o3-row-3 { grid-template-columns: 1fr; }
+        }
+        :global(.cta-3d:hover:not(:disabled)) { filter: brightness(1.04); }
+        :global(.cta-3d:active:not(:disabled)) {
+          transform: translateY(4px);
+          box-shadow: 0 1px 0 #C98200, 0 3px 8px rgba(201,130,0,0.3);
         }
       `}</style>
     </div>

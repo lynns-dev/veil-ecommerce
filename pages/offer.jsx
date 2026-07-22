@@ -32,6 +32,18 @@ import { T, S } from '../lib/theme';
 const PRODUCT_ID = 'original';
 const DISCOUNT_CODE = 'VEIL15';
 
+// Bright, raised "3D" CTA — a deliberate departure from the site's flat
+// black/white buttons elsewhere, since this is a conversion-funnel page
+// where the buy button should be the loudest thing on screen.
+const ctaBtn = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  background: 'linear-gradient(180deg, #FFD54A 0%, #FFB300 100%)',
+  color: '#241900', border: 'none', borderRadius: 8, cursor: 'pointer',
+  fontFamily: T.sans, fontWeight: 800, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase',
+  boxShadow: '0 5px 0 #C98200, 0 10px 18px rgba(201,130,0,0.35)',
+  transition: 'transform .08s ease, box-shadow .08s ease',
+};
+
 const RITUAL_STEPS = [
   ['01', 'Press the puff into the powder', 'Scent lives best on warm, clean skin — right after the bath is ideal.'],
   ['02', 'Sweep where you’re noticed', 'Collarbones, shoulders, the backs of the knees. A veil, not a coat.'],
@@ -112,11 +124,11 @@ export default function OfferPage() {
         </section>
 
         <div style={{ margin: '32px -24px', aspectRatio: '4/3', overflow: 'hidden' }}>
-          <ProductVisual id={product.id} images={product.images} alt={product.name} width={720} />
+          <img src="/images/veil-ugc-1.webp" alt="A VEIL customer holding her jar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
 
         <div style={{ textAlign: 'center', margin: '36px 0' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : `Try VEIL Now — 15% off with code ${DISCOUNT_CODE}`}
           </button>
         </div>
@@ -125,8 +137,8 @@ export default function OfferPage() {
             to a specific face. */}
         <section style={{ padding: '8px 0 44px' }}>
           <p style={{ ...S.label, textAlign: 'center', marginBottom: 16 }}>Real women, real Veil</p>
-          <div className="ugc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, margin: '0 -24px' }}>
-            {['/images/veil-ugc-1.webp', '/images/veil-ugc-2.webp', '/images/veil-ugc-3.webp'].map((src) => (
+          <div className="ugc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 3, margin: '0 -24px' }}>
+            {['/images/veil-ugc-2.webp', '/images/veil-ugc-3.webp'].map((src) => (
               <div key={src} style={{ aspectRatio: '4/5', overflow: 'hidden' }}>
                 <img src={src} alt="A VEIL customer holding her jar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               </div>
@@ -192,7 +204,7 @@ export default function OfferPage() {
         </section>
 
         <div style={{ textAlign: 'center', margin: '36px 0' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : 'Try VEIL Now →'}
           </button>
         </div>
@@ -238,7 +250,7 @@ export default function OfferPage() {
         </section>
 
         <div style={{ textAlign: 'center', margin: '20px 0 36px' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : `Claim ${DISCOUNT_CODE} — 15% Off →`}
           </button>
         </div>
@@ -261,7 +273,7 @@ export default function OfferPage() {
         </section>
 
         <div style={{ textAlign: 'center', margin: '20px 0 60px' }}>
-          <button onClick={handleClaim} disabled={claiming} style={{ ...S.btnFill, width: '100%', maxWidth: 420, justifyContent: 'center', height: 56, opacity: claiming ? 0.6 : 1 }}>
+          <button className="cta-3d" onClick={handleClaim} disabled={claiming} style={{ ...ctaBtn, width: '100%', maxWidth: 420, height: 56, opacity: claiming ? 0.6 : 1 }}>
             {claiming ? 'Loading…' : `Try VEIL Now — 15% off with code ${DISCOUNT_CODE}`}
           </button>
           <p style={{ fontSize: 12, color: T.soft, marginTop: 14 }}>30-day returns · Vegan &amp; cruelty-free · Ships within 1 business day</p>
@@ -277,6 +289,14 @@ export default function OfferPage() {
         </div>
         <p style={{ fontSize: 11, color: T.soft }}>&copy; {new Date().getFullYear()} VEIL. All rights reserved.</p>
       </footer>
+
+      <style jsx global>{`
+        .cta-3d:hover:not(:disabled) { filter: brightness(1.04); }
+        .cta-3d:active:not(:disabled) {
+          transform: translateY(4px);
+          box-shadow: 0 1px 0 #C98200, 0 3px 8px rgba(201,130,0,0.3);
+        }
+      `}</style>
     </div>
   );
 }
