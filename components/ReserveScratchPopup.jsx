@@ -28,10 +28,12 @@ const DWELL_MS = 15000;
 const CLEAR_THRESHOLD = 0.6;
 const SCRATCH_RADIUS = 18;
 
+// Not every panel is a winner — same as an actual scratcher ticket. A
+// prize with no `code` renders as a plain miss, no discount attached.
 const DEFAULT_PRIZES = [
   { label: '10% Off', code: 'WELCOME10' },
   { label: '15% Off', code: 'RESERVED15' },
-  { label: '20% Off', code: 'RESERVE20' },
+  { label: 'Sorry', code: null },
 ];
 
 // A faint line-illustration puff — an outlined circle with a small ribbon
@@ -170,7 +172,7 @@ function ScratchPanel({ label, code, unlocked, onRevealed }) {
         {panelRevealed ? (
           <>
             <div style={panelLabelStyle}>{label}</div>
-            {unlocked && <div style={panelCodeStyle}>{code}</div>}
+            {unlocked && code && <div style={panelCodeStyle}>{code}</div>}
           </>
         ) : null}
       </div>

@@ -11,12 +11,12 @@ import ReserveScratchPopup from '../components/ReserveScratchPopup';
 // own single-minded call to action (place the order, review analytics),
 // and a popup mid-checkout or mid-funnel would just compete with it.
 //
-// NOTE: the three default prize codes (WELCOME10, RESERVED15, RESERVE20)
-// need to exist in the live discount store before this ships to real
-// traffic — add any missing ones from /admin's Discounts tab (10/15/20%
-// off respectively) if they aren't there already. They're only
-// auto-seeded (lib/discountsStore.js) on a store that's never had any
-// codes written to it, which production likely isn't.
+// NOTE: the default prize codes (WELCOME10, RESERVED15 — the third panel
+// is a deliberate non-winner, "Sorry") need to exist in the live discount
+// store before this ships to real traffic — add any missing ones from
+// /admin's Discounts tab (10%/15% off respectively) if they aren't there
+// already. They're only auto-seeded (lib/discountsStore.js) on a store
+// that's never had any codes written to it, which production likely isn't.
 const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
 
 const HEARTBEAT_MS = 10000;
