@@ -1,36 +1,43 @@
 import React from 'react';
 import { getSessionId } from '../lib/session';
 
-// "Reveal Your Reserve" — a quiet, single-shot scratch-off card, not a
-// gamified wheel. Self-contained: the discount code (and everything else
-// campaign-specific) comes in as props so this can be reused/swapped
+// "Reveal Your Reserve" — a quiet, three-panel scratch-off card, not a
+// gamified wheel. Self-contained: the prizes (and everything else
+// campaign-specific) come in as props so this can be reused/swapped
 // without touching the interaction or drawing logic below.
 //
 // Trigger: exit-intent (cursor leaving toward the top of the viewport) OR
 // a dwell timer, whichever comes first — never on load. sessionStorage
-// keeps it to once per session; closing early or letting it reveal both
+// keeps it to once per session; closing early or finishing the card both
 // count as "shown," so it won't reappear later in the same session either way.
 //
-// Scratching only confirms there's something to claim — the actual code
-// stays masked until email + phone are submitted, at which point it's
-// recorded as a lead (lib/checkoutLeadsStore.js, source: 'scratch-popup')
-// feeding the same subscriber pipeline as abandoned-checkout capture. The
-// code itself is a client-side prop either way, so this gate is a UX/lead
-// step, not a security boundary — it's not meant to stop someone from
-// reading it out of the page source, only to make giving contact info the
-// path of least resistance for getting it normally.
+// Scratching each of the three panels only confirms what's been won (a
+// label like "10% Off") — the actual redeemable codes stay masked until
+// email + phone are submitted, at which point they're recorded as a lead
+// (lib/checkoutLeadsStore.js, source: 'scratch-popup') feeding the same
+// subscriber pipeline as abandoned-checkout capture. The codes are still
+// client-side props either way, so this gate is a UX/lead step, not a
+// security boundary — it's not meant to stop someone from reading them out
+// of the page source, only to make giving contact info the path of least
+// resistance for getting them normally.
 
 const INK = '#16140F';
 const PAPER = '#FAF8F4';
 const SESSION_KEY = 'veil-reserve-shown';
 const DWELL_MS = 15000;
 const CLEAR_THRESHOLD = 0.6;
-const SCRATCH_RADIUS = 22;
+const SCRATCH_RADIUS = 18;
+
+const DEFAULT_PRIZES = [
+  { label: '10% Off', code: 'WELCOME10' },
+  { label: '15% Off', code: 'RESERVED15' },
+  { label: '20% Off', code: 'RESERVE20' },
+];
 
 // A faint line-illustration puff — an outlined circle with a small ribbon
 // knot, not a literal product photo. Drawn at low opacity straight onto
-// the scratch layer so it reads as "something is under here" without ever
-// being a distraction once revealed.
+// the scratch layer so each panel reads as "something is under here"
+// without ever being a distraction once revealed.
 function drawScratchLayer(ctx, width, height) {
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = INK;
@@ -38,90 +45,39 @@ function drawScratchLayer(ctx, width, height) {
 
   ctx.strokeStyle = PAPER;
   ctx.globalAlpha = 0.16;
-  ctx.lineWidth = 1.4;
+  ctx.lineWidth = 1.2;
 
   const cx = width / 2;
-  const cy = height / 2 - 6;
-  const r = Math.min(width, height) * 0.22;
+  const cy = height / 2 - 4;
+  const r = Math.min(width, height) * 0.2;
 
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Small ribbon knot beneath the circle
   ctx.beginPath();
-  ctx.moveTo(cx - 10, cy + r + 6);
-  ctx.lineTo(cx, cy + r + 16);
-  ctx.lineTo(cx + 10, cy + r + 6);
+  ctx.moveTo(cx - 7, cy + r + 4);
+  ctx.lineTo(cx, cy + r + 11);
+  ctx.lineTo(cx + 7, cy + r + 4);
   ctx.stroke();
 
   ctx.globalAlpha = 1;
 }
 
-export default function ReserveScratchPopup({
-  discountCode = 'RESERVED15',
-  headline = 'Some things are worth uncovering slowly.',
-  subtext = 'A private offer, reserved for you.',
-  validityNote = 'Valid for 48 hours — because good things don’t wait forever.',
-  ctaLabel = 'Shop Now',
-  ctaHref = '/shop',
-  enabled = true,
-}) {
-  const [visible, setVisible] = React.useState(false);
-  const [revealed, setRevealed] = React.useState(false);
-  const [fadingCanvas, setFadingCanvas] = React.useState(false);
-  const [canvasGone, setCanvasGone] = React.useState(false);
-  const [unlocked, setUnlocked] = React.useState(false);
-  const [email, setEmail] = React.useState('');
-  const [phone, setPhone] = React.useState('');
-  const [submitting, setSubmitting] = React.useState(false);
-  const [formError, setFormError] = React.useState('');
+// One scratch-off panel — owns its own canvas, its own scratch progress,
+// and reports upward only the moment it crosses the reveal threshold.
+// Kept as its own component (rather than three parallel sets of refs/state
+// in the parent) since hooks can't be looped or conditionally called.
+function ScratchPanel({ label, code, unlocked, onRevealed }) {
+  const [panelRevealed, setPanelRevealed] = React.useState(false);
+  const [fading, setFading] = React.useState(false);
+  const [gone, setGone] = React.useState(false);
 
   const canvasRef = React.useRef(null);
-  const scratchZoneRef = React.useRef(null);
   const scratchingRef = React.useRef(false);
   const revealedRef = React.useRef(false);
-  const triggeredRef = React.useRef(false);
 
-  const open = React.useCallback(() => {
-    if (triggeredRef.current) return;
-    triggeredRef.current = true;
-    try {
-      window.sessionStorage.setItem(SESSION_KEY, '1');
-    } catch {
-      // ignore storage failures (private browsing, etc.)
-    }
-    setVisible(true);
-  }, []);
-
-  // Trigger wiring — exit-intent and the dwell timer race each other;
-  // whichever fires first opens the card and cancels the other.
   React.useEffect(() => {
-    if (!enabled) return;
-    let alreadyShown = false;
-    try {
-      alreadyShown = window.sessionStorage.getItem(SESSION_KEY) === '1';
-    } catch {
-      alreadyShown = false;
-    }
-    if (alreadyShown) return;
-
-    const dwellTimer = setTimeout(open, DWELL_MS);
-
-    const handleExitIntent = (e) => {
-      if (e.clientY <= 0) open();
-    };
-    document.addEventListener('mouseleave', handleExitIntent);
-
-    return () => {
-      clearTimeout(dwellTimer);
-      document.removeEventListener('mouseleave', handleExitIntent);
-    };
-  }, [enabled, open]);
-
-  // Canvas setup — runs once the card actually mounts (visible === true).
-  React.useEffect(() => {
-    if (!visible) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -169,8 +125,9 @@ export default function ReserveScratchPopup({
       scratchAt(x, y);
       if (measureCleared() >= CLEAR_THRESHOLD) {
         revealedRef.current = true;
-        setRevealed(true);
-        setFadingCanvas(true);
+        setPanelRevealed(true);
+        setFading(true);
+        onRevealed();
       }
     };
 
@@ -198,15 +155,90 @@ export default function ReserveScratchPopup({
       canvas.removeEventListener('touchmove', handleMove);
       canvas.removeEventListener('touchend', handleUp);
     };
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Once 60% is cleared, let the fade transition actually play (400ms)
-  // before removing the canvas from the layout entirely.
   React.useEffect(() => {
-    if (!fadingCanvas) return;
-    const t = setTimeout(() => setCanvasGone(true), 400);
+    if (!fading) return;
+    const t = setTimeout(() => setGone(true), 400);
     return () => clearTimeout(t);
-  }, [fadingCanvas]);
+  }, [fading]);
+
+  return (
+    <div className="reserve-scratch-panel" style={panelWrapStyle}>
+      <div style={panelRevealStyle}>
+        {panelRevealed ? (
+          <>
+            <div style={panelLabelStyle}>{label}</div>
+            {unlocked && <div style={panelCodeStyle}>{code}</div>}
+          </>
+        ) : null}
+      </div>
+      {!gone && (
+        <canvas
+          ref={canvasRef}
+          style={{ ...panelCanvasStyle, opacity: fading ? 0 : 1, transition: 'opacity 400ms ease' }}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function ReserveScratchPopup({
+  prizes = DEFAULT_PRIZES,
+  headline = 'Some things are worth uncovering slowly.',
+  subtext = 'A private offer, reserved for you.',
+  validityNote = 'Valid for 48 hours — because good things don’t wait forever.',
+  ctaLabel = 'Shop Now',
+  ctaHref = '/shop',
+  enabled = true,
+}) {
+  const [visible, setVisible] = React.useState(false);
+  const [revealedCount, setRevealedCount] = React.useState(0);
+  const [unlocked, setUnlocked] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [formError, setFormError] = React.useState('');
+
+  const triggeredRef = React.useRef(false);
+  const allRevealed = revealedCount >= prizes.length;
+
+  const open = React.useCallback(() => {
+    if (triggeredRef.current) return;
+    triggeredRef.current = true;
+    try {
+      window.sessionStorage.setItem(SESSION_KEY, '1');
+    } catch {
+      // ignore storage failures (private browsing, etc.)
+    }
+    setVisible(true);
+  }, []);
+
+  // Trigger wiring — exit-intent and the dwell timer race each other;
+  // whichever fires first opens the card and cancels the other.
+  React.useEffect(() => {
+    if (!enabled) return;
+    let alreadyShown = false;
+    try {
+      alreadyShown = window.sessionStorage.getItem(SESSION_KEY) === '1';
+    } catch {
+      alreadyShown = false;
+    }
+    if (alreadyShown) return;
+
+    const dwellTimer = setTimeout(open, DWELL_MS);
+
+    const handleExitIntent = (e) => {
+      if (e.clientY <= 0) open();
+    };
+    document.addEventListener('mouseleave', handleExitIntent);
+
+    return () => {
+      clearTimeout(dwellTimer);
+      document.removeEventListener('mouseleave', handleExitIntent);
+    };
+  }, [enabled, open]);
 
   const handleUnlock = async (e) => {
     e.preventDefault();
@@ -258,34 +290,29 @@ export default function ReserveScratchPopup({
         <h2 style={headlineStyle}>{headline}</h2>
         <p style={subtextStyle}>{subtext}</p>
 
-        <div ref={scratchZoneRef} style={scratchZoneStyle} className="reserve-scratch-zone">
-          <div style={revealContentStyle}>
-            <div style={unlocked ? codeStyle : readyStyle}>
-              {unlocked ? discountCode : 'Your reserve is ready.'}
-            </div>
-          </div>
-          {!canvasGone && (
-            <canvas
-              ref={canvasRef}
-              style={{
-                ...canvasStyle,
-                opacity: fadingCanvas ? 0 : 1,
-                transition: 'opacity 400ms ease',
-              }}
+        <div className="reserve-scratch-grid" style={scratchGridStyle}>
+          {prizes.map((prize) => (
+            <ScratchPanel
+              key={prize.code}
+              label={prize.label}
+              code={prize.code}
+              unlocked={unlocked}
+              onRevealed={() => setRevealedCount((n) => n + 1)}
             />
-          )}
+          ))}
         </div>
 
-        {revealed && !unlocked && (
+        {allRevealed && !unlocked && (
           <form onSubmit={handleUnlock} style={formStyle}>
-            <p style={formLeadStyle}>Enter your email and phone to unlock it.</p>
+            <p style={formLeadStyle}>Enter your email and phone to unlock these.</p>
             <input
               type="email"
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              className="reserve-field" style={fieldStyle}
+              className="reserve-field"
+              style={fieldStyle}
             />
             <input
               type="tel"
@@ -293,7 +320,8 @@ export default function ReserveScratchPopup({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
-              className="reserve-field" style={fieldStyle}
+              className="reserve-field"
+              style={fieldStyle}
             />
             {formError && <p style={formErrorStyle}>{formError}</p>}
             <button type="submit" disabled={submitting} className="reserve-cta" style={{ ...ctaStyle, width: '100%', opacity: submitting ? 0.6 : 1 }}>
@@ -315,21 +343,11 @@ export default function ReserveScratchPopup({
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        .reserve-scratch-zone {
-          width: 280px;
-          height: 160px;
-        }
         .reserve-cta:hover {
           opacity: 0.8;
         }
         .reserve-field:focus {
           border-color: rgba(22,20,15,0.5);
-        }
-        @media (max-width: 420px) {
-          .reserve-scratch-zone {
-            width: 88vw;
-            height: calc(88vw * 160 / 280);
-          }
         }
       `}</style>
     </div>
@@ -370,23 +388,31 @@ const subtextStyle = {
   fontSize: 13, color: 'rgba(22,20,15,0.6)', margin: '0 0 28px', letterSpacing: '0.02em',
 };
 
-const scratchZoneStyle = {
-  position: 'relative', margin: '0 auto', overflow: 'hidden',
+const scratchGridStyle = {
+  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
 };
 
-const revealContentStyle = {
+const panelWrapStyle = {
+  position: 'relative', aspectRatio: '3 / 4', overflow: 'hidden',
+};
+
+const panelRevealStyle = {
   position: 'absolute', inset: 0,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  background: PAPER,
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  gap: 4, background: PAPER, padding: '0 4px',
 };
 
-const codeStyle = {
-  fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 30, letterSpacing: '0.04em',
+const panelLabelStyle = {
+  fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 16, textAlign: 'center', lineHeight: 1.15,
 };
 
-const readyStyle = {
-  fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 19, letterSpacing: '0.01em',
-  padding: '0 20px',
+const panelCodeStyle = {
+  fontSize: 10, letterSpacing: '0.04em', color: 'rgba(22,20,15,0.6)', textAlign: 'center',
+};
+
+const panelCanvasStyle = {
+  position: 'absolute', inset: 0, width: '100%', height: '100%',
+  cursor: 'pointer', touchAction: 'none',
 };
 
 const formStyle = {
@@ -408,11 +434,6 @@ const fieldStyle = {
 
 const formErrorStyle = {
   fontSize: 12, color: '#a13d2b', margin: '0 0 12px', textAlign: 'center',
-};
-
-const canvasStyle = {
-  position: 'absolute', inset: 0, width: '100%', height: '100%',
-  cursor: 'pointer', touchAction: 'none',
 };
 
 const validityStyle = {
