@@ -32,6 +32,15 @@ const NUMBERED_SECTIONS = [
 
 const TRUST_BADGES = ['Talc-Free', 'Vegan & Cruelty-Free', '30-Day Returns', 'Ships in 1 Business Day'];
 
+// Same reel used on the product page's "Real women, smelling incredible"
+// section (pages/product/[id].jsx) and on /offer — kept consistent across
+// the funnel rather than sourcing separate clips per page.
+const REEL_VIDEOS = [
+  '/videos/A_woman_in_her_early_40s_in_a__Seedance_20_58180.mp4',
+  '/videos/veil-ugc-video-1.mp4',
+  '/videos/veil-ugc-video-2.mp4',
+];
+
 export default function Offer2Page() {
   const router = useRouter();
   const { applyDiscount, appliedDiscount } = useCart();
@@ -123,6 +132,26 @@ export default function Offer2Page() {
           {TRUST_BADGES.map((b) => (
             <span key={b} style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft }}>{b}</span>
           ))}
+        </section>
+
+        {/* REEL */}
+        <section style={{ padding: '32px 0' }}>
+          <p style={{ ...S.label, textAlign: 'center', marginBottom: 16 }}>Real women, smelling incredible</p>
+          <div className="o2-reel-track" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6 }}>
+            {REEL_VIDEOS.map((src) => (
+              <video
+                key={src}
+                className="o2-reel-item"
+                style={{ aspectRatio: '9/16', objectFit: 'cover', background: T.paper, border: `1px solid ${T.line}`, minWidth: 0, borderRadius: 10, flex: '0 0 42%' }}
+                src={src}
+                muted
+                loop
+                playsInline
+                autoPlay
+                controls
+              />
+            ))}
+          </div>
         </section>
 
         {/* NUMBERED SECTIONS */}

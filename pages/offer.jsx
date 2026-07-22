@@ -38,6 +38,16 @@ const RITUAL_STEPS = [
   ['03', 'Carry it through the day', 'Wear alone, or layer over perfume to extend it.'],
 ];
 
+// Same reel of lifestyle clips already used on the product page's "Real
+// women, smelling incredible" section (pages/product/[id].jsx) — reused
+// here rather than re-shot, so the funnel stays visually consistent with
+// the rest of the site.
+const REEL_VIDEOS = [
+  '/videos/A_woman_in_her_early_40s_in_a__Seedance_20_58180.mp4',
+  '/videos/veil-ugc-video-1.mp4',
+  '/videos/veil-ugc-video-2.mp4',
+];
+
 const REASONS = [
   ['01', 'The wear of a full bottle', 'One jar carries the wear of a full perfume bottle — for a fraction of the $150–300 luxury perfume costs.'],
   ['02', 'Intimate, close-to-skin', 'Noticed only by those who lean in close — never announces itself across a room.'],
@@ -120,6 +130,25 @@ export default function OfferPage() {
               <div key={src} style={{ aspectRatio: '4/5', overflow: 'hidden' }}>
                 <img src={src} alt="A VEIL customer holding her jar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               </div>
+            ))}
+          </div>
+        </section>
+
+        {/* REEL — same lifestyle clips as the product page's video reel. */}
+        <section style={{ padding: '8px 0 44px' }}>
+          <div className="offer-reel-track" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6, margin: '0 -24px', padding: '0 24px 6px' }}>
+            {REEL_VIDEOS.map((src) => (
+              <video
+                key={src}
+                className="offer-reel-item"
+                style={{ aspectRatio: '9/16', objectFit: 'cover', background: T.paper, border: `1px solid ${T.line}`, minWidth: 0, borderRadius: 10, flex: '0 0 62%' }}
+                src={src}
+                muted
+                loop
+                playsInline
+                autoPlay
+                controls
+              />
             ))}
           </div>
         </section>
