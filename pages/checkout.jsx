@@ -236,18 +236,22 @@ export default function CheckoutPage() {
 
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
 
-  // Mounts Apple Pay / Google Pay / Cash App Pay once shipping is complete
-  // (addressEntered), not on every render — Square's wallet buttons each
-  // pre-declare the total when created, so waiting for addressEntered means
-  // that total already includes shipping instead of showing $0 shipping the
-  // moment the page loads. Known limitation: if the shopper applies a
-  // discount code *after* this point, the amount these buttons display
-  // doesn't update (recreating them on every total change would flicker the
-  // buttons every keystroke) — the amount actually charged is still always
+  // Mounts Apple Pay / Google Pay as soon as the Square SDK is ready — same
+  // moment the card element becomes usable, not gated on shipping being
+  // filled in, so a shopper who wants to pay with a wallet never has to
+  // type an address first just to see the button. Safe to show this early
+  // because handleWalletPay (below) still validates email/shipping are
+  // filled in before it lets a click actually proceed to tokenize() — the
+  // button existing isn't the same as the button working. Each pre-declares
+  // a total when created (whatever grandTotal is at that moment, which
+  // won't yet include shipping if the address isn't entered yet); known
+  // limitation: that displayed total doesn't live-update as shipping/
+  // discounts change afterward (recreating the buttons on every total
+  // change would flicker them) — the amount actually charged is always
   // read fresh from latestRef at tokenize time, so this is a display lag,
   // not a billing bug.
   React.useEffect(() => {
-    if (!squareReady || !addressEntered) return;
+    if (!squareReady) return;
     let cancelled = false;
     const cleanupFns = [];
 
@@ -277,7 +281,36 @@ export default function CheckoutPage() {
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
       }
+    })();
 
+    return () => {
+      cancelled = true;
+      cleanupFns.forEach((fn) => fn());
+      appleMethodRef.current?.destroy?.().catch(() => {});
+      googleMethodRef.current?.destroy?.().catch(() => {});
+      appleMethodRef.current = null;
+      googleMethodRef.current = null;
+      setAppleAvailable(false);
+      setGoogleAvailable(false);
+    };
+    // handleWalletPay only ever reads fresh state via latestRef and stable
+    // setters — safe to omit here so this doesn't re-attach on every
+    // keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squareReady]);
+
+  // Cash App Pay's own button handles the whole payment interaction itself
+  // (no click of ours to intercept and validate first, unlike Apple/Google
+  // Pay above) — reaching us via the 'ontokenization' event means the
+  // shopper has already approved the charge on Cash App's side. Waiting for
+  // addressEntered before this one mounts is what keeps that from ever
+  // happening without shipping info to fulfill the order with.
+  React.useEffect(() => {
+    if (!squareReady || !addressEntered) return;
+    let cancelled = false;
+
+    (async () => {
+      const amount = latestRef.current.grandTotal;
       const cashApp = await createCashAppPayButton(amount, 'cash-app-pay-button', {
         redirectURL: window.location.href,
         referenceId: `veil-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -293,18 +326,10 @@ export default function CheckoutPage() {
 
     return () => {
       cancelled = true;
-      cleanupFns.forEach((fn) => fn());
-      appleMethodRef.current?.destroy?.().catch(() => {});
-      googleMethodRef.current?.destroy?.().catch(() => {});
-      appleMethodRef.current = null;
-      googleMethodRef.current = null;
-      setAppleAvailable(false);
-      setGoogleAvailable(false);
       setCashAppAvailable(false);
     };
-    // handleWalletPay/handleCashAppToken/handleCashAppError only ever read
-    // fresh state via latestRef and stable setters — safe to omit here so
-    // this doesn't re-attach the buttons on every keystroke.
+    // handleCashAppToken/handleCashAppError only ever read fresh state via
+    // latestRef and stable setters — safe to omit here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squareReady, addressEntered]);
   // Don't add shipping to the total until there's an address to base it on —
