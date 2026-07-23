@@ -850,11 +850,10 @@ const accordionRow = {
 };
 const accordionBody = { padding: '14px 14px 18px', background: T.white };
 // Square's Web Payments SDK renders its own iframe-based fields into this
-// container (card.attach) — min-height keeps the layout from jumping while
-// the SDK script loads and mounts.
-const squareCardContainer = {
-  minHeight: 48, background: T.white, border: `1px solid ${T.line}`, borderRadius: 4, padding: '4px 12px',
-};
+// container (card.attach), already inside its own bordered/rounded box —
+// no border/padding here, or the card ends up boxed twice; min-height only,
+// to keep the layout from jumping while the SDK script loads and mounts.
+const squareCardContainer = { minHeight: 48 };
 const walletDivider = {
   fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
   textAlign: 'center', margin: 0,
