@@ -494,6 +494,34 @@ export default function Offer3Page() {
             </div>
           </section>
 
+          {/* Express checkout — Apple Pay / Google Pay up front, before the
+              shopper has to type anything. The containers always exist in
+              the DOM (hidden via display:none, not conditional rendering)
+              since Square's attach() needs to find them by id before we
+              know whether that wallet is actually available on this
+              browser/device; the whole section (heading + OR divider) stays
+              hidden the same way until at least one of them is. Clicking a
+              button before Shipping below is filled in shows an inline
+              error rather than doing nothing — handleWalletPay still
+              requires email/shipping, this doesn't collect them itself the
+              way a native Apple Pay sheet can. */}
+          <section style={{ marginTop: 24, display: (appleAvailable || googleAvailable) ? 'block' : 'none' }}>
+            <p style={walletDivider}>Express checkout</p>
+            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+              <div style={{ display: appleAvailable ? 'block' : 'none' }}>
+                <div id="apple-pay-button" style={walletButtonContainer} />
+              </div>
+              <div style={{ display: googleAvailable ? 'block' : 'none' }}>
+                <div id="google-pay-button" style={walletButtonContainer} />
+              </div>
+            </div>
+            <div style={orDivider}>
+              <span style={orDividerLine} />
+              <span style={orDividerText}>OR</span>
+              <span style={orDividerLine} />
+            </div>
+          </section>
+
           <section style={{ marginTop: 32 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>2. Shipping</h2>
@@ -548,22 +576,6 @@ export default function Offer3Page() {
                   <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
                 )}
               </div>
-            </div>
-
-            {/* Apple Pay / Google Pay — each renders its own branded button
-                once available (see the wallet mount effect above). The
-                containers always exist in the DOM (hidden via display:none,
-                not conditional rendering) since Square's attach() needs to
-                find them by id before we know whether that wallet is
-                actually available on this browser/device. */}
-            {(appleAvailable || googleAvailable) && (
-              <p style={walletDivider}>Or pay with</p>
-            )}
-            <div style={{ display: appleAvailable ? 'block' : 'none', marginTop: 10 }}>
-              <div id="apple-pay-button" style={walletButtonContainer} />
-            </div>
-            <div style={{ display: googleAvailable ? 'block' : 'none', marginTop: 10 }}>
-              <div id="google-pay-button" style={walletButtonContainer} />
             </div>
           </section>
 
@@ -671,7 +683,7 @@ const progressStep = { color: T.ink };
 const progressArrow = { color: T.soft };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
 const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
-const summaryCol = { padding: '32px 40px', background: T.paper };
+const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 20, margin: 0 };
@@ -682,13 +694,16 @@ const scentBadge = { position: 'absolute', top: 8, right: 8, fontSize: 9, letter
 const qtyStepper = { display: 'flex', alignItems: 'center', gap: 0, border: `1px solid ${T.line}`, borderRadius: 4 };
 const qtyBtn = { width: 32, height: 32, border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: T.ink };
 const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
-const accordionRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.paper };
-const accordionBody = { padding: '14px 14px 18px', background: T.paper };
+const accordionRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.white };
+const accordionBody = { padding: '14px 14px 18px', background: T.white };
 // Square's Web Payments SDK renders its own iframe-based fields into this
 // container (card.attach) — min-height keeps the layout from jumping while
 // the SDK script loads and mounts.
 const squareCardContainer = { minHeight: 48, background: T.white, border: `1px solid ${T.line}`, borderRadius: 4, padding: '4px 12px' };
-const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', margin: '16px 0 0' };
+const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', margin: 0 };
+const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 0' };
+const orDividerLine = { flex: 1, height: 1, background: T.line };
+const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
 // No background/border here — Apple Pay and Google Pay each style their
 // own attached button (their own colors, logo, corner radius).
 const walletButtonContainer = { width: '100%', minHeight: 44 };
@@ -698,7 +713,7 @@ const protectionCard = {
 };
 const protectionIconBox = {
   width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: `1px solid ${T.line}`, borderRadius: 8, background: T.paper,
+  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
 };
 const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
 const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '0 0 16px' };
