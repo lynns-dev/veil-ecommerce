@@ -6,7 +6,7 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import {
   createSquareCard, tokenizeSquareCard,
-  createApplePayButton, createGooglePayButton, createCashAppPayButton, tokenizeWallet,
+  createApplePayButton, createGooglePayButton, tokenizeWallet,
 } from '../lib/squareClient';
 import { PRODUCTS, getProductById } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
@@ -134,14 +134,11 @@ export default function Offer3Page() {
   const [squareError, setSquareError] = React.useState('');
 
   // Apple Pay / Google Pay tokenize on click against the method instance
-  // Square attaches into each container below; Cash App Pay reports back
-  // through an event instead (see the wallet mount effect), so it only
-  // needs an "available" flag, not a method ref to call tokenize() on.
+  // Square attaches into each container below.
   const appleMethodRef = React.useRef(null);
   const googleMethodRef = React.useRef(null);
   const [appleAvailable, setAppleAvailable] = React.useState(false);
   const [googleAvailable, setGoogleAvailable] = React.useState(false);
-  const [cashAppAvailable, setCashAppAvailable] = React.useState(false);
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -225,12 +222,11 @@ export default function Offer3Page() {
   const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
   const grandTotal = discountedSubtotal + shippingCost + shippingProtectionCost;
 
-  // Apple Pay/Google Pay's button click handler and Cash App Pay's token
-  // event are both attached once (see the wallet mount effect below) and
-  // can fire long after that — reading email/shipping/product/quantity/
-  // grandTotal through this ref instead of closing over them directly means
-  // they always see what's currently on the page, not what was there at
-  // mount.
+  // Apple Pay/Google Pay's button click handler is attached once (see the
+  // wallet mount effect below) and can fire long after that — reading
+  // email/shipping/product/quantity/grandTotal through this ref instead of
+  // closing over them directly means it always sees what's currently on
+  // the page, not what was there at mount.
   const latestRef = React.useRef({});
   latestRef.current = { email, shipping, product, quantity, grandTotal, shippingProtectionCost };
 
@@ -297,40 +293,6 @@ export default function Offer3Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squareReady]);
 
-  // Cash App Pay's own button handles the whole payment interaction itself
-  // (no click of ours to intercept and validate first, unlike Apple/Google
-  // Pay above) — reaching us via the 'ontokenization' event means the
-  // shopper has already approved the charge on Cash App's side. Waiting for
-  // addressEntered before this one mounts is what keeps that from ever
-  // happening without shipping info to fulfill the order with.
-  React.useEffect(() => {
-    if (!squareReady || !addressEntered) return;
-    let cancelled = false;
-
-    (async () => {
-      const amount = latestRef.current.grandTotal;
-      const cashApp = await createCashAppPayButton(amount, 'cash-app-pay-button', {
-        redirectURL: window.location.href,
-        referenceId: `veil-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        onToken: handleCashAppToken,
-        onError: handleCashAppError,
-      });
-      if (cancelled) {
-        cashApp?.destroy?.().catch(() => {});
-      } else if (cashApp) {
-        setCashAppAvailable(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      setCashAppAvailable(false);
-    };
-    // handleCashAppToken/handleCashAppError only ever read fresh state via
-    // latestRef and stable setters — safe to omit here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [squareReady, addressEntered]);
-
   // Same abandoned-checkout capture as /checkout — fires once the shopper
   // leaves the email field, so someone who lands here from an ad and
   // doesn't finish still ends up recorded somewhere, not lost entirely.
@@ -350,13 +312,13 @@ export default function Offer3Page() {
     }).catch(() => {});
   };
 
-  // Shared by the card submit handler below and both wallet paths (Apple
-  // Pay/Google Pay's click handler, Cash App Pay's token event) — every
-  // Square payment method resolves to the same single-use token shape, so
-  // charging and fulfilling it is identical regardless of which method
-  // produced it. Reads email/shipping/product/quantity/grandTotal from
-  // latestRef rather than closed-over state since the wallet paths can fire
-  // long after the render that created their handler.
+  // Shared by the card submit handler below and the Apple Pay/Google Pay
+  // click handler — every Square payment method resolves to the same
+  // single-use token shape, so charging and fulfilling it is identical
+  // regardless of which method produced it. Reads email/shipping/product/
+  // quantity/grandTotal from latestRef rather than closed-over state since
+  // the wallet path can fire long after the render that created its
+  // handler.
   const completeSquareOrder = async (token, paymentMethodLabel) => {
     const { email, shipping, product, quantity, grandTotal, shippingProtectionCost } = latestRef.current;
     const purchaseEventId = generateEventId();
@@ -415,22 +377,6 @@ export default function Offer3Page() {
     }
   };
 
-  const handleCashAppToken = async (token) => {
-    setError('');
-    setSubmitting(true);
-    try {
-      await completeSquareOrder(token, 'Square (Cash App Pay)');
-    } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCashAppError = (err) => {
-    console.error('Cash App Pay error:', err);
-    setError('Cash App Pay did not complete — please try again or use another payment method.');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -604,13 +550,13 @@ export default function Offer3Page() {
               </div>
             </div>
 
-            {/* Apple Pay / Google Pay / Cash App Pay — each renders its own
-                branded button once available (see the wallet mount effect
-                above). The containers always exist in the DOM (hidden via
-                display:none, not conditional rendering) since Square's
-                attach() needs to find them by id before we know whether
-                that wallet is actually available on this browser/device. */}
-            {(appleAvailable || googleAvailable || cashAppAvailable) && (
+            {/* Apple Pay / Google Pay — each renders its own branded button
+                once available (see the wallet mount effect above). The
+                containers always exist in the DOM (hidden via display:none,
+                not conditional rendering) since Square's attach() needs to
+                find them by id before we know whether that wallet is
+                actually available on this browser/device. */}
+            {(appleAvailable || googleAvailable) && (
               <p style={walletDivider}>Or pay with</p>
             )}
             <div style={{ display: appleAvailable ? 'block' : 'none', marginTop: 10 }}>
@@ -618,9 +564,6 @@ export default function Offer3Page() {
             </div>
             <div style={{ display: googleAvailable ? 'block' : 'none', marginTop: 10 }}>
               <div id="google-pay-button" style={walletButtonContainer} />
-            </div>
-            <div style={{ display: cashAppAvailable ? 'block' : 'none', marginTop: 10 }}>
-              <div id="cash-app-pay-button" style={walletButtonContainer} />
             </div>
           </section>
 
@@ -746,8 +689,8 @@ const accordionBody = { padding: '14px 14px 18px', background: T.paper };
 // the SDK script loads and mounts.
 const squareCardContainer = { minHeight: 48, background: T.white, border: `1px solid ${T.line}`, borderRadius: 4, padding: '4px 12px' };
 const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', margin: '16px 0 0' };
-// No background/border here — Apple Pay, Google Pay, and Cash App Pay each
-// style their own attached button (their own colors, logo, corner radius).
+// No background/border here — Apple Pay and Google Pay each style their
+// own attached button (their own colors, logo, corner radius).
 const walletButtonContainer = { width: '100%', minHeight: 44 };
 const protectionCard = {
   display: 'flex', alignItems: 'center', gap: 14, padding: 14,
