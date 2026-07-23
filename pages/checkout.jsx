@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
-import { tokenizeCard } from '../lib/qbPayments';
+import { createSquareCard, tokenizeSquareCard } from '../lib/squareClient';
 import { TASSEL_GIFT } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
@@ -17,32 +17,12 @@ const US_STATES = [
 ];
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
-const EMPTY_CARD = { number: '', expiry: '', cvc: '', name: '' };
 
 function LockIcon(props) {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function LockIconSolid(props) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" {...props}>
-      <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-      <rect x="5" y="11" width="14" height="9" rx="1.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-function HelpIcon(props) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M9.5 9.3a2.5 2.5 0 1 1 3.3 2.36c-.6.22-1 .78-1 1.44v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="16.8" r="0.9" fill="currentColor" />
     </svg>
   );
 }
@@ -71,81 +51,6 @@ function LeafIcon(props) {
       <path d="M5 19c9 0 14-5 14-14-9 0-14 5-14 14Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
       <path d="M5 19c0-6 3-9 9-11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
-  );
-}
-
-// "1225" -> "12 / 25", typed digit by digit — matches the MM / YY single
-// field convention shoppers already know from their physical card.
-function formatExpiry(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
-}
-
-// Splits a "12 / 28" expiry field into { expMonth: "12", expYear: "2028" }.
-// Returns null if the field isn't a complete MM/YY yet.
-function parseExpiry(raw) {
-  const [month, year] = raw.split('/').map((s) => s.trim());
-  if (!month || !year || year.length !== 2) return null;
-  return { expMonth: month, expYear: `20${year}` };
-}
-
-// Small, recognizable renderings of each network's real mark (not a
-// colored text pill) so the "we accept" row reads as legitimate rather
-// than placeholder-ish.
-function CardLogoBadge({ children, bg = '#fff' }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 30, height: 20, borderRadius: 3, background: bg,
-        border: `1px solid ${T.line}`, overflow: 'hidden', flexShrink: 0,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function VisaLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="24" height="10" viewBox="0 0 48 18" aria-label="Visa">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontStyle="italic" fontWeight="800" fontSize="16" fill="#1434CB" letterSpacing="-0.5">VISA</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function MastercardLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="22" height="14" viewBox="0 0 40 26" aria-label="Mastercard">
-        <circle cx="15" cy="13" r="11" fill="#EB001B" />
-        <circle cx="25" cy="13" r="11" fill="#F79E1B" style={{ mixBlendMode: 'multiply' }} />
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function AmexLogo() {
-  return (
-    <CardLogoBadge bg="#006FCF">
-      <svg width="26" height="13" viewBox="0 0 52 22" aria-label="American Express">
-        <text x="1" y="16" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="0.5">AMEX</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function DiscoverLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="28" height="11" viewBox="0 0 66 20" aria-label="Discover">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontWeight="700" fontStyle="italic" fontSize="11" fill="#1B1B1B" letterSpacing="-0.3">Discover</text>
-        <circle cx="62" cy="14" r="4" fill="#FF6600" />
-      </svg>
-    </CardLogoBadge>
   );
 }
 
@@ -189,8 +94,15 @@ export default function CheckoutPage() {
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
 
-  // Payment
-  const [card, setCard] = React.useState(EMPTY_CARD);
+  // Payment — Square's Card element renders its own number/expiry/CVC/
+  // postal-code fields into squareCardContainerRef; the returned Card
+  // instance (not raw field values) lives in squareCardRef for tokenize()
+  // at submit time. squareReady disables submit until it's actually
+  // mounted, same guard the old Stripe Payment Element used.
+  const squareCardContainerRef = React.useRef(null);
+  const squareCardRef = React.useRef(null);
+  const [squareReady, setSquareReady] = React.useState(false);
+  const [squareError, setSquareError] = React.useState('');
   const [billingSame, setBillingSame] = React.useState(true);
   const [billing, setBilling] = React.useState(EMPTY_ADDRESS);
 
@@ -249,6 +161,32 @@ export default function CheckoutPage() {
   const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
   const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
 
+  // Mounts Square's own card-entry form into squareCardContainerRef once on
+  // load. Unlike the old QuickBooks form, there's no raw number/expiry/CVC
+  // state to manage here — Square's element owns those fields directly and
+  // only ever hands back a token via tokenize(), never the underlying data.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const card = await createSquareCard('square-card-container');
+        if (cancelled) {
+          await card.destroy();
+          return;
+        }
+        squareCardRef.current = card;
+        setSquareReady(true);
+      } catch (err) {
+        console.error('Square card setup failed:', err);
+        setSquareError('Payment form failed to load — please refresh and try again.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (squareCardRef.current) squareCardRef.current.destroy().catch(() => {});
+    };
+  }, []);
+
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   // Don't add shipping to the total until there's an address to base it on —
   // showing $5 on top of what the shopper expected from the product/cart
@@ -299,47 +237,48 @@ export default function CheckoutPage() {
     e.preventDefault();
     setError('');
 
-    const expiry = parseExpiry(card.expiry);
-    if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
-      setError('Fill in your card details to place your order.');
+    if (!squareReady || !squareCardRef.current) {
+      setError('Payment form is still loading — please wait a moment and try again.');
       return;
     }
 
     setSubmitting(true);
     try {
-      // Billing address feeds AVS (address verification) on the card
-      // network side — falls back to the shipping address unless the
-      // shopper explicitly unchecked "same as shipping".
+      // Billing address feeds Square's buyer-verification/3DS decisioning
+      // (billingContact in verificationDetails) — falls back to the
+      // shipping address unless the shopper explicitly unchecked "same as
+      // shipping".
       const billingAddress = billingSame ? shipping : billing;
 
-      // Step 1: tokenize the card directly against Intuit's Payments Tokens
-      // API from the browser (lib/qbPayments.js) — the raw card number
-      // never reaches our own server. The token is single-use and tied to
-      // this exact card + billing address + CVC.
-      const token = await tokenizeCard(
-        {
-          number: card.number,
-          expMonth: expiry.expMonth,
-          expYear: expiry.expYear,
-          cvc: card.cvc,
-          name: card.name.trim(),
-          street: billingAddress.address,
-          city: billingAddress.city,
-          region: billingAddress.state,
-          postalCode: billingAddress.zip,
-          country: 'US',
+      // Step 1: tokenize the card via Square's Web Payments SDK
+      // (lib/squareClient.js) — the raw card number never reaches our own
+      // server, only Square's. The token is single-use.
+      const token = await tokenizeSquareCard(squareCardRef.current, {
+        amount: grandTotal.toFixed(2),
+        currencyCode: 'USD',
+        intent: 'CHARGE',
+        customerInitiated: true,
+        sellerKeyedIn: false,
+        billingContact: {
+          givenName: billingAddress.firstName || undefined,
+          familyName: billingAddress.lastName || undefined,
+          email: email || undefined,
+          phone: billingAddress.phone || undefined,
+          addressLines: [billingAddress.address, billingAddress.apt].filter(Boolean),
+          city: billingAddress.city || undefined,
+          state: billingAddress.state || undefined,
+          postalCode: billingAddress.zip || undefined,
+          countryCode: 'US',
         },
-        process.env.NEXT_PUBLIC_QB_ENVIRONMENT || 'sandbox'
-      );
+      });
 
       const purchaseEventId = generateEventId();
 
-      // Step 2: charge that token server-side (/api/qb-checkout). A
-      // QuickBooks charge has no redirect step and no webhook — it either
-      // succeeds or fails in this same request — so fulfillment and the
-      // success-page navigation both happen right here, not from a
-      // separate async confirmation.
-      const res = await fetch('/api/qb-checkout', {
+      // Step 2: charge that token server-side (/api/square-checkout). Like
+      // QuickBooks, a Square charge has no redirect step and no webhook —
+      // it either succeeds or fails in this same request — so fulfillment
+      // and the success-page navigation both happen right here.
+      const res = await fetch('/api/square-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -350,7 +289,7 @@ export default function CheckoutPage() {
           shipping,
           eventId: purchaseEventId,
           url: window.location.href,
-          paymentMethod: 'QuickBooks',
+          paymentMethod: 'Square',
           attribution: getStoredAttribution(),
         }),
       });
@@ -476,58 +415,21 @@ export default function CheckoutPage() {
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
             <div style={paymentList}>
               <div style={accordionRow}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <VisaLogo />
-                  <MastercardLogo />
-                  <AmexLogo />
-                  <DiscoverLogo />
-                </div>
+                <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
               </div>
               <div style={accordionBody}>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    placeholder="Card number"
-                    value={card.number}
-                    onChange={(e) => setCard({ ...card, number: e.target.value })}
-                    style={{ ...pillInput, paddingRight: 42 }}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    required
-                  />
-                  <LockIconSolid style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
-                </div>
-                <input
-                  placeholder="Expiration date (MM / YY)"
-                  value={card.expiry}
-                  onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
-                  style={{ ...pillInput, marginTop: 10 }}
-                  inputMode="numeric"
-                  autoComplete="cc-exp"
-                  required
-                />
-                <div style={{ position: 'relative' }}>
-                  <input
-                    placeholder="Security code"
-                    value={card.cvc}
-                    onChange={(e) => setCard({ ...card, cvc: e.target.value })}
-                    style={{ ...pillInput, marginTop: 10, paddingRight: 42 }}
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    required
-                  />
-                  <HelpIcon style={{ position: 'absolute', right: 16, top: 'calc(50% + 5px)', transform: 'translateY(-50%)', color: T.soft }} />
-                </div>
-                <input
-                  placeholder="Name on card"
-                  value={card.name}
-                  onChange={(e) => setCard({ ...card, name: e.target.value })}
-                  style={{ ...pillInput, marginTop: 10 }}
-                  autoComplete="cc-name"
-                  required
-                />
+                {/* Square's Web Payments SDK renders its own card
+                    number/expiry/CVC/postal fields into this container,
+                    including its own network-brand logo as you type — see
+                    the mount effect above. Nothing here reads or holds the
+                    raw card data. */}
+                <div id="square-card-container" style={squareCardContainer} />
+                {!squareReady && !squareError && (
+                  <p style={{ fontSize: 12, color: T.soft, marginTop: 8 }}>Loading payment form…</p>
+                )}
+                {squareError && (
+                  <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
+                )}
                 <label style={{ ...checkboxLabel, marginTop: 16 }}>
                   <input
                     type="checkbox"
@@ -572,10 +474,10 @@ export default function CheckoutPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !squareReady}
             style={{
               ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
+              height: 58, fontSize: 13, opacity: submitting || !squareReady ? 0.6 : 1,
             }}
           >
             {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
@@ -585,7 +487,7 @@ export default function CheckoutPage() {
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
           <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by QuickBooks
+            Payments securely processed by Square
           </p>
         </form>
 
@@ -655,7 +557,7 @@ export default function CheckoutPage() {
           {[
             [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
-            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by QuickBooks.'],
+            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Square.'],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
           ].map(([Icon, title, copy]) => (
             <div key={title} style={reassuranceItem}>
@@ -735,13 +637,11 @@ const accordionRow = {
   padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.paper,
 };
 const accordionBody = { padding: '14px 14px 18px', background: T.paper };
-// Pill-shaped fields sitting on the gray accordion body, matching the
-// reference's very rounded card-detail inputs (vs. the site's normal
-// 4px-radius fields elsewhere on this page).
-const pillInput = {
-  width: '100%', height: 48, padding: '0 16px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none',
-  boxSizing: 'border-box', borderRadius: 24,
+// Square's Web Payments SDK renders its own iframe-based fields into this
+// container (card.attach) — min-height keeps the layout from jumping while
+// the SDK script loads and mounts.
+const squareCardContainer = {
+  minHeight: 48, background: T.white, border: `1px solid ${T.line}`, borderRadius: 4, padding: '4px 12px',
 };
 const tasselCard = { border: `1px solid ${T.line}`, background: T.paper, padding: 16 };
 const tasselImgWrap = {
