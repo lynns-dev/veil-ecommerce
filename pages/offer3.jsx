@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
-import { createSquareCard, tokenizeSquareCard } from '../lib/squareClient';
+import {
+  createSquareCard, tokenizeSquareCard,
+  createApplePayButton, createGooglePayButton, createCashAppPayButton, tokenizeWallet,
+} from '../lib/squareClient';
 import { PRODUCTS, getProductById } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
@@ -99,6 +102,16 @@ export default function Offer3Page() {
   const [squareReady, setSquareReady] = React.useState(false);
   const [squareError, setSquareError] = React.useState('');
 
+  // Apple Pay / Google Pay tokenize on click against the method instance
+  // Square attaches into each container below; Cash App Pay reports back
+  // through an event instead (see the wallet mount effect), so it only
+  // needs an "available" flag, not a method ref to call tokenize() on.
+  const appleMethodRef = React.useRef(null);
+  const googleMethodRef = React.useRef(null);
+  const [appleAvailable, setAppleAvailable] = React.useState(false);
+  const [googleAvailable, setGoogleAvailable] = React.useState(false);
+  const [cashAppAvailable, setCashAppAvailable] = React.useState(false);
+
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
   const [discountApplied, setDiscountApplied] = React.useState(false);
@@ -180,6 +193,84 @@ export default function Offer3Page() {
   const shippingCost = !addressEntered ? 0 : (subtotal >= 50 ? 0 : 5);
   const grandTotal = discountedSubtotal + shippingCost;
 
+  // Apple Pay/Google Pay's button click handler and Cash App Pay's token
+  // event are both attached once (see the wallet mount effect below) and
+  // can fire long after that — reading email/shipping/product/quantity/
+  // grandTotal through this ref instead of closing over them directly means
+  // they always see what's currently on the page, not what was there at
+  // mount.
+  const latestRef = React.useRef({});
+  latestRef.current = { email, shipping, product, quantity, grandTotal };
+
+  // Mounts Apple Pay / Google Pay / Cash App Pay once shipping is complete
+  // (addressEntered) — same pattern and same known limitation as
+  // /checkout: Square's wallet buttons pre-declare the total when created,
+  // so waiting for addressEntered means that total already includes
+  // shipping; if the scent/quantity/discount changes after that, the
+  // amount these buttons display can lag, but the amount actually charged
+  // is always read fresh from latestRef at tokenize time.
+  React.useEffect(() => {
+    if (!squareReady || !addressEntered) return;
+    let cancelled = false;
+    const cleanupFns = [];
+
+    (async () => {
+      const amount = latestRef.current.grandTotal;
+
+      const apple = await createApplePayButton(amount, 'apple-pay-button');
+      if (cancelled) {
+        apple?.destroy?.().catch(() => {});
+      } else if (apple) {
+        appleMethodRef.current = apple;
+        setAppleAvailable(true);
+        const btn = document.getElementById('apple-pay-button');
+        const onClick = (event) => { event.preventDefault(); handleWalletPay(appleMethodRef, 'Apple Pay'); };
+        btn?.addEventListener('click', onClick);
+        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      }
+
+      const google = await createGooglePayButton(amount, 'google-pay-button');
+      if (cancelled) {
+        google?.destroy?.().catch(() => {});
+      } else if (google) {
+        googleMethodRef.current = google;
+        setGoogleAvailable(true);
+        const btn = document.getElementById('google-pay-button');
+        const onClick = (event) => { event.preventDefault(); handleWalletPay(googleMethodRef, 'Google Pay'); };
+        btn?.addEventListener('click', onClick);
+        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      }
+
+      const cashApp = await createCashAppPayButton(amount, 'cash-app-pay-button', {
+        redirectURL: window.location.href,
+        referenceId: `veil-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        onToken: handleCashAppToken,
+        onError: handleCashAppError,
+      });
+      if (cancelled) {
+        cashApp?.destroy?.().catch(() => {});
+      } else if (cashApp) {
+        setCashAppAvailable(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanupFns.forEach((fn) => fn());
+      appleMethodRef.current?.destroy?.().catch(() => {});
+      googleMethodRef.current?.destroy?.().catch(() => {});
+      appleMethodRef.current = null;
+      googleMethodRef.current = null;
+      setAppleAvailable(false);
+      setGoogleAvailable(false);
+      setCashAppAvailable(false);
+    };
+    // handleWalletPay/handleCashAppToken/handleCashAppError only ever read
+    // fresh state via latestRef and stable setters — safe to omit here so
+    // this doesn't re-attach the buttons on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squareReady, addressEntered]);
+
   // Same abandoned-checkout capture as /checkout — fires once the shopper
   // leaves the email field, so someone who lands here from an ad and
   // doesn't finish still ends up recorded somewhere, not lost entirely.
@@ -197,6 +288,87 @@ export default function Offer3Page() {
       }),
       keepalive: true,
     }).catch(() => {});
+  };
+
+  // Shared by the card submit handler below and both wallet paths (Apple
+  // Pay/Google Pay's click handler, Cash App Pay's token event) — every
+  // Square payment method resolves to the same single-use token shape, so
+  // charging and fulfilling it is identical regardless of which method
+  // produced it. Reads email/shipping/product/quantity/grandTotal from
+  // latestRef rather than closed-over state since the wallet paths can fire
+  // long after the render that created their handler.
+  const completeSquareOrder = async (token, paymentMethodLabel) => {
+    const { email, shipping, product, quantity, grandTotal } = latestRef.current;
+    const purchaseEventId = generateEventId();
+    const items = [{ ...product, quantity }];
+
+    const res = await fetch('/api/square-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        amount: grandTotal,
+        items,
+        email,
+        shipping,
+        eventId: purchaseEventId,
+        url: window.location.href,
+        paymentMethod: paymentMethodLabel,
+        attribution: getStoredAttribution(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Payment failed');
+
+    sessionStorage.setItem('veil-purchase', JSON.stringify({
+      eventId: purchaseEventId,
+      amount: grandTotal,
+      contentIds: [product.id],
+      contents: [{ id: product.id, quantity }],
+    }));
+    await router.push('/success');
+    clear();
+  };
+
+  // Apple Pay / Google Pay only render their own button — there's no
+  // "Complete Order" click to hang the usual form-level required-field
+  // validation off of, so this checks email/shipping directly before
+  // approving.
+  const handleWalletPay = async (methodRef, label) => {
+    setError('');
+    const { email, shipping } = latestRef.current;
+    const addrOk = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
+    if (!email.trim() || !addrOk) {
+      setError(`Enter your email and shipping address before paying with ${label}.`);
+      return;
+    }
+    if (!methodRef.current) return;
+    setSubmitting(true);
+    try {
+      const token = await tokenizeWallet(methodRef.current);
+      await completeSquareOrder(token, `Square (${label})`);
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCashAppToken = async (token) => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await completeSquareOrder(token, 'Square (Cash App Pay)');
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCashAppError = (err) => {
+    console.error('Cash App Pay error:', err);
+    setError('Cash App Pay did not complete — please try again or use another payment method.');
   };
 
   const handleSubmit = async (e) => {
@@ -236,38 +408,10 @@ export default function Offer3Page() {
         },
       });
 
-      const purchaseEventId = generateEventId();
-      const items = [{ ...product, quantity }];
-
       // Step 2: charge that token server-side (/api/square-checkout). Like
       // QuickBooks, a Square charge has no redirect step and no webhook — it
       // either succeeds or fails in this same request.
-      const res = await fetch('/api/square-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          amount: grandTotal,
-          items,
-          email,
-          shipping,
-          eventId: purchaseEventId,
-          url: window.location.href,
-          paymentMethod: 'Square',
-          attribution: getStoredAttribution(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment failed');
-
-      sessionStorage.setItem('veil-purchase', JSON.stringify({
-        eventId: purchaseEventId,
-        amount: grandTotal,
-        contentIds: [product.id],
-        contents: [{ id: product.id, quantity }],
-      }));
-      await router.push('/success');
-      clear();
+      await completeSquareOrder(token, 'Square');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -372,6 +516,25 @@ export default function Offer3Page() {
                   <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
                 )}
               </div>
+            </div>
+
+            {/* Apple Pay / Google Pay / Cash App Pay — each renders its own
+                branded button once available (see the wallet mount effect
+                above). The containers always exist in the DOM (hidden via
+                display:none, not conditional rendering) since Square's
+                attach() needs to find them by id before we know whether
+                that wallet is actually available on this browser/device. */}
+            {(appleAvailable || googleAvailable || cashAppAvailable) && (
+              <p style={walletDivider}>Or pay with</p>
+            )}
+            <div style={{ display: appleAvailable ? 'block' : 'none', marginTop: 10 }}>
+              <div id="apple-pay-button" style={walletButtonContainer} />
+            </div>
+            <div style={{ display: googleAvailable ? 'block' : 'none', marginTop: 10 }}>
+              <div id="google-pay-button" style={walletButtonContainer} />
+            </div>
+            <div style={{ display: cashAppAvailable ? 'block' : 'none', marginTop: 10 }}>
+              <div id="cash-app-pay-button" style={walletButtonContainer} />
             </div>
           </section>
 
@@ -490,6 +653,10 @@ const accordionBody = { padding: '14px 14px 18px', background: T.paper };
 // container (card.attach) — min-height keeps the layout from jumping while
 // the SDK script loads and mounts.
 const squareCardContainer = { minHeight: 48, background: T.white, border: `1px solid ${T.line}`, borderRadius: 4, padding: '4px 12px' };
+const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', margin: '16px 0 0' };
+// No background/border here — Apple Pay, Google Pay, and Cash App Pay each
+// style their own attached button (their own colors, logo, corner radius).
+const walletButtonContainer = { width: '100%', minHeight: 44 };
 const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
 const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '0 0 16px' };
 const summaryImgWrap = { position: 'relative', width: 48, height: 48, flexShrink: 0, overflow: 'hidden', border: `1px solid ${T.line}`, background: T.white };
