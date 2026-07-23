@@ -997,6 +997,12 @@ export default function AdminDashboard() {
                             <div style={formLabel}>Order source</div>
                             <div style={{ fontSize: 13 }}>{source}{campaign && ` · ${campaign}`}</div>
                           </div>
+                          {o.shippingProtection > 0 && (
+                            <div>
+                              <div style={formLabel}>Shipping protection</div>
+                              <div style={{ fontSize: 13 }}>Covered (${Number(o.shippingProtection).toFixed(2)} paid)</div>
+                            </div>
+                          )}
                         </div>
 
                         <div style={formLabel}>Items</div>

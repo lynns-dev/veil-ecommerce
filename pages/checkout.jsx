@@ -21,6 +21,14 @@ const US_STATES = [
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
+// Flat optional add-on for reshipment/refund if a package is lost, damaged,
+// or stolen in transit. Price mirrors the reference design (necessaire.com)
+// this was modeled on — adjust freely. IMPORTANT: this only means something
+// to a shopper if there's a real support process behind it (reship/refund
+// on request for orders that paid for it) — see the order's shippingProtection
+// field in the admin Orders tab.
+const SHIPPING_PROTECTION_PRICE = 2.79;
+
 function LockIcon(props) {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -53,6 +61,31 @@ function LeafIcon(props) {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <path d="M5 19c9 0 14-5 14-14-9 0-14 5-14 14Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
       <path d="M5 19c0-6 3-9 9-11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// VEIL's shipping-protection mark — the same open-flap box as ShipIcon
+// above, with a small shield-check badge overlapping its corner to read as
+// "this box is covered," rather than a generic insurance/shield glyph on
+// its own.
+function BoxProtectionIcon(props) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M2.5 7.5l7.5-3.7 7.5 3.7-7.5 3.7-7.5-3.7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M2.5 7.5v7.6l7.5 3.7 7.5-3.7V7.5M10 11.2v7.6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M16.3 12.6l3 1v2.1c0 1.9-1.3 3-3 3.6-1.7-.6-3-1.7-3-3.6v-2.1l3-1Z" fill="#FCFBF7" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M15.2 16.3l.9.9 1.6-1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function InfoIcon(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M12 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="7.7" r="1" fill="currentColor" />
     </svg>
   );
 }
@@ -96,6 +129,7 @@ export default function CheckoutPage() {
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
+  const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — Square's Card element renders its own number/expiry/CVC/
   // postal-code fields into squareCardContainerRef; the returned Card
@@ -282,7 +316,8 @@ export default function CheckoutPage() {
   const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
-  const grandTotal = discountedTotal + shippingCost;
+  const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
+  const grandTotal = discountedTotal + shippingCost + shippingProtectionCost;
 
   // Apple Pay/Google Pay's button click handler and Cash App Pay's token
   // event are both attached once (see the wallet mount effect below) and
@@ -290,7 +325,7 @@ export default function CheckoutPage() {
   // through this ref instead of closing over them directly means they
   // always see what's currently on the page, not what was there at mount.
   const latestRef = React.useRef({});
-  latestRef.current = { email, shipping, cart, grandTotal };
+  latestRef.current = { email, shipping, cart, grandTotal, shippingProtectionCost };
 
   // Fires once the shopper's attention leaves the email field — a good
   // enough proxy for "entered their email" without hammering the KV store
@@ -334,7 +369,7 @@ export default function CheckoutPage() {
   // than closed-over state since the wallet paths can fire long after the
   // render that created their handler.
   const completeSquareOrder = async (token, paymentMethodLabel) => {
-    const { email, shipping, cart, grandTotal } = latestRef.current;
+    const { email, shipping, cart, grandTotal, shippingProtectionCost } = latestRef.current;
     const purchaseEventId = generateEventId();
 
     const res = await fetch('/api/square-checkout', {
@@ -350,6 +385,7 @@ export default function CheckoutPage() {
         url: window.location.href,
         paymentMethod: paymentMethodLabel,
         attribution: getStoredAttribution(),
+        shippingProtection: shippingProtectionCost || 0,
       }),
     });
     const data = await res.json();
@@ -556,6 +592,31 @@ export default function CheckoutPage() {
             )}
           </section>
 
+          <section style={{ marginTop: 16 }}>
+            <div style={protectionCard}>
+              <div style={protectionIconBox}>
+                <BoxProtectionIcon style={{ color: T.ink }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
+                  <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
+                    <InfoIcon style={{ color: T.soft }} />
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
+                <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShippingProtection((v) => !v)}
+                style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
+              >
+                {shippingProtection ? 'Remove' : 'Add'}
+              </button>
+            </div>
+          </section>
+
           <section style={{ marginTop: 24 }}>
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
@@ -693,6 +754,12 @@ export default function CheckoutPage() {
             <span style={{ color: T.soft }}>Shipping</span>
             <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
           </div>
+          {shippingProtection && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Shipping Protection</span>
+              <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
+            </div>
+          )}
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
@@ -821,6 +888,14 @@ const tasselImgWrap = {
   border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
+const protectionCard = {
+  display: 'flex', alignItems: 'center', gap: 14, padding: 14,
+  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
+};
+const protectionIconBox = {
+  width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: `1px solid ${T.line}`, borderRadius: 8, background: T.paper,
+};
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
   border: `1px solid ${T.ink}`, fontSize: 14,

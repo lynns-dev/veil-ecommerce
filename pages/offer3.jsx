@@ -31,6 +31,12 @@ import { T, S } from '../lib/theme';
 
 const DISCOUNT_CODE = 'VEIL15';
 
+// Flat optional add-on for reshipment/refund if a package is lost, damaged,
+// or stolen in transit — same offering and price as /checkout. Adjust
+// freely; only means something to a shopper if there's a real support
+// process behind it (reship/refund on request for orders that paid for it).
+const SHIPPING_PROTECTION_PRICE = 2.79;
+
 // Same bright, raised "3D" CTA as /offer and /offer2 — kept consistent
 // across the funnel.
 const ctaBtn = {
@@ -56,6 +62,30 @@ function LockIcon(props) {
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <rect x="5" y="11" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// VEIL's shipping-protection mark — an open-flap box with a small
+// shield-check badge overlapping its corner, reading as "this box is
+// covered" rather than a generic insurance/shield glyph on its own.
+function BoxProtectionIcon(props) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M2.5 7.5l7.5-3.7 7.5 3.7-7.5 3.7-7.5-3.7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M2.5 7.5v7.6l7.5 3.7 7.5-3.7V7.5M10 11.2v7.6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M16.3 12.6l3 1v2.1c0 1.9-1.3 3-3 3.6-1.7-.6-3-1.7-3-3.6v-2.1l3-1Z" fill="#FCFBF7" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M15.2 16.3l.9.9 1.6-1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function InfoIcon(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M12 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="7.7" r="1" fill="currentColor" />
     </svg>
   );
 }
@@ -92,6 +122,7 @@ export default function Offer3Page() {
   const [quantity, setQuantity] = React.useState(1);
   const [email, setEmail] = React.useState('');
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
+  const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — Square's Card element renders its own number/expiry/CVC/
   // postal-code fields into squareCardContainerRef; the returned Card
@@ -191,7 +222,8 @@ export default function Offer3Page() {
   const discountedSubtotal = subtotal - discountAmount;
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   const shippingCost = !addressEntered ? 0 : (subtotal >= 50 ? 0 : 5);
-  const grandTotal = discountedSubtotal + shippingCost;
+  const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
+  const grandTotal = discountedSubtotal + shippingCost + shippingProtectionCost;
 
   // Apple Pay/Google Pay's button click handler and Cash App Pay's token
   // event are both attached once (see the wallet mount effect below) and
@@ -200,7 +232,7 @@ export default function Offer3Page() {
   // they always see what's currently on the page, not what was there at
   // mount.
   const latestRef = React.useRef({});
-  latestRef.current = { email, shipping, product, quantity, grandTotal };
+  latestRef.current = { email, shipping, product, quantity, grandTotal, shippingProtectionCost };
 
   // Mounts Apple Pay / Google Pay / Cash App Pay once shipping is complete
   // (addressEntered) — same pattern and same known limitation as
@@ -298,7 +330,7 @@ export default function Offer3Page() {
   // latestRef rather than closed-over state since the wallet paths can fire
   // long after the render that created their handler.
   const completeSquareOrder = async (token, paymentMethodLabel) => {
-    const { email, shipping, product, quantity, grandTotal } = latestRef.current;
+    const { email, shipping, product, quantity, grandTotal, shippingProtectionCost } = latestRef.current;
     const purchaseEventId = generateEventId();
     const items = [{ ...product, quantity }];
 
@@ -315,6 +347,7 @@ export default function Offer3Page() {
         url: window.location.href,
         paymentMethod: paymentMethodLabel,
         attribution: getStoredAttribution(),
+        shippingProtection: shippingProtectionCost || 0,
       }),
     });
     const data = await res.json();
@@ -495,6 +528,31 @@ export default function Offer3Page() {
             <AddressFields value={shipping} onChange={setShipping} />
           </section>
 
+          <section style={{ marginTop: 16 }}>
+            <div style={protectionCard}>
+              <div style={protectionIconBox}>
+                <BoxProtectionIcon style={{ color: T.ink }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
+                  <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
+                    <InfoIcon style={{ color: T.soft }} />
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
+                <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShippingProtection((v) => !v)}
+                style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
+              >
+                {shippingProtection ? 'Remove' : 'Add'}
+              </button>
+            </div>
+          </section>
+
           <section style={{ marginTop: 32 }}>
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>3. Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
@@ -577,6 +635,12 @@ export default function Offer3Page() {
             <span style={{ color: T.soft }}>Shipping</span>
             <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
           </div>
+          {shippingProtection && (
+            <div style={summaryRow}>
+              <span style={{ color: T.soft }}>Shipping Protection</span>
+              <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
+            </div>
+          )}
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
@@ -657,6 +721,14 @@ const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'up
 // No background/border here — Apple Pay, Google Pay, and Cash App Pay each
 // style their own attached button (their own colors, logo, corner radius).
 const walletButtonContainer = { width: '100%', minHeight: 44 };
+const protectionCard = {
+  display: 'flex', alignItems: 'center', gap: 14, padding: 14,
+  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
+};
+const protectionIconBox = {
+  width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: `1px solid ${T.line}`, borderRadius: 8, background: T.paper,
+};
 const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
 const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '0 0 16px' };
 const summaryImgWrap = { position: 'relative', width: 48, height: 48, flexShrink: 0, overflow: 'hidden', border: `1px solid ${T.line}`, background: T.white };
