@@ -6,7 +6,7 @@ import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import {
   createSquareCard, tokenizeSquareCard,
-  createApplePayButton, createGooglePayButton, tokenizeWallet,
+  createApplePayButton, createGooglePayButton, createAfterpayButton, tokenizeWallet,
 } from '../lib/squareClient';
 import { PRODUCTS, getProductById } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
@@ -133,12 +133,14 @@ export default function Offer3Page() {
   const [squareReady, setSquareReady] = React.useState(false);
   const [squareError, setSquareError] = React.useState('');
 
-  // Apple Pay / Google Pay tokenize on click against the method instance
-  // Square attaches into each container below.
+  // Apple Pay / Google Pay / Afterpay tokenize on click against the method
+  // instance Square attaches into each container below.
   const appleMethodRef = React.useRef(null);
   const googleMethodRef = React.useRef(null);
+  const afterpayMethodRef = React.useRef(null);
   const [appleAvailable, setAppleAvailable] = React.useState(false);
   const [googleAvailable, setGoogleAvailable] = React.useState(false);
+  const [afterpayAvailable, setAfterpayAvailable] = React.useState(false);
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -230,20 +232,25 @@ export default function Offer3Page() {
   const latestRef = React.useRef({});
   latestRef.current = { email, shipping, product, quantity, grandTotal, shippingProtectionCost };
 
-  // Mounts Apple Pay / Google Pay as soon as the Square SDK is ready — same
-  // moment the card element becomes usable, not gated on shipping being
-  // filled in, so a shopper who wants to pay with a wallet never has to
-  // type an address first just to see the button. Safe to show this early
-  // because handleWalletPay (below) still validates email/shipping are
-  // filled in before it lets a click actually proceed to tokenize() — the
-  // button existing isn't the same as the button working. Each pre-declares
-  // a total when created (whatever grandTotal is at that moment, which
-  // won't yet include shipping if the address isn't entered yet); known
-  // limitation: that displayed total doesn't live-update as
-  // scent/quantity/discount changes afterward (recreating the buttons on
-  // every total change would flicker them) — the amount actually charged
-  // is always read fresh from latestRef at tokenize time, so this is a
-  // display lag, not a billing bug.
+  // Mounts Apple Pay / Google Pay / Afterpay as soon as the Square SDK is
+  // ready — same moment the card element becomes usable, not gated on
+  // shipping being filled in, so a shopper who wants to pay with a wallet
+  // never has to type an address first just to see the button (the section
+  // itself is still positioned after Shipping Protection in the JSX below,
+  // so by the time it's visible shipping is already filled in). Safe to
+  // mount this early either way because handleWalletPay (below) still
+  // validates email/shipping are filled in before it lets a click actually
+  // proceed to tokenize() — the button existing isn't the same as the
+  // button working. Each pre-declares a total when created (whatever
+  // grandTotal is at that moment, which won't yet include shipping if the
+  // address isn't entered yet); known limitation: that displayed total
+  // doesn't live-update as scent/quantity/discount changes afterward
+  // (recreating the buttons on every total change would flicker them) —
+  // the amount actually charged is always read fresh from latestRef at
+  // tokenize time, so this is a display lag, not a billing bug. Afterpay
+  // additionally has its own order-amount eligibility range — outside it,
+  // createAfterpayButton fails the same way an unsupported browser/device
+  // does for Apple/Google Pay, and the button just doesn't appear.
   React.useEffect(() => {
     if (!squareReady) return;
     let cancelled = false;
@@ -275,6 +282,18 @@ export default function Offer3Page() {
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
       }
+
+      const afterpay = await createAfterpayButton(amount, 'afterpay-button');
+      if (cancelled) {
+        afterpay?.destroy?.().catch(() => {});
+      } else if (afterpay) {
+        afterpayMethodRef.current = afterpay;
+        setAfterpayAvailable(true);
+        const btn = document.getElementById('afterpay-button');
+        const onClick = (event) => { event.preventDefault(); handleWalletPay(afterpayMethodRef, 'Afterpay'); };
+        btn?.addEventListener('click', onClick);
+        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      }
     })();
 
     return () => {
@@ -282,10 +301,13 @@ export default function Offer3Page() {
       cleanupFns.forEach((fn) => fn());
       appleMethodRef.current?.destroy?.().catch(() => {});
       googleMethodRef.current?.destroy?.().catch(() => {});
+      afterpayMethodRef.current?.destroy?.().catch(() => {});
       appleMethodRef.current = null;
       googleMethodRef.current = null;
+      afterpayMethodRef.current = null;
       setAppleAvailable(false);
       setGoogleAvailable(false);
+      setAfterpayAvailable(false);
     };
     // handleWalletPay only ever reads fresh state via latestRef and stable
     // setters — safe to omit here so this doesn't re-attach on every
@@ -527,19 +549,19 @@ export default function Offer3Page() {
             </div>
           </section>
 
-          {/* Apple Pay / Google Pay, positioned after shipping is
-              collected — both need email/shipping already filled in before
-              handleWalletPay lets a click through to tokenize() (this
-              doesn't collect shipping the way a native Apple Pay sheet
-              can), so putting the buttons here instead of higher up means
-              they're usable the moment they're visible instead of erroring
-              on click. The containers always exist in the DOM (hidden via
-              display:none, not conditional rendering) since Square's
-              attach() needs to find them by id before we know whether that
-              wallet is actually available on this browser/device; the
-              whole section (heading + OR divider) stays hidden the same
-              way until at least one of them is. */}
-          <section style={{ marginTop: 24, display: (appleAvailable || googleAvailable) ? 'block' : 'none' }}>
+          {/* Apple Pay / Google Pay / Afterpay, positioned after shipping is
+              collected — all three need email/shipping already filled in
+              before handleWalletPay lets a click through to tokenize()
+              (this doesn't collect shipping the way a native Apple Pay
+              sheet can), so putting the buttons here instead of higher up
+              means they're usable the moment they're visible instead of
+              erroring on click. The containers always exist in the DOM
+              (hidden via display:none, not conditional rendering) since
+              Square's attach() needs to find them by id before we know
+              whether that wallet is actually available on this browser/
+              device; the whole section (heading + OR divider) stays hidden
+              the same way until at least one of them is. */}
+          <section style={{ marginTop: 24, display: (appleAvailable || googleAvailable || afterpayAvailable) ? 'block' : 'none' }}>
             <p style={walletDivider}>Express checkout</p>
             <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
               <div style={{ display: appleAvailable ? 'block' : 'none' }}>
@@ -547,6 +569,9 @@ export default function Offer3Page() {
               </div>
               <div style={{ display: googleAvailable ? 'block' : 'none' }}>
                 <div id="google-pay-button" style={walletButtonContainer} />
+              </div>
+              <div style={{ display: afterpayAvailable ? 'block' : 'none' }}>
+                <div id="afterpay-button" style={walletButtonContainer} />
               </div>
             </div>
             <div style={orDivider}>
