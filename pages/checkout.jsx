@@ -140,8 +140,6 @@ export default function CheckoutPage() {
   const squareCardRef = React.useRef(null);
   const [squareReady, setSquareReady] = React.useState(false);
   const [squareError, setSquareError] = React.useState('');
-  const [billingSame, setBillingSame] = React.useState(true);
-  const [billing, setBilling] = React.useState(EMPTY_ADDRESS);
 
   // Apple Pay / Google Pay / Afterpay tokenize on click against the method
   // instance Square attaches into each container below.
@@ -207,10 +205,15 @@ export default function CheckoutPage() {
   const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
   const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
 
-  // Mounts Square's own card-entry form into squareCardContainerRef once on
-  // load. Unlike the old QuickBooks form, there's no raw number/expiry/CVC
-  // state to manage here — Square's element owns those fields directly and
-  // only ever hands back a token via tokenize(), never the underlying data.
+  // Mounts Square's own card-entry form into #square-card-container once on
+  // load — this is deliberately the plainest possible version of Square's
+  // own quickstart pattern (payments.card() -> attach()), rebuilt from
+  // scratch after ruling out the billingContact/verificationDetails shape
+  // as the cause of a live "unexpected error" (confirmed byte-for-byte
+  // against Square's own square/web-payments-quickstart example — the
+  // fields were already correct). There's no raw number/expiry/CVC state
+  // to manage here — Square's element owns those fields directly and only
+  // ever hands back a token via tokenize(), never the underlying data.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -446,15 +449,14 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      // Billing address feeds Square's buyer-verification/3DS decisioning
-      // (billingContact in verificationDetails) — falls back to the
-      // shipping address unless the shopper explicitly unchecked "same as
-      // shipping".
-      const billingAddress = billingSame ? shipping : billing;
-
       // Step 1: tokenize the card via Square's Web Payments SDK
       // (lib/squareClient.js) — the raw card number never reaches our own
-      // server, only Square's. The token is single-use.
+      // server, only Square's. The token is single-use. verificationDetails
+      // shape (amount, currencyCode, intent, customerInitiated,
+      // sellerKeyedIn, billingContact fields) matches Square's own
+      // square/web-payments-quickstart example exactly — billingContact is
+      // always built from the shipping address entered above, no separate
+      // billing-address toggle to go wrong.
       const token = await tokenizeSquareCard(squareCardRef.current, {
         amount: grandTotal.toFixed(2),
         currencyCode: 'USD',
@@ -462,14 +464,14 @@ export default function CheckoutPage() {
         customerInitiated: true,
         sellerKeyedIn: false,
         billingContact: {
-          givenName: billingAddress.firstName || undefined,
-          familyName: billingAddress.lastName || undefined,
+          givenName: shipping.firstName || undefined,
+          familyName: shipping.lastName || undefined,
           email: email || undefined,
-          phone: billingAddress.phone || undefined,
-          addressLines: [billingAddress.address, billingAddress.apt].filter(Boolean),
-          city: billingAddress.city || undefined,
-          state: billingAddress.state || undefined,
-          postalCode: billingAddress.zip || undefined,
+          phone: shipping.phone || undefined,
+          addressLines: [shipping.address, shipping.apt].filter(Boolean),
+          city: shipping.city || undefined,
+          state: shipping.state || undefined,
+          postalCode: shipping.zip || undefined,
           countryCode: 'US',
         },
       });
@@ -673,20 +675,6 @@ export default function CheckoutPage() {
                 )}
                 {squareError && (
                   <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
-                )}
-                <label style={{ ...checkboxLabel, marginTop: 16 }}>
-                  <input
-                    type="checkbox"
-                    checked={billingSame}
-                    onChange={(e) => setBillingSame(e.target.checked)}
-                    style={{ accentColor: T.ink, width: 18, height: 18 }}
-                  />
-                  <span style={{ color: T.ink }}>Use shipping address as billing address</span>
-                </label>
-                {!billingSame && (
-                  <div style={{ marginTop: 10 }}>
-                    <AddressFields value={billing} onChange={setBilling} idPrefix="bill" />
-                  </div>
                 )}
               </div>
             </div>
