@@ -494,34 +494,6 @@ export default function Offer3Page() {
             </div>
           </section>
 
-          {/* Express checkout — Apple Pay / Google Pay up front, before the
-              shopper has to type anything. The containers always exist in
-              the DOM (hidden via display:none, not conditional rendering)
-              since Square's attach() needs to find them by id before we
-              know whether that wallet is actually available on this
-              browser/device; the whole section (heading + OR divider) stays
-              hidden the same way until at least one of them is. Clicking a
-              button before Shipping below is filled in shows an inline
-              error rather than doing nothing — handleWalletPay still
-              requires email/shipping, this doesn't collect them itself the
-              way a native Apple Pay sheet can. */}
-          <section style={{ marginTop: 24, display: (appleAvailable || googleAvailable) ? 'block' : 'none' }}>
-            <p style={walletDivider}>Express checkout</p>
-            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-              <div style={{ display: appleAvailable ? 'block' : 'none' }}>
-                <div id="apple-pay-button" style={walletButtonContainer} />
-              </div>
-              <div style={{ display: googleAvailable ? 'block' : 'none' }}>
-                <div id="google-pay-button" style={walletButtonContainer} />
-              </div>
-            </div>
-            <div style={orDivider}>
-              <span style={orDividerLine} />
-              <span style={orDividerText}>OR</span>
-              <span style={orDividerLine} />
-            </div>
-          </section>
-
           <section style={{ marginTop: 32 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>2. Shipping</h2>
@@ -552,6 +524,35 @@ export default function Offer3Page() {
               >
                 {shippingProtection ? 'Remove' : 'Add'}
               </button>
+            </div>
+          </section>
+
+          {/* Apple Pay / Google Pay, positioned after shipping is
+              collected — both need email/shipping already filled in before
+              handleWalletPay lets a click through to tokenize() (this
+              doesn't collect shipping the way a native Apple Pay sheet
+              can), so putting the buttons here instead of higher up means
+              they're usable the moment they're visible instead of erroring
+              on click. The containers always exist in the DOM (hidden via
+              display:none, not conditional rendering) since Square's
+              attach() needs to find them by id before we know whether that
+              wallet is actually available on this browser/device; the
+              whole section (heading + OR divider) stays hidden the same
+              way until at least one of them is. */}
+          <section style={{ marginTop: 24, display: (appleAvailable || googleAvailable) ? 'block' : 'none' }}>
+            <p style={walletDivider}>Express checkout</p>
+            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+              <div style={{ display: appleAvailable ? 'block' : 'none' }}>
+                <div id="apple-pay-button" style={walletButtonContainer} />
+              </div>
+              <div style={{ display: googleAvailable ? 'block' : 'none' }}>
+                <div id="google-pay-button" style={walletButtonContainer} />
+              </div>
+            </div>
+            <div style={orDivider}>
+              <span style={orDividerLine} />
+              <span style={orDividerText}>OR</span>
+              <span style={orDividerLine} />
             </div>
           </section>
 
