@@ -15,7 +15,7 @@ export const US_STATES = [
 // fixing) once.
 //
 // Autocomplete: typing 4+ characters into the Address field debounces a
-// lookup (lib/addressAutocomplete.js, Radar's API) and shows a dropdown of
+// lookup (lib/addressAutocomplete.js, Mapbox's Geocoding API) and shows a dropdown of
 // matching full addresses below the field; selecting one fills
 // address/city/state/zip in one action. Manual typing always still works
 // whether or not autocomplete returns anything (no key set, network
