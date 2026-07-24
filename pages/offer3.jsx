@@ -725,7 +725,10 @@ const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
 const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 20, margin: 0 };
-const input = { width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white, fontFamily: T.sans, fontSize: 14, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4 };
+// fontSize must stay at 16px or higher — below that, iOS Safari auto-zooms
+// the whole page in when a shopper taps into any of these fields, which is
+// the "moves the checkout page weird" behavior on focus.
+const input = { width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white, fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4 };
 const scentGrid = { display: 'grid', gap: 12 };
 const scentTile = { position: 'relative', textAlign: 'left', cursor: 'pointer', background: T.white, padding: '14px 14px 16px', borderRadius: 4 };
 const scentBadge = { position: 'absolute', top: 8, right: 8, fontSize: 9, letterSpacing: '0.08em', background: T.ink, color: T.white, padding: '3px 7px', borderRadius: 3 };
