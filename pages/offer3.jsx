@@ -419,21 +419,16 @@ export default function Offer3Page() {
       // (lib/squareClient.js) — the raw card number never reaches our own
       // server, only Square's. The token is single-use.
       //
-      // billingContact deliberately omitted: including it routes tokenize()
-      // through Square's separate buyer-verification call to
+      // verificationDetails deliberately omitted entirely (not just
+      // billingContact): passing ANY verificationDetails object still routes
+      // tokenize() through Square's separate buyer-verification call to
       // pci-connect.squareup.com/v2/analytics/verifications, which — live,
       // confirmed via the real Square error response body — rejects this
       // account's location ("Invalid location id") even though that same
-      // location processes real charges fine. billingContact only affects
-      // AVS/CVV matching, not whether the charge itself can complete, so
-      // dropping it avoids the broken verification call entirely.
-      const token = await tokenizeSquareCard(squareCardRef.current, {
-        amount: grandTotal.toFixed(2),
-        currencyCode: 'USD',
-        intent: 'CHARGE',
-        customerInitiated: true,
-        sellerKeyedIn: false,
-      });
+      // location processes real charges fine. The wallet buttons call
+      // tokenize() with no arguments at all and always succeeded — mirroring
+      // that here avoids the broken verification call.
+      const token = await tokenizeSquareCard(squareCardRef.current);
 
       // Step 2: charge that token server-side (/api/square-checkout). Like
       // QuickBooks, a Square charge has no redirect step and no webhook — it
