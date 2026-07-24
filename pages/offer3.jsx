@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
+import AddressFields from '../components/AddressFields';
 import { useCart } from '../lib/useCart';
 import {
   createSquareCard, tokenizeSquareCard,
@@ -49,12 +50,6 @@ const ctaBtn = {
 };
 const SCENT_IDS = ['original', 'citron', 'violette', 'grand-jar'];
 
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA',
-  'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK',
-  'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
-];
-
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
 function LockIcon(props) {
@@ -91,28 +86,6 @@ function InfoIcon(props) {
 }
 
 
-function AddressFields({ value, onChange }) {
-  const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
-  return (
-    <>
-      <div className="o3-row-2">
-        <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={input} autoComplete="shipping given-name" required />
-        <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={input} autoComplete="shipping family-name" required />
-      </div>
-      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 8 }} autoComplete="shipping address-line1" required />
-      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 8 }} autoComplete="shipping address-line2" />
-      <div className="o3-row-3" style={{ marginTop: 8 }}>
-        <input placeholder="City" value={value.city} onChange={set('city')} style={input} autoComplete="shipping address-level2" required />
-        <select value={value.state} onChange={set('state')} style={input} autoComplete="shipping address-level1" required>
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP code" value={value.zip} onChange={set('zip')} style={input} autoComplete="shipping postal-code" required />
-      </div>
-      <input placeholder="Phone (optional)" value={value.phone} onChange={set('phone')} style={{ ...input, marginTop: 8 }} autoComplete="shipping tel" />
-    </>
-  );
-}
 
 export default function Offer3Page() {
   const router = useRouter();
@@ -526,7 +499,7 @@ export default function Offer3Page() {
               <h2 style={sectionTitle}>2. Shipping</h2>
             </div>
             <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={handleEmailBlur} style={{ ...input, marginBottom: 12 }} autoComplete="email" required />
-            <AddressFields value={shipping} onChange={setShipping} />
+            <AddressFields value={shipping} onChange={setShipping} inputStyle={input} rowClass2="o3-row-2" rowClass3="o3-row-3" />
           </section>
 
           <section style={{ marginTop: 16 }}>

@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
+import AddressFields from '../components/AddressFields';
 import { useCart } from '../lib/useCart';
 import {
   createSquareCard, tokenizeSquareCard,
@@ -20,12 +21,6 @@ import { T, S } from '../lib/theme';
 // file lives at pages/checkout.jsx the same way this page was moved out of
 // it. Keep this page's non-payment sections in sync with checkout.jsx by
 // hand when either one changes.
-
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA',
-  'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK',
-  'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
-];
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
@@ -98,36 +93,6 @@ function InfoIcon(props) {
   );
 }
 
-function AddressFields({ value, onChange, idPrefix }) {
-  const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
-  const section = idPrefix === 'bill' ? 'billing' : 'shipping';
-  return (
-    <>
-      <div className="row-2">
-        <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={input} autoComplete={`${section} given-name`} required />
-        <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={input} autoComplete={`${section} family-name`} required />
-      </div>
-      <input placeholder="Address" value={value.address} onChange={set('address')} style={{ ...input, marginTop: 8 }} autoComplete={`${section} address-line1`} required />
-      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...input, marginTop: 8 }} autoComplete={`${section} address-line2`} />
-      <div className="row-3" style={{ marginTop: 8 }}>
-        <input placeholder="City" value={value.city} onChange={set('city')} style={input} autoComplete={`${section} address-level2`} required />
-        <select value={value.state} onChange={set('state')} style={input} autoComplete={`${section} address-level1`} required>
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP code" value={value.zip} onChange={set('zip')} style={input} autoComplete={`${section} postal-code`} required />
-      </div>
-      <input
-        placeholder="Phone (optional)"
-        value={value.phone}
-        onChange={set('phone')}
-        style={{ ...input, marginTop: 8 }}
-        autoComplete={`${section} tel`}
-        id={idPrefix ? `${idPrefix}-phone` : undefined}
-      />
-    </>
-  );
-}
 
 export default function CheckoutSquarePage() {
   const router = useRouter();
@@ -549,7 +514,7 @@ export default function CheckoutSquarePage() {
             <select value="United States" readOnly style={{ ...input, marginBottom: 12, color: T.soft }}>
               <option>United States</option>
             </select>
-            <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" />
+            <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={input} />
           </section>
 
           <section style={{ marginTop: 24 }}>
