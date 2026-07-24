@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import {
-  createSquareCard, tokenizeSquareCard, normalizeUsPhoneForSquare,
+  createSquareCard, tokenizeSquareCard,
   createApplePayButton, createGooglePayButton, createAfterpayButton, tokenizeWallet,
 } from '../lib/squareClient';
 import { TASSEL_GIFT } from '../lib/products';
@@ -451,29 +451,24 @@ export default function CheckoutPage() {
     try {
       // Step 1: tokenize the card via Square's Web Payments SDK
       // (lib/squareClient.js) — the raw card number never reaches our own
-      // server, only Square's. The token is single-use. verificationDetails
-      // shape (amount, currencyCode, intent, customerInitiated,
-      // sellerKeyedIn, billingContact fields) matches Square's own
-      // square/web-payments-quickstart example exactly — billingContact is
-      // always built from the shipping address entered above, no separate
-      // billing-address toggle to go wrong.
+      // server, only Square's. The token is single-use.
+      //
+      // billingContact deliberately omitted: including it routes tokenize()
+      // through Square's separate buyer-verification call to
+      // pci-connect.squareup.com/v2/analytics/verifications, which — live,
+      // confirmed via the real Square error response body — rejects this
+      // account's location ("Invalid location id") even though that same
+      // location processes real charges fine (confirmed via a completed
+      // Google Pay charge and via Square's own ListLocations API showing it
+      // ACTIVE with CREDIT_CARD_PROCESSING). billingContact only affects
+      // AVS/CVV matching, not whether the charge itself can complete, so
+      // dropping it avoids the broken verification call entirely.
       const token = await tokenizeSquareCard(squareCardRef.current, {
         amount: grandTotal.toFixed(2),
         currencyCode: 'USD',
         intent: 'CHARGE',
         customerInitiated: true,
         sellerKeyedIn: false,
-        billingContact: {
-          givenName: shipping.firstName || undefined,
-          familyName: shipping.lastName || undefined,
-          email: email || undefined,
-          phone: normalizeUsPhoneForSquare(shipping.phone),
-          addressLines: [shipping.address, shipping.apt].filter(Boolean),
-          city: shipping.city || undefined,
-          state: shipping.state || undefined,
-          postalCode: shipping.zip || undefined,
-          countryCode: 'US',
-        },
       });
 
       // Step 2: charge that token server-side (/api/square-checkout). Like
