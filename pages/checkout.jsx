@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import { useCart } from '../lib/useCart';
 import {
-  createSquareCard, tokenizeSquareCard,
+  createSquareCard, tokenizeSquareCard, normalizeUsPhoneForSquare,
   createApplePayButton, createGooglePayButton, createAfterpayButton, tokenizeWallet,
 } from '../lib/squareClient';
 import { TASSEL_GIFT } from '../lib/products';
@@ -467,7 +467,7 @@ export default function CheckoutPage() {
           givenName: shipping.firstName || undefined,
           familyName: shipping.lastName || undefined,
           email: email || undefined,
-          phone: shipping.phone || undefined,
+          phone: normalizeUsPhoneForSquare(shipping.phone),
           addressLines: [shipping.address, shipping.apt].filter(Boolean),
           city: shipping.city || undefined,
           state: shipping.state || undefined,
