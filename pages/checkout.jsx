@@ -12,38 +12,42 @@ import { getSessionId } from '../lib/session';
 import { T, S } from '../lib/theme';
 
 // Live checkout — charges through QuickBooks Payments. Square's version of
-// this same page (identical layout/sections/UX fixes: tassel gift above the
-// submit button, 16px input fontSize so iOS Safari doesn't auto-zoom on
-// focus, wallet/card error scrolled into view) is kept as a backup at
+// this same page (identical 3-step flow/UX fixes) is kept as a backup at
 // pages/checkout-square.jsx, so the site can rotate back to Square (or any
 // future processor) without a rebuild. Keep the two pages' non-payment
 // sections in sync by hand when either one changes.
 //
-// No Apple Pay / Google Pay / Afterpay here — QuickBooks Payments (as
+// Rebuilt as a 3-step flow (Shipping -> Payment -> Review), modeled on
+// Apple's own checkout (large touch-friendly fields/buttons, a final
+// review step with "Change" links back to earlier steps) rather than the
+// single long-scroll form this page used before — brand colors/fonts stay
+// VEIL's own (black/white, Hanken Grotesk/Fraunces), not Apple's blue.
+// Each step is real, native <form> validation (required/type="email" on
+// visible fields only — a step's inputs aren't in the DOM at all while
+// another step is active, so the browser only ever validates what's
+// currently on screen) rather than hand-rolled field checks, except where
+// the format needs custom parsing (card expiry).
+//
+// No Apple Pay / Google Pay / Afterpay — QuickBooks Payments (as
 // integrated in lib/qbPayments.js / lib/qbPaymentsServer.js) is a raw
 // card-token API with no wallet support, unlike Square's Web Payments SDK.
-// The Payment section below is structured so an Express-checkout block
-// could slot in above the card box in the same spot checkout-square.jsx
-// uses, if a wallet integration is ever added for this processor — for now
-// there's nothing to show there, so it's simply omitted rather than left as
-// an empty placeholder.
 //
-// The card form here is plain <input> elements (see CardLogoBadge/
-// VisaLogo/etc. and the accordionBody below), not a third-party iframe —
-// QuickBooks' tokenizeCard() call goes straight from the browser to
-// Intuit's API with the raw field values, so there's no embedded SDK UI to
-// fight with. That sidesteps the entire class of styling bugs the Square
-// integration hit this session (double borders around an iframe, iOS
-// zoom-on-focus, a CSS conflict causing a generic tokenize error) — these
-// are the same <input> elements (same `input` style constant, same 16px
-// fontSize floor) already used for every other field on this page and
-// already proven not to interfere with anything.
+// The card form is plain <input> elements (see CardLogoBadge/VisaLogo/etc.
+// below), not a third-party iframe — QuickBooks' tokenizeCard() call goes
+// straight from the browser to Intuit's API with the raw field values, so
+// there's no embedded SDK UI to fight with, and no separate styling
+// surface that could conflict with anything on this page.
+//
+// Billing address is always the shipping address entered in Step 1 — no
+// separate billing-address toggle, matching the simplification already
+// made on this page; Step 2 just displays it as a read-only recap (like
+// the reference checkout's "Use my shipping address" checked state).
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 const EMPTY_CARD = { number: '', expiry: '', cvc: '', name: '' };
 
 // Flat optional add-on for reshipment/refund if a package is lost, damaged,
-// or stolen in transit. Kept identical to checkout.jsx.
+// or stolen in transit.
 const SHIPPING_PROTECTION_PRICE = 2.79;
 
 // Formats raw digits as "MM / YY" while typing; parseExpiry below splits it
@@ -117,8 +121,8 @@ function LeafIcon(props) {
   );
 }
 
-// VEIL's shipping-protection mark — the same open-flap box as ShipIcon
-// above, with a small shield-check badge overlapping its corner.
+// VEIL's shipping-protection mark — an open-flap box with a small
+// shield-check badge overlapping its corner.
 function BoxProtectionIcon(props) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -140,9 +144,17 @@ function InfoIcon(props) {
   );
 }
 
+function CheckIcon(props) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M4 12.5l5.5 5.5L20 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // Small, recognizable renderings of each network's real mark (not a
-// colored text pill) so the "we accept" row in the card box reads as
-// legitimate rather than placeholder-ish.
+// colored text pill) so the "we accept" row reads as legitimate rather
+// than placeholder-ish.
 function CardLogoBadge({ children, bg = '#fff' }) {
   return (
     <span
@@ -199,6 +211,61 @@ function DiscoverLogo() {
   );
 }
 
+// Standard IIN (card number prefix) ranges — used only to pick which logo
+// to show back to the shopper on the review step, not for any validation.
+function detectCardBrandLogo(rawNumber) {
+  const digits = rawNumber.replace(/\D/g, '');
+  if (/^4/.test(digits)) return VisaLogo;
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return MastercardLogo;
+  if (/^3[47]/.test(digits)) return AmexLogo;
+  if (/^6(011|5)/.test(digits)) return DiscoverLogo;
+  return VisaLogo;
+}
+
+const STEPS = [
+  { n: 1, label: 'Shipping' },
+  { n: 2, label: 'Payment' },
+  { n: 3, label: 'Review' },
+];
+
+function StepIndicator({ step, maxStepReached, onJump }) {
+  return (
+    <div style={stepIndicatorWrap}>
+      {STEPS.map(({ n, label }, i) => {
+        const done = n < step;
+        const active = n === step;
+        const reachable = n <= maxStepReached;
+        return (
+          <React.Fragment key={n}>
+            <button
+              type="button"
+              onClick={() => reachable && onJump(n)}
+              disabled={!reachable}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                padding: 0, cursor: reachable ? 'pointer' : 'default', fontFamily: T.sans,
+              }}
+            >
+              <span
+                style={{
+                  ...stepDot,
+                  ...(done ? stepDotDone : active ? stepDotActive : stepDotPending),
+                }}
+              >
+                {done ? <CheckIcon /> : n}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? T.ink : T.soft }}>
+                {label}
+              </span>
+            </button>
+            {i < STEPS.length - 1 && <span style={stepConnector} />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
@@ -210,8 +277,14 @@ export default function CheckoutPage() {
   const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — raw card fields (no third-party SDK/iframe); tokenized
-  // directly against Intuit at submit time via lib/qbPayments.js.
+  // directly against Intuit at final submit (Step 3) via lib/qbPayments.js.
   const [card, setCard] = React.useState(EMPTY_CARD);
+
+  // 3-step flow. maxStepReached gates the step indicator's jump-back
+  // links — a shopper can always go back to a step they've already
+  // completed, but can't skip ahead by clicking a future step's label.
+  const [step, setStep] = React.useState(1);
+  const [maxStepReached, setMaxStepReached] = React.useState(1);
 
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
@@ -227,12 +300,20 @@ export default function CheckoutPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Scrolled into view on every change so an error is never left off-screen
-  // — same fix applied to checkout.jsx, kept here for consistency even
-  // though this page has no wallet buttons of its own to cause it.
+  // Scrolled into view on every change so an error is never left off-screen.
   React.useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [error]);
+
+  // Every step change scrolls back to the top of the form — otherwise
+  // advancing from a long Step 1 (address fully filled in, scrolled down)
+  // to a short Step 2 can leave the shopper staring at empty space below
+  // the fold with no visible change.
+  React.useEffect(() => {
+    formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+  const formTopRef = React.useRef(null);
 
   React.useEffect(() => {
     if (appliedDiscount) setDiscountCode(appliedDiscount.code);
@@ -313,24 +394,46 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const goToStep = (n) => {
+    setError('');
+    setStep(n);
+    setMaxStepReached((m) => Math.max(m, n));
+  };
+
+  // Each step is real native <form> validation — required/type="email" on
+  // whichever fields are actually mounted for the current step (a step
+  // that isn't showing has its inputs removed from the DOM entirely, not
+  // just hidden, so the browser only ever validates what's on screen).
+  // Card expiry needs its own check since "MM / YY" isn't a native input
+  // type; everything else here just needs the step to have gotten this far
+  // for the browser's own required-field validation to have already passed.
+  const handleStepSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    const expiry = parseExpiry(card.expiry);
-    if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
-      setError('Fill in your card details to place your order.');
+    if (step === 1) {
+      goToStep(2);
       return;
     }
 
+    if (step === 2) {
+      const expiry = parseExpiry(card.expiry);
+      if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
+        setError('Fill in your card details to continue.');
+        return;
+      }
+      goToStep(3);
+      return;
+    }
+
+    // Step 3 — actually charge the card.
+    const expiry = parseExpiry(card.expiry);
     setSubmitting(true);
     try {
-      // Step 1: tokenize the card directly against Intuit's Payments Tokens
-      // API from the browser (lib/qbPayments.js) — the raw card number
-      // never reaches our own server. The token is single-use and tied to
-      // this exact card + billing address + CVC. Billing address is always
-      // the shipping address entered above — no separate billing-address
-      // toggle, matching the simplification made on checkout.jsx.
+      // Step A: tokenize the card directly against Intuit's Payments
+      // Tokens API from the browser (lib/qbPayments.js) — the raw card
+      // number never reaches our own server. The token is single-use and
+      // tied to this exact card + billing address + CVC.
       const token = await tokenizeCard(
         {
           number: card.number,
@@ -349,11 +452,11 @@ export default function CheckoutPage() {
 
       const purchaseEventId = generateEventId();
 
-      // Step 2: charge that token server-side (/api/qb-checkout).
+      // Step B: charge that token server-side (/api/qb-checkout).
       // lib/qbPaymentsServer.js's chargeCard() authorizes and captures
-      // funds synchronously within that one call — like Square, there's no
-      // redirect and no webhook, so fulfillment and the success-page
-      // navigation both happen right here.
+      // funds synchronously within that one call — no redirect, no
+      // webhook, so fulfillment and the success-page navigation both
+      // happen right here.
       const res = await fetch('/api/qb-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -390,6 +493,9 @@ export default function CheckoutPage() {
 
   if (!hydrated || cart.length === 0) return null;
 
+  const cardLast4 = card.number.replace(/\s+/g, '').slice(-4);
+  const CardBrandLogo = detectCardBrandLogo(card.number);
+
   return (
     <div>
       <header style={topbar}>
@@ -407,220 +513,320 @@ export default function CheckoutPage() {
       </button>
 
       <div className="checkout-grid" style={checkoutGrid}>
-        <form onSubmit={handleSubmit} style={formCol}>
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Contact</h2>
-            </div>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={handleEmailBlur}
-              style={input}
-              autoComplete="email"
-              required
-            />
-            <label style={checkboxLabel}>
-              <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
-              Email me with news and offers
-            </label>
-          </section>
+        <div style={formCol}>
+          <div ref={formTopRef} />
+          <StepIndicator step={step} maxStepReached={maxStepReached} onJump={goToStep} />
 
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Delivery</h2>
-            </div>
-            <select value="United States" readOnly style={{ ...input, marginBottom: 12, color: T.soft }}>
-              <option>United States</option>
-            </select>
-            <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={input} />
-          </section>
+          <form onSubmit={handleStepSubmit}>
+            {step === 1 && (
+              <section style={{ marginTop: 28 }}>
+                <h1 style={stepTitle}>Where should we send your order?</h1>
 
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Shipping method</h2>
-            </div>
-            {addressEntered ? (
-              <div style={shipMethod}>
-                <div>
-                  <div>Standard Shipping</div>
-                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>3–5 business days after order placed</div>
-                </div>
-                <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-              </div>
-            ) : (
-              <p style={{ color: T.soft, fontSize: 14 }}>Enter your delivery address to see shipping options.</p>
-            )}
-          </section>
-
-          <section style={{ marginTop: 16 }}>
-            <div style={protectionCard}>
-              <div style={protectionIconBox}>
-                <BoxProtectionIcon style={{ color: T.ink }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
-                  <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
-                    <InfoIcon style={{ color: T.soft }} />
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
-                <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShippingProtection((v) => !v)}
-                style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
-              >
-                {shippingProtection ? 'Remove' : 'Add'}
-              </button>
-            </div>
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
-            <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
-
-            <div style={paymentList}>
-              <div style={accordionRow}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <VisaLogo />
-                  <MastercardLogo />
-                  <AmexLogo />
-                  <DiscoverLogo />
-                </div>
-              </div>
-              <div style={accordionBody}>
-                <div style={{ position: 'relative' }}>
+                <div style={{ marginTop: 24 }}>
+                  <p style={fieldGroupLabel}>Contact</p>
                   <input
-                    placeholder="Card number"
-                    value={card.number}
-                    onChange={(e) => setCard({ ...card, number: e.target.value })}
-                    style={{ ...input, paddingRight: 42 }}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={handleEmailBlur}
+                    style={bigInput}
+                    autoComplete="email"
                     required
                   />
-                  <LockIconSolid style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                  <label style={checkboxLabel}>
+                    <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
+                    Email me with news and offers
+                  </label>
                 </div>
-                <div className="row-2" style={{ marginTop: 8 }}>
-                  <input
-                    placeholder="MM / YY"
-                    value={card.expiry}
-                    onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
-                    style={input}
-                    inputMode="numeric"
-                    autoComplete="cc-exp"
-                    required
-                  />
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      placeholder="Security code"
-                      value={card.cvc}
-                      onChange={(e) => setCard({ ...card, cvc: e.target.value })}
-                      style={{ ...input, paddingRight: 34 }}
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      required
-                    />
-                    <HelpIcon style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
-                  </div>
+
+                <div style={{ marginTop: 24 }}>
+                  <p style={fieldGroupLabel}>Shipping address</p>
+                  <select value="United States" readOnly style={{ ...bigInput, marginBottom: 10, color: T.soft }}>
+                    <option>United States</option>
+                  </select>
+                  <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={bigInput} />
                 </div>
-                <input
-                  placeholder="Name on card"
-                  value={card.name}
-                  onChange={(e) => setCard({ ...card, name: e.target.value })}
-                  style={{ ...input, marginTop: 8 }}
-                  autoComplete="cc-name"
-                  required
-                />
-              </div>
-            </div>
-          </section>
 
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Discount code</h2>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                placeholder="Discount code"
-                value={discountCode}
-                onChange={(e) => {
-                  setDiscountCode(e.target.value);
-                  if (appliedDiscount) clearDiscount();
-                  setDiscountMessage('');
-                }}
-                style={{ ...input, flex: 1 }}
-              />
-              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-            </div>
-            {discountMessage && (
-              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-            )}
-          </section>
-
-          {/* Sits right above the submit button, not at the top of the
-              form — a free-gift upsell competing for attention before a
-              shopper has even started filling in their info was more
-              distracting than persuasive; here it's the last thing they
-              see before placing the order. Matches checkout.jsx. */}
-          {!tasselExpired && (
-            <section style={{ marginTop: 24 }}>
-              <div style={tasselCard}>
-                <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={tasselImgWrap}>
-                    <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
-                      <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
-                        ${TASSEL_GIFT.price.toFixed(2)}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
+                {addressEntered && (
+                  <div style={{ marginTop: 20 }}>
+                    <p style={fieldGroupLabel}>Shipping method</p>
+                    <div style={shipMethod}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>Standard Shipping</div>
+                        <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>3–5 business days after order placed</div>
+                      </div>
+                      <span style={{ fontWeight: 700 }}>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
                     </div>
                   </div>
-                  {hasTassel ? (
-                    <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
-                  ) : (
-                    <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
+                )}
+
+                <div style={{ marginTop: 16 }}>
+                  <div style={protectionCard}>
+                    <div style={protectionIconBox}>
+                      <BoxProtectionIcon style={{ color: T.ink }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
+                        <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
+                          <InfoIcon style={{ color: T.soft }} />
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
+                      <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShippingProtection((v) => !v)}
+                      style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
+                    >
+                      {shippingProtection ? 'Remove' : 'Add'}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <p ref={errorRef} style={errorText}>{error}</p>}
+
+                <button type="submit" style={{ ...bigButton, marginTop: 24 }}>
+                  Continue to payment
+                </button>
+              </section>
+            )}
+
+            {step === 2 && (
+              <section style={{ marginTop: 28 }}>
+                <h1 style={stepTitle}>How do you want to pay?</h1>
+                <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>All transactions are secure and encrypted.</p>
+
+                <div style={{ ...paymentList, marginTop: 20 }}>
+                  <div style={accordionRow}>
+                    <span style={{ fontWeight: 700, fontSize: 16 }}>Credit or Debit Card</span>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <VisaLogo />
+                      <MastercardLogo />
+                      <AmexLogo />
+                      <DiscoverLogo />
+                    </div>
+                  </div>
+                  <div style={accordionBody}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        placeholder="Card number"
+                        value={card.number}
+                        onChange={(e) => setCard({ ...card, number: e.target.value })}
+                        style={{ ...bigInput, paddingRight: 46 }}
+                        inputMode="numeric"
+                        autoComplete="cc-number"
+                        required
+                      />
+                      <LockIconSolid style={{ position: 'absolute', right: 18, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                    </div>
+                    <div className="row-2" style={{ marginTop: 10 }}>
+                      <input
+                        placeholder="MM / YY"
+                        value={card.expiry}
+                        onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
+                        style={bigInput}
+                        inputMode="numeric"
+                        autoComplete="cc-exp"
+                        required
+                      />
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          placeholder="Security code"
+                          value={card.cvc}
+                          onChange={(e) => setCard({ ...card, cvc: e.target.value })}
+                          style={{ ...bigInput, paddingRight: 38 }}
+                          inputMode="numeric"
+                          autoComplete="cc-csc"
+                          required
+                        />
+                        <HelpIcon style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                      </div>
+                    </div>
+                    <input
+                      placeholder="Name on card"
+                      value={card.name}
+                      onChange={(e) => setCard({ ...card, name: e.target.value })}
+                      style={{ ...bigInput, marginTop: 10 }}
+                      autoComplete="cc-name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 20 }}>
+                  <p style={fieldGroupLabel}>Billing address</p>
+                  <div style={billingRecap}>
+                    <CheckIcon style={{ color: T.ink, flexShrink: 0, marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>Same as shipping address</div>
+                      <div style={{ color: T.soft, fontSize: 13, lineHeight: 1.6 }}>
+                        {shipping.firstName} {shipping.lastName}<br />
+                        {shipping.address}{shipping.apt ? `, ${shipping.apt}` : ''}<br />
+                        {shipping.city}, {shipping.state} {shipping.zip}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {error && <p ref={errorRef} style={errorText}>{error}</p>}
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                  <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary}>
+                    Back
+                  </button>
+                  <button type="submit" style={{ ...bigButton, flex: 1 }}>
+                    Review order
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {step === 3 && (
+              <section style={{ marginTop: 28 }}>
+                <h1 style={stepTitle}>Ready to place your order?</h1>
+                <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>Let’s make sure everything’s right.</p>
+
+                <div style={{ marginTop: 24 }}>
+                  <div style={reviewRowHead}>
+                    <span style={fieldGroupLabel}>Shipping details</span>
+                    <button type="button" onClick={() => goToStep(1)} style={changeLink}>Change</button>
+                  </div>
+                  <div style={reviewCard}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{shipping.firstName} {shipping.lastName}</div>
+                    <div style={{ color: T.soft, fontSize: 13, lineHeight: 1.6 }}>
+                      {shipping.address}{shipping.apt ? `, ${shipping.apt}` : ''}<br />
+                      {shipping.city}, {shipping.state} {shipping.zip}<br />
+                      {email}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <div style={reviewRowHead}>
+                    <span style={fieldGroupLabel}>Payment details</span>
+                    <button type="button" onClick={() => goToStep(2)} style={changeLink}>Change</button>
+                  </div>
+                  <div style={reviewCard}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <CardBrandLogo />
+                      <span style={{ fontWeight: 700 }}>Card ending in {cardLast4 || '••••'}</span>
+                    </div>
+                    <div style={{ color: T.soft, fontSize: 13, marginTop: 8 }}>Billing address same as shipping</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 20 }}>
+                  <p style={fieldGroupLabel}>Discount code</p>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input
+                      placeholder="Discount code"
+                      value={discountCode}
+                      onChange={(e) => {
+                        setDiscountCode(e.target.value);
+                        if (appliedDiscount) clearDiscount();
+                        setDiscountMessage('');
+                      }}
+                      style={{ ...bigInput, flex: 1 }}
+                    />
+                    <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
+                  </div>
+                  {discountMessage && (
+                    <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
                   )}
                 </div>
-                {!hasTassel && (
-                  <p style={tasselTimer}>
-                    Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
-                  </p>
+
+                {!tasselExpired && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={tasselCard}>
+                      <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
+                      <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                        <div style={tasselImgWrap}>
+                          <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
+                            <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
+                              ${TASSEL_GIFT.price.toFixed(2)}
+                            </span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
+                          </div>
+                        </div>
+                        {hasTassel ? (
+                          <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
+                        ) : (
+                          <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
+                        )}
+                      </div>
+                      {!hasTassel && (
+                        <p style={tasselTimer}>
+                          Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </div>
-            </section>
-          )}
 
-          {error && <p ref={errorRef} style={errorText}>{error}</p>}
+                <div style={{ marginTop: 20 }}>
+                  <p style={fieldGroupLabel}>Your total</p>
+                  <div style={reviewCard}>
+                    <div style={summaryRow}>
+                      <span style={{ color: T.soft }}>Subtotal</span>
+                      <span>${subtotal.toFixed(2)}</span>
+                    </div>
+                    {discountTotal > 0 && (
+                      <div style={summaryRow}>
+                        <span style={{ color: T.soft }}>Discount</span>
+                        <span>−${discountTotal.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {codeDiscountAmount > 0 && (
+                      <div style={summaryRow}>
+                        <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
+                        <span>−${codeDiscountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={summaryRow}>
+                      <span style={{ color: T.soft }}>Shipping</span>
+                      <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+                    </div>
+                    {shippingProtection && (
+                      <div style={summaryRow}>
+                        <span style={{ color: T.soft }}>Shipping Protection</span>
+                        <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 12, marginTop: 4 }}>
+                      <span style={{ fontFamily: T.sans, fontSize: 17, fontWeight: 700 }}>Total</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 20, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting ? 0.6 : 1,
-            }}
-          >
-            {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
-          </button>
-          <div style={secureNote}>
-            <LockIcon />
-            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
-          </div>
-          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by QuickBooks
-          </p>
-        </form>
+                {error && <p ref={errorRef} style={errorText}>{error}</p>}
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                  <button type="button" onClick={() => goToStep(2)} style={bigButtonSecondary} disabled={submitting}>
+                    Back
+                  </button>
+                  <button type="submit" disabled={submitting} style={{ ...bigButton, flex: 1, opacity: submitting ? 0.6 : 1 }}>
+                    {submitting ? 'Processing…' : `Place your order — $${grandTotal.toFixed(2)}`}
+                  </button>
+                </div>
+                <div style={secureNote}>
+                  <LockIcon />
+                  <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
+                </div>
+                <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
+                  Payments securely processed by QuickBooks
+                </p>
+              </section>
+            )}
+          </form>
+        </div>
 
         <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
           <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
@@ -669,23 +875,6 @@ export default function CheckoutPage() {
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <input
-              placeholder="Discount code"
-              value={discountCode}
-              onChange={(e) => {
-                setDiscountCode(e.target.value);
-                if (appliedDiscount) clearDiscount();
-                setDiscountMessage('');
-              }}
-              style={{ ...input, flex: 1 }}
-            />
-            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-          </div>
-          {discountMessage && (
-            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-          )}
         </aside>
       </div>
 
@@ -760,27 +949,58 @@ const summaryToggle = {
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
 const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
-const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
-const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
-const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0 };
-// fontSize must stay at 16px or higher — below that, iOS Safari auto-zooms
-// the whole page in when a shopper taps into any of these fields, same fix
-// as checkout.jsx. This is also what the card number/expiry/CVC/name
-// fields below use directly (no separate iframe-owned style to keep in
-// sync), so the zoom fix and every other input's styling automatically
-// apply to the card form too.
-const input = {
-  width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
+const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
+
+// Large, readable step heading — replaces the old small-caps section
+// titles for the 3-step flow's single big question per screen.
+const stepTitle = { fontFamily: T.sans, fontWeight: 800, fontSize: 28, margin: 0, color: T.ink, lineHeight: 1.2 };
+const fieldGroupLabel = {
+  fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
 };
-const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
+
+const stepIndicatorWrap = { display: 'flex', alignItems: 'center', marginTop: 4 };
+const stepDot = {
+  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 12, fontWeight: 700, flexShrink: 0,
+};
+const stepDotDone = { background: T.ink, color: T.white };
+const stepDotActive = { background: T.ink, color: T.white };
+const stepDotPending = { background: T.white, color: T.soft, border: `1.5px solid ${T.line}` };
+const stepConnector = { flex: '0 0 24px', height: 1, background: T.line, margin: '0 6px' };
+
+// Bigger than the old `input` (58px vs 44px tall, 14px radius vs 4px) —
+// "large buttons and forms, easy to press on phone" per request. fontSize
+// stays 16px or higher — below that, iOS Safari auto-zooms the whole page
+// in when a shopper taps into any of these fields.
+const bigInput = {
+  width: '100%', height: 58, padding: '0 18px', border: `1.5px solid ${T.line}`, background: T.white,
+  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 14,
+};
+const bigButton = {
+  ...S.btnFill, width: '100%', height: 60, borderRadius: 14, justifyContent: 'center',
+  fontSize: 15, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+const bigButtonSecondary = {
+  ...S.btnOutline, height: 60, borderRadius: 14, justifyContent: 'center', padding: '0 26px',
+  fontSize: 15, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 13, color: T.soft };
+const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 14, background: T.white, overflow: 'hidden' };
 const accordionRow = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.white,
+  padding: '18px 18px', borderBottom: `1px solid ${T.line}`, background: T.white,
 };
-const accordionBody = { padding: '14px 14px 18px', background: T.white };
-const tasselCard = { border: `1px solid ${T.line}`, background: T.white, padding: 16 };
+const accordionBody = { padding: '16px 18px 20px', background: T.white };
+const billingRecap = {
+  display: 'flex', gap: 12, padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14,
+};
+const reviewRowHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 };
+const changeLink = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.sans,
+  fontSize: 12, fontWeight: 700, textDecoration: 'underline', color: T.ink,
+};
+const reviewCard = { padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14 };
+const tasselCard = { border: `1px solid ${T.line}`, borderRadius: 14, background: T.white, padding: 16 };
 const tasselImgWrap = {
   width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,
   border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -788,17 +1008,17 @@ const tasselImgWrap = {
 const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
 const protectionCard = {
   display: 'flex', alignItems: 'center', gap: 14, padding: 14,
-  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
+  border: `1px solid ${T.line}`, borderRadius: 14, background: T.white,
 };
 const protectionIconBox = {
   width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
+  border: `1px solid ${T.line}`, borderRadius: 10, background: T.white,
 };
 const shipMethod = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
-  border: `1px solid ${T.ink}`, fontSize: 14,
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px',
+  border: `1.5px solid ${T.ink}`, borderRadius: 14, fontSize: 14,
 };
-const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
+const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 16 };
 const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0' };
 const summaryImgWrap = { position: 'relative', width: 48, height: 48, flexShrink: 0, overflow: 'hidden', border: `1px solid ${T.line}`, background: T.white };
 const qtyBadge = {
