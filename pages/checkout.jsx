@@ -590,7 +590,7 @@ export default function CheckoutPage() {
                 whole section (heading + OR divider) stays hidden the same
                 way until at least one of them is. Sits above Afterpay per
                 request, so shoppers see Apple/Google Pay first. */}
-            <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginBottom: 14 }}>
+            <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginBottom: 10 }}>
               <div style={{ display: 'grid', gap: 10 }}>
                 <div style={{ display: appleAvailable ? 'block' : 'none' }}>
                   <div id="apple-pay-button" style={walletButtonContainer} />
@@ -599,17 +599,14 @@ export default function CheckoutPage() {
                   <div id="google-pay-button" style={walletButtonContainer} />
                 </div>
               </div>
-              <div style={orDivider}>
-                <span style={orDividerLine} />
-                <span style={orDividerText}>OR</span>
-                <span style={orDividerLine} />
-              </div>
             </div>
 
             {/* Afterpay sits right above the card box — same
                 email/shipping validation via handleWalletPay, just
                 presented as an alternative to the card form specifically
-                instead of grouped with the other wallets. */}
+                instead of grouped with the other wallets. Only one "OR"
+                divider total, after Afterpay and before Credit card — not
+                also between the wallet buttons and Afterpay. */}
             <div style={{ display: afterpayAvailable ? 'block' : 'none', marginBottom: 14 }}>
               <div id="afterpay-button" style={walletButtonContainer} />
               <div style={orDivider}>
