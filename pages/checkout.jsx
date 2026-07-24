@@ -508,38 +508,6 @@ export default function CheckoutPage() {
 
       <div className="checkout-grid" style={checkoutGrid}>
         <form onSubmit={handleSubmit} style={formCol}>
-          {!tasselExpired && (
-            <section>
-              <div style={tasselCard}>
-                <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={tasselImgWrap}>
-                    <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
-                      <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
-                        ${TASSEL_GIFT.price.toFixed(2)}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
-                    </div>
-                  </div>
-                  {hasTassel ? (
-                    <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
-                  ) : (
-                    <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
-                  )}
-                </div>
-                {!hasTassel && (
-                  <p style={tasselTimer}>
-                    Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
-                  </p>
-                )}
-              </div>
-            </section>
-          )}
-
           <section style={{ marginTop: 24 }}>
             <div style={sectionHead}>
               <h2 style={sectionTitle}>Contact</h2>
@@ -701,6 +669,43 @@ export default function CheckoutPage() {
               <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
             )}
           </section>
+
+          {/* Moved to sit right above the submit button, not at the top of
+              the form — a free-gift upsell competing for attention before
+              a shopper has even started filling in their info was more
+              distracting than persuasive; here it's the last thing they
+              see before placing the order. */}
+          {!tasselExpired && (
+            <section style={{ marginTop: 24 }}>
+              <div style={tasselCard}>
+                <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <div style={tasselImgWrap}>
+                    <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
+                      <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
+                        ${TASSEL_GIFT.price.toFixed(2)}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
+                    </div>
+                  </div>
+                  {hasTassel ? (
+                    <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
+                  ) : (
+                    <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
+                  )}
+                </div>
+                {!hasTassel && (
+                  <p style={tasselTimer}>
+                    Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
 
           {error && <p style={errorText}>{error}</p>}
 
