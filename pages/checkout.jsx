@@ -222,50 +222,6 @@ function detectCardBrandLogo(rawNumber) {
   return VisaLogo;
 }
 
-const STEPS = [
-  { n: 1, label: 'Shipping' },
-  { n: 2, label: 'Payment' },
-  { n: 3, label: 'Review' },
-];
-
-function StepIndicator({ step, maxStepReached, onJump }) {
-  return (
-    <div style={stepIndicatorWrap}>
-      {STEPS.map(({ n, label }, i) => {
-        const done = n < step;
-        const active = n === step;
-        const reachable = n <= maxStepReached;
-        return (
-          <React.Fragment key={n}>
-            <button
-              type="button"
-              onClick={() => reachable && onJump(n)}
-              disabled={!reachable}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
-                padding: 0, cursor: reachable ? 'pointer' : 'default', fontFamily: T.sans,
-              }}
-            >
-              <span
-                style={{
-                  ...stepDot,
-                  ...(done ? stepDotDone : active ? stepDotActive : stepDotPending),
-                }}
-              >
-                {done ? <CheckIcon /> : n}
-              </span>
-              <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? T.ink : T.soft }}>
-                {label}
-              </span>
-            </button>
-            {i < STEPS.length - 1 && <span style={stepConnector} />}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
@@ -280,16 +236,13 @@ export default function CheckoutPage() {
   // directly against Intuit at final submit (Step 3) via lib/qbPayments.js.
   const [card, setCard] = React.useState(EMPTY_CARD);
 
-  // 3-step flow. maxStepReached gates the step indicator's jump-back
-  // links — a shopper can always go back to a step they've already
-  // completed, but can't skip ahead by clicking a future step's label.
+  // 3-step flow (Shipping -> Payment -> Review).
   const [step, setStep] = React.useState(1);
-  const [maxStepReached, setMaxStepReached] = React.useState(1);
 
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
-  const [summaryOpen, setSummaryOpen] = React.useState(false);
+  const [receiptOpen, setReceiptOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
   const errorRef = React.useRef(null);
@@ -397,7 +350,6 @@ export default function CheckoutPage() {
   const goToStep = (n) => {
     setError('');
     setStep(n);
-    setMaxStepReached((m) => Math.max(m, n));
   };
 
   // Each step is real native <form> validation — required/type="email" on
@@ -498,26 +450,102 @@ export default function CheckoutPage() {
 
   return (
     <div>
-      <header style={topbar}>
+      <header className="desktop-topbar" style={topbar}>
         <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 64, textDecoration: 'none' }}>
           <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
         </Link>
       </header>
 
-      <button className="summary-toggle" style={summaryToggle} onClick={() => setSummaryOpen((o) => !o)}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>{summaryOpen ? 'Hide' : 'Show'} order summary</span>
-          <span style={{ fontSize: 10 }}>{summaryOpen ? '▲' : '▼'}</span>
-        </span>
-        <span style={{ fontFamily: T.sans, fontSize: 17 }}>${grandTotal.toFixed(2)}</span>
-      </button>
+      {/* Mobile-only compact header — small logo left, total right. White
+          background (not the old T.paper toggle bar, which read as an
+          off-white/gray band against the rest of the page). Tapping the
+          total opens the itemized receipt popup below instead of the old
+          inline-collapsing order summary, since that popup now covers the
+          same job in less space. */}
+      <header className="mobile-topbar" style={mobileTopbar}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 16, width: 'auto' }} />
+        </Link>
+        <button type="button" onClick={() => setReceiptOpen(true)} style={mobileTotalButton}>
+          <span style={{ fontFamily: T.sans, fontSize: 16, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
+          <span style={{ fontSize: 10, color: T.soft }}>▾</span>
+        </button>
+      </header>
+
+      {receiptOpen && (
+        <div style={receiptOverlay} onClick={() => setReceiptOpen(false)}>
+          <div style={receiptSheet} onClick={(e) => e.stopPropagation()}>
+            <div style={receiptHead}>
+              <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 16 }}>Order summary</span>
+              <button type="button" onClick={() => setReceiptOpen(false)} style={receiptClose} aria-label="Close">✕</button>
+            </div>
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', padding: '4px 20px' }}>
+              {cart.map((item) => (
+                <div key={item.id} style={summaryItem}>
+                  <div style={summaryImgWrap}>
+                    <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+                    <span style={qtyBadge}>{item.quantity}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14 }}>{item.name}</div>
+                    <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
+                  </div>
+                  <div style={{ fontSize: 14 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '4px 20px 24px' }}>
+              <div style={summaryRow}>
+                <span style={{ color: T.soft }}>Subtotal</span>
+                <span>${subtotal.toFixed(2)}</span>
+              </div>
+              {discountTotal > 0 && (
+                <div style={summaryRow}>
+                  <span style={{ color: T.soft }}>Discount</span>
+                  <span>−${discountTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {codeDiscountAmount > 0 && (
+                <div style={summaryRow}>
+                  <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
+                  <span>−${codeDiscountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={summaryRow}>
+                <span style={{ color: T.soft }}>Shipping</span>
+                <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
+              </div>
+              {shippingProtection && (
+                <div style={summaryRow}>
+                  <span style={{ color: T.soft }}>Shipping Protection</span>
+                  <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
+                <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
+                <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="checkout-grid" style={checkoutGrid}>
         <div style={formCol}>
           <div ref={formTopRef} />
-          <StepIndicator step={step} maxStepReached={maxStepReached} onJump={goToStep} />
 
-          <form onSubmit={handleStepSubmit}>
+          <form
+            onSubmit={handleStepSubmit}
+            // Defense in depth alongside the discount-code field's own
+            // Enter handling above: on Step 3 specifically, Enter pressed
+            // anywhere that isn't the actual "Place your order" button
+            // must never submit — that's a real charge, not a step
+            // advance like Steps 1/2. Steps 1/2 keep normal Enter-to-
+            // advance behavior; only Step 3's real-money submit is guarded.
+            onKeyDown={(e) => {
+              if (step === 3 && e.key === 'Enter' && e.target.type !== 'submit') e.preventDefault();
+            }}
+          >
             {step === 1 && (
               <section style={{ marginTop: 28 }}>
                 <h1 style={stepTitle}>Where should we send your order?</h1>
@@ -729,6 +757,20 @@ export default function CheckoutPage() {
                         if (appliedDiscount) clearDiscount();
                         setDiscountMessage('');
                       }}
+                      // Pressing Enter in a text field inside a <form> triggers
+                      // the browser's native submit-on-Enter behavior — on this
+                      // step that means firing the real charge (handleStepSubmit)
+                      // with whatever grandTotal was already computed, before
+                      // handleApplyDiscount's async validation call has even
+                      // started, let alone updated the total. Confirmed live: a
+                      // discount code entered then Enter-submitted charged the
+                      // full, non-discounted amount. Enter here now applies the
+                      // code instead, same as clicking Apply.
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        handleApplyDiscount();
+                      }}
                       style={{ ...bigInput, flex: 1 }}
                     />
                     <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
@@ -828,7 +870,7 @@ export default function CheckoutPage() {
           </form>
         </div>
 
-        <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
+        <aside className="order-summary" style={summaryCol}>
           <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
             {cart.map((item) => (
               <div key={item.id} style={summaryItem}>
@@ -907,7 +949,7 @@ export default function CheckoutPage() {
       <style jsx>{`
         :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 10px; }
-        .summary-toggle { display: none; }
+        .mobile-topbar { display: none; }
         .checkout-grid { grid-template-columns: 1.35fr 1fr; }
         .reassurance-grid { grid-template-columns: repeat(4, 1fr); }
         @media (max-width: 860px) {
@@ -928,9 +970,9 @@ export default function CheckoutPage() {
         }
         @media (max-width: 860px) {
           .checkout-grid { grid-template-columns: 1fr; }
-          .summary-toggle { display: flex; }
-          .order-summary { display: none; order: -1; border-bottom: 1px solid ${T.line}; }
-          .order-summary.open { display: block; }
+          .desktop-topbar { display: none; }
+          .mobile-topbar { display: flex; }
+          .order-summary { display: none; }
         }
         @media (max-width: 520px) {
           :global(.row-3) { grid-template-columns: 1fr; }
@@ -941,10 +983,36 @@ export default function CheckoutPage() {
 }
 
 const topbar = { borderBottom: `1px solid ${T.line}`, textAlign: 'center' };
-const summaryToggle = {
-  width: '100%', border: 'none', borderBottom: `1px solid ${T.line}`, background: T.paper,
-  padding: '16px 24px', alignItems: 'center', justifyContent: 'space-between',
-  cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
+// Compact mobile-only header — small logo left, total right (tap to open
+// the itemized receipt popup). White background explicitly, not T.paper —
+// the old T.paper toggle bar this replaces was reading as an off-white/
+// gray band against the rest of the page on mobile.
+// display is deliberately NOT set here — inline styles always beat CSS
+// rules, so if 'none' were set inline here, the <style jsx> media query
+// below meant to show this at mobile widths could never override it.
+// display: none/flex lives entirely in that stylesheet instead.
+const mobileTopbar = {
+  alignItems: 'center', justifyContent: 'space-between',
+  padding: '14px 20px', borderBottom: `1px solid ${T.line}`, background: T.white,
+};
+const mobileTotalButton = {
+  display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+  padding: 0, cursor: 'pointer', color: T.ink,
+};
+const receiptOverlay = {
+  position: 'fixed', inset: 0, background: 'rgba(22,20,15,0.4)', zIndex: 50,
+  display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+};
+const receiptSheet = {
+  width: '100%', maxWidth: 480, background: T.white, borderRadius: '20px 20px 0 0',
+  maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+};
+const receiptHead = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  padding: '18px 20px', borderBottom: `1px solid ${T.line}`,
+};
+const receiptClose = {
+  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: T.soft, padding: 4,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
 const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
@@ -957,16 +1025,6 @@ const stepTitle = { fontFamily: T.sans, fontWeight: 800, fontSize: 28, margin: 0
 const fieldGroupLabel = {
   fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
 };
-
-const stepIndicatorWrap = { display: 'flex', alignItems: 'center', marginTop: 4 };
-const stepDot = {
-  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontSize: 12, fontWeight: 700, flexShrink: 0,
-};
-const stepDotDone = { background: T.ink, color: T.white };
-const stepDotActive = { background: T.ink, color: T.white };
-const stepDotPending = { background: T.white, color: T.soft, border: `1.5px solid ${T.line}` };
-const stepConnector = { flex: '0 0 24px', height: 1, background: T.line, margin: '0 6px' };
 
 // Bigger than the old `input` (58px vs 44px tall, 14px radius vs 4px) —
 // "large buttons and forms, easy to press on phone" per request. fontSize
