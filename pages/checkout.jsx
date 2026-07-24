@@ -156,12 +156,25 @@ export default function CheckoutPage() {
   const [summaryOpen, setSummaryOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
+  const errorRef = React.useRef(null);
   const [tasselSeconds, setTasselSeconds] = React.useState(5 * 60);
 
   React.useEffect(() => {
     const t = setInterval(() => setTasselSeconds((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // The error message renders once, near the "Place order" button at the
+  // bottom of the form — fine for card errors (the shopper is already right
+  // there), but Apple Pay/Google Pay/Afterpay live mid-page in the Payment
+  // section. A validation failure from one of those buttons (e.g. missing
+  // shipping address) used to set this same error with no visible reaction
+  // near the button that was actually clicked — a shopper scrolled up at
+  // Payment would see nothing happen at all. Scrolling it into view on every
+  // change fixes that regardless of where on the page the error originated.
+  React.useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   React.useEffect(() => {
     if (appliedDiscount) setDiscountCode(appliedDiscount.code);
@@ -696,7 +709,7 @@ export default function CheckoutPage() {
             </section>
           )}
 
-          {error && <p style={errorText}>{error}</p>}
+          {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
           <button
             type="submit"

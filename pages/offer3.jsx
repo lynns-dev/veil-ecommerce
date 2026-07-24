@@ -144,7 +144,19 @@ export default function Offer3Page() {
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
+  const errorRef = React.useRef(null);
   const [discountApplied, setDiscountApplied] = React.useState(false);
+
+  // The error message renders once, near the "Place order" button at the
+  // bottom of the form — fine for card errors (the shopper is already right
+  // there), but Apple Pay/Google Pay/Afterpay live mid-page in the Payment
+  // section. A validation failure from one of those buttons (e.g. missing
+  // shipping address) used to set this same error with no visible reaction
+  // near the button that was actually clicked. Scrolling it into view on
+  // every change fixes that regardless of where on the page it originated.
+  React.useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   const product = getProductById(selectedId);
 
@@ -606,7 +618,7 @@ export default function Offer3Page() {
             </div>
           </section>
 
-          {error && <p style={errorText}>{error}</p>}
+          {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
           <button className="cta-3d" type="submit" disabled={submitting || !squareReady} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting || !squareReady ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
