@@ -5,6 +5,13 @@ export default function Document() {
     <Html lang="en">
       <Head>
         <link rel="icon" href="/images/veil-favicon.png" type="image/png" />
+        {/* Without this, a phone/browser set to dark mode auto-styles
+            native, unstyled form controls (the checkout state <select>,
+            checkboxes) with dark backgrounds and light text — independent
+            of the page's own explicitly light-themed CSS — since nothing
+            here otherwise tells the browser this page only supports a
+            light color scheme. */}
+        <meta name="color-scheme" content="light" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -15,7 +22,7 @@ export default function Document() {
           dangerouslySetInnerHTML={{
             __html: `
           *{margin:0;padding:0;box-sizing:border-box}
-          html{scroll-behavior:smooth}
+          html{scroll-behavior:smooth;color-scheme:light}
           body{background:#FCFBF7;color:#16140F;font-family:'Hanken Grotesk',sans-serif;font-weight:400;line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
           a{color:inherit;text-decoration:none}
           img{display:block;max-width:100%}

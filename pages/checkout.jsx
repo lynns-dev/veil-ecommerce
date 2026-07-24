@@ -222,6 +222,50 @@ function detectCardBrandLogo(rawNumber) {
   return VisaLogo;
 }
 
+const STEPS = [
+  { n: 1, label: 'Shipping' },
+  { n: 2, label: 'Payment' },
+  { n: 3, label: 'Review' },
+];
+
+function StepIndicator({ step, maxStepReached, onJump }) {
+  return (
+    <div style={stepIndicatorWrap}>
+      {STEPS.map(({ n, label }, i) => {
+        const done = n < step;
+        const active = n === step;
+        const reachable = n <= maxStepReached;
+        return (
+          <React.Fragment key={n}>
+            <button
+              type="button"
+              onClick={() => reachable && onJump(n)}
+              disabled={!reachable}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                padding: 0, cursor: reachable ? 'pointer' : 'default', fontFamily: T.sans,
+              }}
+            >
+              <span
+                style={{
+                  ...stepDot,
+                  ...(done ? stepDotDone : active ? stepDotActive : stepDotPending),
+                }}
+              >
+                {done ? <CheckIcon /> : n}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? T.ink : T.soft }}>
+                {label}
+              </span>
+            </button>
+            {i < STEPS.length - 1 && <span style={stepConnector} />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
@@ -236,8 +280,12 @@ export default function CheckoutPage() {
   // directly against Intuit at final submit (Step 3) via lib/qbPayments.js.
   const [card, setCard] = React.useState(EMPTY_CARD);
 
-  // 3-step flow (Shipping -> Payment -> Review).
+  // 3-step flow (Shipping -> Payment -> Review). maxStepReached gates the
+  // step indicator's jump-back links — a shopper can always go back to a
+  // step they've already completed, but can't skip ahead by clicking a
+  // future step's label.
   const [step, setStep] = React.useState(1);
+  const [maxStepReached, setMaxStepReached] = React.useState(1);
 
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
@@ -350,6 +398,7 @@ export default function CheckoutPage() {
   const goToStep = (n) => {
     setError('');
     setStep(n);
+    setMaxStepReached((m) => Math.max(m, n));
   };
 
   // Each step is real native <form> validation — required/type="email" on
@@ -467,7 +516,7 @@ export default function CheckoutPage() {
           <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 16, width: 'auto' }} />
         </Link>
         <button type="button" onClick={() => setReceiptOpen(true)} style={mobileTotalButton}>
-          <span style={{ fontFamily: T.sans, fontSize: 16, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
+          <span style={{ fontFamily: T.sans, fontSize: 16, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 3 }}>${grandTotal.toFixed(2)}</span>
           <span style={{ fontSize: 10, color: T.soft }}>▾</span>
         </button>
       </header>
@@ -533,6 +582,7 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <div style={formCol}>
           <div ref={formTopRef} />
+          <StepIndicator step={step} maxStepReached={maxStepReached} onJump={goToStep} />
 
           <form
             onSubmit={handleStepSubmit}
@@ -699,6 +749,40 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                <div style={{ marginTop: 20 }}>
+                  <p style={fieldGroupLabel}>Discount code</p>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input
+                      placeholder="Discount code"
+                      value={discountCode}
+                      onChange={(e) => {
+                        setDiscountCode(e.target.value);
+                        if (appliedDiscount) clearDiscount();
+                        setDiscountMessage('');
+                      }}
+                      // Pressing Enter in a text field inside a <form> triggers
+                      // the browser's native submit-on-Enter behavior — on this
+                      // step that means firing the real charge (handleStepSubmit)
+                      // with whatever grandTotal was already computed, before
+                      // handleApplyDiscount's async validation call has even
+                      // started, let alone updated the total. Confirmed live: a
+                      // discount code entered then Enter-submitted charged the
+                      // full, non-discounted amount. Enter here now applies the
+                      // code instead, same as clicking Apply.
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        handleApplyDiscount();
+                      }}
+                      style={{ ...bigInput, flex: 1 }}
+                    />
+                    <button type="button" style={smallOutlineButton} onClick={handleApplyDiscount}>Apply</button>
+                  </div>
+                  {discountMessage && (
+                    <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+                  )}
+                </div>
+
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
@@ -746,40 +830,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div style={{ marginTop: 20 }}>
-                  <p style={fieldGroupLabel}>Discount code</p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <input
-                      placeholder="Discount code"
-                      value={discountCode}
-                      onChange={(e) => {
-                        setDiscountCode(e.target.value);
-                        if (appliedDiscount) clearDiscount();
-                        setDiscountMessage('');
-                      }}
-                      // Pressing Enter in a text field inside a <form> triggers
-                      // the browser's native submit-on-Enter behavior — on this
-                      // step that means firing the real charge (handleStepSubmit)
-                      // with whatever grandTotal was already computed, before
-                      // handleApplyDiscount's async validation call has even
-                      // started, let alone updated the total. Confirmed live: a
-                      // discount code entered then Enter-submitted charged the
-                      // full, non-discounted amount. Enter here now applies the
-                      // code instead, same as clicking Apply.
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter') return;
-                        e.preventDefault();
-                        handleApplyDiscount();
-                      }}
-                      style={{ ...bigInput, flex: 1 }}
-                    />
-                    <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-                  </div>
-                  {discountMessage && (
-                    <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-                  )}
-                </div>
-
                 {!tasselExpired && (
                   <div style={{ marginTop: 20 }}>
                     <div style={tasselCard}>
@@ -800,7 +850,7 @@ export default function CheckoutPage() {
                         {hasTassel ? (
                           <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
                         ) : (
-                          <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
+                          <button type="button" onClick={handleAddTassel} style={smallOutlineButton}>Add to cart</button>
                         )}
                       </div>
                       {!hasTassel && (
@@ -1022,9 +1072,21 @@ const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'cen
 // Large, readable step heading — replaces the old small-caps section
 // titles for the 3-step flow's single big question per screen.
 const stepTitle = { fontFamily: T.sans, fontWeight: 800, fontSize: 28, margin: 0, color: T.ink, lineHeight: 1.2 };
+// letterSpacing dropped from 0.12em to 0.04em — 0.12em on 11px uppercase
+// text read as too spread out, especially on narrow mobile widths.
 const fieldGroupLabel = {
-  fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
+  fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
 };
+
+const stepIndicatorWrap = { display: 'flex', alignItems: 'center', marginTop: 4 };
+const stepDot = {
+  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 12, fontWeight: 700, flexShrink: 0,
+};
+const stepDotDone = { background: T.ink, color: T.white };
+const stepDotActive = { background: T.ink, color: T.white };
+const stepDotPending = { background: T.white, color: T.soft, border: `1.5px solid ${T.line}` };
+const stepConnector = { flex: '0 0 24px', height: 1, background: T.line, margin: '0 6px' };
 
 // Bigger than the old `input` (58px vs 44px tall, 14px radius vs 4px) —
 // "large buttons and forms, easy to press on phone" per request. fontSize
@@ -1041,6 +1103,14 @@ const bigButton = {
 const bigButtonSecondary = {
   ...S.btnOutline, height: 60, borderRadius: 14, justifyContent: 'center', padding: '0 26px',
   fontSize: 15, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+// Same rounded/white-outline treatment as bigButtonSecondary, but sized to
+// match bigInput's height (58px) exactly for the Apply button that sits
+// directly beside a bigInput, and reused for the tassel "Add to cart"
+// button for the same rounded-not-sharp-cornered consistency.
+const smallOutlineButton = {
+  ...S.btnOutline, height: 58, borderRadius: 14, justifyContent: 'center', padding: '0 22px',
+  fontSize: 13, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
 };
 const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 13, color: T.soft };
 const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 14, background: T.white, overflow: 'hidden' };
