@@ -38,7 +38,7 @@ const FUNNEL_RANGE_LABELS = {
   '7d': 'Funnel — last 7 days',
   '30d': 'Funnel — last 30 days',
 };
-// checkout_* are the live 3-step checkout's individual steps (see
+// checkout_* are the live 2-step checkout's individual steps (see
 // lib/checkoutStage.js). The plain 'checkout' stage still exists (sent by
 // checkout-square.jsx, the single-page backup with no steps of its own,
 // and as checkout.jsx/checkout-qb.jsx's brief pre-hydration fallback) but
@@ -52,7 +52,6 @@ const STAGE_LABELS = {
   cart_open: 'Cart open',
   checkout_shipping: 'Checkout — Shipping',
   checkout_payment: 'Checkout — Payment',
-  checkout_review: 'Checkout — Review',
   purchased: 'Just purchased',
 };
 const STAGE_ORDER = Object.keys(STAGE_LABELS);
@@ -778,7 +777,6 @@ export default function AdminDashboard() {
               <FunnelStep label="Added to cart" value={dashboard.funnel.addToCart} rate={`${dashboard.funnel.addToCartRate}% of views`} />
               <FunnelStep label="Started checkout" value={dashboard.funnel.checkoutStarts} rate={`${dashboard.funnel.checkoutRate}% of adds`} />
               <FunnelStep label="Reached payment" value={dashboard.funnel.reachedPayment} rate={`${dashboard.funnel.paymentRate}% of checkouts`} />
-              <FunnelStep label="Reached review" value={dashboard.funnel.reachedReview} rate={`${dashboard.funnel.reviewRate}% of payment`} />
               <FunnelStep label="Purchased" value={dashboard.funnel.purchases} rate={`${dashboard.funnel.conversionRate}% of views`} />
             </div>
           )}
@@ -1160,8 +1158,8 @@ const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // funnel = more solid" convention as the live-activity sparkline below.
 // One entry per STAGE_LABELS key, in order.
 const STAGE_BAR_COLORS = [
-  'rgba(22,20,15,0.15)', 'rgba(22,20,15,0.3)',
-  'rgba(22,20,15,0.45)', 'rgba(22,20,15,0.6)', 'rgba(22,20,15,0.8)',
+  'rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)',
+  'rgba(22,20,15,0.65)', 'rgba(22,20,15,0.85)',
   T.ink,
 ];
 // display is intentionally left out of these two and set in CSS instead

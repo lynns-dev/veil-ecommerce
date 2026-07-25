@@ -49,12 +49,10 @@ export default async function handler(req, res) {
         addToCart: events.addtocart,
         checkoutStarts: events.checkout_start,
         reachedPayment: events.checkout_payment,
-        reachedReview: events.checkout_review,
         purchases: events.purchase,
         addToCartRate: rate(events.addtocart, events.pageview),
         checkoutRate: rate(events.checkout_start, events.addtocart),
         paymentRate: rate(events.checkout_payment, events.checkout_start),
-        reviewRate: rate(events.checkout_review, events.checkout_payment),
         conversionRate: rate(events.purchase, events.pageview),
       },
     });

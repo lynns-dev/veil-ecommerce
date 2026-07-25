@@ -21,16 +21,21 @@ import { T, S } from '../lib/theme';
 // client-side tokenization can never drift out of sync with the server's
 // own environment across Vercel's Preview/Production env-var scoping.
 //
-// Rebuilt as a 3-step flow (Shipping -> Payment -> Review), modeled on
-// Apple's own checkout (large touch-friendly fields/buttons, a final
-// review step with "Change" links back to earlier steps) rather than the
-// single long-scroll form this page used before — brand colors/fonts stay
-// VEIL's own (black/white, Hanken Grotesk/Fraunces), not Apple's blue.
-// Each step is real, native <form> validation (required/type="email" on
-// visible fields only — a step's inputs aren't in the DOM at all while
-// another step is active, so the browser only ever validates what's
-// currently on screen) rather than hand-rolled field checks, except where
-// the format needs custom parsing (card expiry).
+// A 2-step flow (Shipping -> Payment), modeled on Apple's own checkout
+// (large touch-friendly fields/buttons) rather than the single long-scroll
+// form this page used before — brand colors/fonts stay VEIL's own (black/
+// white, Hanken Grotesk/Fraunces), not Apple's blue. Payment is the final
+// step: its submit button ("Complete Order") tokenizes and charges the
+// card directly rather than advancing to a separate review step — this
+// used to be a 3-step Shipping -> Payment -> Review flow, but the review
+// step was folded into Payment (its tassel-offer/total recap moved up,
+// its shipping/payment-detail read-only recaps dropped as redundant with
+// Step 1 and the order summary sidebar). Each step is real, native <form>
+// validation (required/type="email" on visible fields only — a step's
+// inputs aren't in the DOM at all while another step is active, so the
+// browser only ever validates what's currently on screen) rather than
+// hand-rolled field checks, except where the format needs custom parsing
+// (card expiry).
 //
 // No Apple Pay / Google Pay / Afterpay — QuickBooks Payments (as
 // integrated in lib/qbPayments.js / lib/qbPaymentsServer.js) is a raw
@@ -156,25 +161,9 @@ function CheckIcon(props) {
   );
 }
 
-// Standard IIN (card number prefix) ranges — used only to label the review
-// step's card recap as plain text (e.g. "Visa ending in 4242"), not for
-// any validation. The real network logos (public/images/major-credit-
-// card-logos-png-5.png) only cover the generic "we accept" row above,
-// since that's one flattened image with all four marks baked in — there's
-// no single-brand asset to crop out of it for a specific card here.
-function detectCardBrand(rawNumber) {
-  const digits = rawNumber.replace(/\D/g, '');
-  if (/^4/.test(digits)) return 'Visa';
-  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'Mastercard';
-  if (/^3[47]/.test(digits)) return 'American Express';
-  if (/^6(011|5)/.test(digits)) return 'Discover';
-  return 'Card';
-}
-
 const STEPS = [
   { n: 1, label: 'Shipping' },
   { n: 2, label: 'Payment' },
-  { n: 3, label: 'Review' },
 ];
 
 function StepIndicator({ step, maxStepReached, onJump }) {
@@ -230,13 +219,13 @@ export default function CheckoutPage({ qbEnvironment }) {
   const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — raw card fields (no third-party SDK/iframe); tokenized
-  // directly against Intuit at final submit (Step 3) via lib/qbPayments.js.
+  // directly against Intuit at final submit (Step 2) via lib/qbPayments.js.
   const [card, setCard] = React.useState(EMPTY_CARD);
 
-  // 3-step flow (Shipping -> Payment -> Review). maxStepReached gates the
-  // step indicator's jump-back links — a shopper can always go back to a
-  // step they've already completed, but can't skip ahead by clicking a
-  // future step's label.
+  // 2-step flow (Shipping -> Payment). maxStepReached gates the step
+  // indicator's jump-back links — a shopper can always go back to a step
+  // they've already completed, but can't skip ahead by clicking a future
+  // step's label.
   const [step, setStep] = React.useState(1);
   const [maxStepReached, setMaxStepReached] = React.useState(1);
 
@@ -248,16 +237,16 @@ export default function CheckoutPage({ qbEnvironment }) {
     return () => setCheckoutStep(null);
   }, [step]);
 
-  // Historical funnel counters (admin's Today's funnel card) — reaching
-  // Step 2/3 for the first time, deduped server-side per session so
-  // jumping back and forth via the step indicator doesn't inflate these.
-  // Step 1 is already covered by the existing checkout_start ping below.
+  // Historical funnel counter (admin's Today's funnel card) — reaching
+  // Step 2 for the first time, deduped server-side per session so jumping
+  // back and forth via the step indicator doesn't inflate this. Step 1 is
+  // already covered by the existing checkout_start ping below.
   React.useEffect(() => {
-    if (step !== 2 && step !== 3) return;
+    if (step !== 2) return;
     fetch('/api/track/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: step === 2 ? 'checkout_payment' : 'checkout_review', sessionId: getSessionId() }),
+      body: JSON.stringify({ event: 'checkout_payment', sessionId: getSessionId() }),
       keepalive: true,
     }).catch(() => {});
   }, [step]);
@@ -392,18 +381,12 @@ export default function CheckoutPage({ qbEnvironment }) {
       return;
     }
 
-    if (step === 2) {
-      const expiry = parseExpiry(card.expiry);
-      if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
-        setError('Fill in your card details to continue.');
-        return;
-      }
-      goToStep(3);
+    // Step 2 — validate card fields, then actually charge the card.
+    const expiry = parseExpiry(card.expiry);
+    if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
+      setError('Fill in your card details to continue.');
       return;
     }
-
-    // Step 3 — actually charge the card.
-    const expiry = parseExpiry(card.expiry);
     setSubmitting(true);
     try {
       // Step A: tokenize the card directly against Intuit's Payments
@@ -468,9 +451,6 @@ export default function CheckoutPage({ qbEnvironment }) {
   };
 
   if (!hydrated || cart.length === 0) return null;
-
-  const cardLast4 = card.number.replace(/\s+/g, '').slice(-4);
-  const cardBrand = detectCardBrand(card.number);
 
   return (
     <div>
@@ -562,13 +542,13 @@ export default function CheckoutPage({ qbEnvironment }) {
           <form
             onSubmit={handleStepSubmit}
             // Defense in depth alongside the discount-code field's own
-            // Enter handling above: on Step 3 specifically, Enter pressed
-            // anywhere that isn't the actual "Place your order" button
-            // must never submit — that's a real charge, not a step
-            // advance like Steps 1/2. Steps 1/2 keep normal Enter-to-
-            // advance behavior; only Step 3's real-money submit is guarded.
+            // Enter handling above: on Step 2 specifically, Enter pressed
+            // anywhere that isn't the actual "Complete Order" button must
+            // never submit — that's a real charge, not a step advance like
+            // Step 1. Step 1 keeps normal Enter-to-advance behavior; only
+            // Step 2's real-money submit is guarded.
             onKeyDown={(e) => {
-              if (step === 3 && e.key === 'Enter' && e.target.type !== 'submit') e.preventDefault();
+              if (step === 2 && e.key === 'Enter' && e.target.type !== 'submit') e.preventDefault();
             }}
           >
             {step === 1 && (
@@ -753,50 +733,6 @@ export default function CheckoutPage({ qbEnvironment }) {
                   )}
                 </div>
 
-                {error && <p ref={errorRef} style={errorText}>{error}</p>}
-
-                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-                  <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary}>
-                    Back
-                  </button>
-                  <button type="submit" style={{ ...bigButton, flex: 1 }}>
-                    Review order
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {step === 3 && (
-              <section style={{ marginTop: 28 }}>
-                <h1 style={stepTitle}>Ready to place your order?</h1>
-                <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>Let’s make sure everything’s right.</p>
-
-                <div style={{ marginTop: 24 }}>
-                  <div style={reviewRowHead}>
-                    <span style={fieldGroupLabel}>Shipping details</span>
-                    <button type="button" onClick={() => goToStep(1)} style={changeLink}>Change</button>
-                  </div>
-                  <div style={reviewCard}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{shipping.firstName} {shipping.lastName}</div>
-                    <div style={{ color: T.soft, fontSize: 13, lineHeight: 1.6 }}>
-                      {shipping.address}{shipping.apt ? `, ${shipping.apt}` : ''}<br />
-                      {shipping.city}, {shipping.state} {shipping.zip}<br />
-                      {email}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 16 }}>
-                  <div style={reviewRowHead}>
-                    <span style={fieldGroupLabel}>Payment details</span>
-                    <button type="button" onClick={() => goToStep(2)} style={changeLink}>Change</button>
-                  </div>
-                  <div style={reviewCard}>
-                    <span style={{ fontWeight: 700 }}>{cardBrand} ending in {cardLast4 || '••••'}</span>
-                    <div style={{ color: T.soft, fontSize: 13, marginTop: 8 }}>Billing address same as shipping</div>
-                  </div>
-                </div>
-
                 {!tasselExpired && (
                   <div style={{ marginTop: 20 }}>
                     <div style={tasselCard}>
@@ -868,11 +804,11 @@ export default function CheckoutPage({ qbEnvironment }) {
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-                  <button type="button" onClick={() => goToStep(2)} style={bigButtonSecondary} disabled={submitting}>
+                  <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary} disabled={submitting}>
                     Back
                   </button>
                   <button type="submit" disabled={submitting} style={{ ...bigButton, flex: 1, opacity: submitting ? 0.6 : 1 }}>
-                    {submitting ? 'Processing…' : `Place your order — $${grandTotal.toFixed(2)}`}
+                    {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
                   </button>
                 </div>
                 <div style={secureNote}>
@@ -1037,7 +973,7 @@ const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 
 // Large, readable step heading — replaces the old small-caps section
-// titles for the 3-step flow's single big question per screen.
+// titles for the 2-step flow's single big question per screen.
 const stepTitle = { fontFamily: T.sans, fontWeight: 800, fontSize: 28, margin: 0, color: T.ink, lineHeight: 1.2 };
 // letterSpacing dropped from 0.12em to 0.04em — 0.12em on 11px uppercase
 // text read as too spread out, especially on narrow mobile widths.
@@ -1088,11 +1024,6 @@ const accordionRow = {
 const accordionBody = { padding: '16px 18px 20px', background: T.white };
 const billingRecap = {
   display: 'flex', gap: 12, padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14,
-};
-const reviewRowHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 };
-const changeLink = {
-  background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.sans,
-  fontSize: 12, fontWeight: 700, textDecoration: 'underline', color: T.ink,
 };
 const reviewCard = { padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14 };
 const tasselCard = { border: `1px solid ${T.line}`, borderRadius: 14, background: T.white, padding: 16 };
