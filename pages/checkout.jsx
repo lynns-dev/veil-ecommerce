@@ -298,6 +298,20 @@ export default function CheckoutPage() {
     return () => setCheckoutStep(null);
   }, [step]);
 
+  // Historical funnel counters (admin's Today's funnel card) — reaching
+  // Step 2/3 for the first time, deduped server-side per session so
+  // jumping back and forth via the step indicator doesn't inflate these.
+  // Step 1 is already covered by the existing checkout_start ping below.
+  React.useEffect(() => {
+    if (step !== 2 && step !== 3) return;
+    fetch('/api/track/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: step === 2 ? 'checkout_payment' : 'checkout_review', sessionId: getSessionId() }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [step]);
+
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');

@@ -777,6 +777,8 @@ export default function AdminDashboard() {
               <FunnelStep label="Page views" value={dashboard.funnel.pageviews} />
               <FunnelStep label="Added to cart" value={dashboard.funnel.addToCart} rate={`${dashboard.funnel.addToCartRate}% of views`} />
               <FunnelStep label="Started checkout" value={dashboard.funnel.checkoutStarts} rate={`${dashboard.funnel.checkoutRate}% of adds`} />
+              <FunnelStep label="Reached payment" value={dashboard.funnel.reachedPayment} rate={`${dashboard.funnel.paymentRate}% of checkouts`} />
+              <FunnelStep label="Reached review" value={dashboard.funnel.reachedReview} rate={`${dashboard.funnel.reviewRate}% of payment`} />
               <FunnelStep label="Purchased" value={dashboard.funnel.purchases} rate={`${dashboard.funnel.conversionRate}% of views`} />
             </div>
           )}
@@ -1068,7 +1070,7 @@ export default function AdminDashboard() {
 
       <style jsx>{`
         .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-        .funnel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .funnel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 640px) {
           .stat-grid { grid-template-columns: 1fr; }
           .funnel-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1145,7 +1147,12 @@ function Section({ title, action, children }) {
 const cardShadow = '0 1px 2px rgba(22,20,15,0.04), 0 4px 12px rgba(22,20,15,0.06)';
 const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 };
 const statCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '24px 20px', textAlign: 'center' };
-const funnelGrid = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 };
+// gridTemplateColumns is deliberately left out and set by the .funnel-grid
+// CSS class instead (see <style jsx> below) — an inline value here would
+// always beat that class's mobile media-query override, regardless of
+// specificity, the same footgun already documented on mobileTopbar in
+// pages/checkout.jsx.
+const funnelGrid = { display: 'grid', gap: 16 };
 const liveViewCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '28px 24px', marginBottom: 24 };
 const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: T.paper, overflow: 'hidden' };
 const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
