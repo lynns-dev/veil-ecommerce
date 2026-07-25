@@ -13,6 +13,7 @@ import { PRODUCTS, getProductById } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 
 // Third and final step of the ad funnel — a single-page "order form" style
@@ -303,20 +304,27 @@ export default function Offer3Page() {
   // Same abandoned-checkout capture as /checkout — fires once the shopper
   // leaves the email field, so someone who lands here from an ad and
   // doesn't finish still ends up recorded somewhere, not lost entirely.
+  // Unlike /checkout, this page has no marketing-consent checkbox at all
+  // (single-product order-form design, minimal friction for ad traffic),
+  // so consent defaults to true here the same way the checkbox itself
+  // defaults to checked everywhere else on the site — revisit this if
+  // that sitewide default ever changes.
   const handleEmailBlur = () => {
     if (!email.trim()) return;
+    const cartSnapshot = [{ id: product.id, name: product.name, quantity, price: product.price, images: product.images }];
     fetch('/api/checkout-lead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        cart: [{ id: product.id, name: product.name, quantity }],
+        cart: cartSnapshot,
         source: 'offer3',
         sessionId: getSessionId(),
         url: window.location.href,
       }),
       keepalive: true,
     }).catch(() => {});
+    captureCheckoutEmail({ email, consent: true, cartValue: product.price * quantity, items: cartSnapshot });
   };
 
   // Shared by the card submit handler below and the Apple Pay/Google Pay

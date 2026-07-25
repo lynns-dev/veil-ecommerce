@@ -351,7 +351,7 @@ export default function CheckoutSquarePage() {
     // consent is whatever the "Email me with news and offers" checkbox
     // above is currently set to (defaults checked); unchecked, the email
     // app's own checkout-capture route no-ops rather than subscribing them.
-    captureCheckoutEmail({ email, consent: newsletter, cartValue: total });
+    captureCheckoutEmail({ email, consent: newsletter, cartValue: total, items: cart });
   };
 
   const handleApplyDiscount = async () => {
