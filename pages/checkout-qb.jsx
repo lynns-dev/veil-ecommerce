@@ -36,10 +36,10 @@ import { T, S } from '../lib/theme';
 // integrated in lib/qbPayments.js / lib/qbPaymentsServer.js) is a raw
 // card-token API with no wallet support, unlike Square's Web Payments SDK.
 //
-// The card form is plain <input> elements (see CardLogoBadge/VisaLogo/etc.
-// below), not a third-party iframe — QuickBooks' tokenizeCard() call goes
-// straight from the browser to Intuit's API with the raw field values, so
-// there's no embedded SDK UI to fight with, and no separate styling
+// The card form is plain <input> elements, not a third-party iframe —
+// QuickBooks' tokenizeCard() call goes straight from the browser to
+// Intuit's API with the raw field values, so there's no embedded SDK UI to
+// fight with, and no separate styling
 // surface that could conflict with anything on this page.
 //
 // Billing address is always the shipping address entered in Step 1 — no
@@ -156,74 +156,19 @@ function CheckIcon(props) {
   );
 }
 
-// Small, recognizable renderings of each network's real mark (not a
-// colored text pill) so the "we accept" row reads as legitimate rather
-// than placeholder-ish.
-function CardLogoBadge({ children, bg = '#fff' }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 30, height: 20, borderRadius: 3, background: bg,
-        border: `1px solid ${T.line}`, overflow: 'hidden', flexShrink: 0,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function VisaLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="24" height="10" viewBox="0 0 48 18" aria-label="Visa">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontStyle="italic" fontWeight="800" fontSize="16" fill="#1434CB" letterSpacing="-0.5">VISA</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function MastercardLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="22" height="14" viewBox="0 0 40 26" aria-label="Mastercard">
-        <circle cx="15" cy="13" r="11" fill="#EB001B" />
-        <circle cx="25" cy="13" r="11" fill="#F79E1B" style={{ mixBlendMode: 'multiply' }} />
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function AmexLogo() {
-  return (
-    <CardLogoBadge bg="#006FCF">
-      <svg width="26" height="13" viewBox="0 0 52 22" aria-label="American Express">
-        <text x="1" y="16" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="0.5">AMEX</text>
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-function DiscoverLogo() {
-  return (
-    <CardLogoBadge>
-      <svg width="28" height="11" viewBox="0 0 66 20" aria-label="Discover">
-        <text x="0" y="14" fontFamily="Arial, sans-serif" fontWeight="700" fontStyle="italic" fontSize="11" fill="#1B1B1B" letterSpacing="-0.3">Discover</text>
-        <circle cx="62" cy="14" r="4" fill="#FF6600" />
-      </svg>
-    </CardLogoBadge>
-  );
-}
-
-// Standard IIN (card number prefix) ranges — used only to pick which logo
-// to show back to the shopper on the review step, not for any validation.
-function detectCardBrandLogo(rawNumber) {
+// Standard IIN (card number prefix) ranges — used only to label the review
+// step's card recap, not for any validation. No logo artwork here (see
+// this page's header comment) — QuickBooks Payments' raw Charges API has
+// no SDK/card-element of its own to supply real brand marks from, and
+// hand-drawn approximations read as fake rather than as the actual
+// trademarked logos.
+function detectCardBrand(rawNumber) {
   const digits = rawNumber.replace(/\D/g, '');
-  if (/^4/.test(digits)) return VisaLogo;
-  if (/^(5[1-5]|2[2-7])/.test(digits)) return MastercardLogo;
-  if (/^3[47]/.test(digits)) return AmexLogo;
-  if (/^6(011|5)/.test(digits)) return DiscoverLogo;
-  return VisaLogo;
+  if (/^4/.test(digits)) return 'Visa';
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'Mastercard';
+  if (/^3[47]/.test(digits)) return 'American Express';
+  if (/^6(011|5)/.test(digits)) return 'Discover';
+  return 'Card';
 }
 
 const STEPS = [
@@ -525,7 +470,7 @@ export default function CheckoutPage({ qbEnvironment }) {
   if (!hydrated || cart.length === 0) return null;
 
   const cardLast4 = card.number.replace(/\s+/g, '').slice(-4);
-  const CardBrandLogo = detectCardBrandLogo(card.number);
+  const cardBrand = detectCardBrand(card.number);
 
   return (
     <div>
@@ -710,12 +655,7 @@ export default function CheckoutPage({ qbEnvironment }) {
                 <div style={{ ...paymentList, marginTop: 20 }}>
                   <div style={accordionRow}>
                     <span style={{ fontWeight: 700, fontSize: 16 }}>Credit or Debit Card</span>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <VisaLogo />
-                      <MastercardLogo />
-                      <AmexLogo />
-                      <DiscoverLogo />
-                    </div>
+                    <span style={{ fontSize: 12, color: T.soft }}>Visa · Mastercard · Amex · Discover</span>
                   </div>
                   <div style={accordionBody}>
                     <div style={{ position: 'relative' }}>
@@ -852,10 +792,7 @@ export default function CheckoutPage({ qbEnvironment }) {
                     <button type="button" onClick={() => goToStep(2)} style={changeLink}>Change</button>
                   </div>
                   <div style={reviewCard}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <CardBrandLogo />
-                      <span style={{ fontWeight: 700 }}>Card ending in {cardLast4 || '••••'}</span>
-                    </div>
+                    <span style={{ fontWeight: 700 }}>{cardBrand} ending in {cardLast4 || '••••'}</span>
                     <div style={{ color: T.soft, fontSize: 13, marginTop: 8 }}>Billing address same as shipping</div>
                   </div>
                 </div>
