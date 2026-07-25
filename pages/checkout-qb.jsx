@@ -10,6 +10,7 @@ import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { setCheckoutStep } from '../lib/checkoutStage';
+import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 
 // Backup checkout page on QuickBooks Payments, at a stable URL separate
@@ -344,6 +345,11 @@ export default function CheckoutPage({ qbEnvironment }) {
       }),
       keepalive: true,
     }).catch(() => {});
+    // Separately, import into the email platform's subscriber list —
+    // consent is whatever the "Email me with news and offers" checkbox
+    // above is currently set to (defaults checked); unchecked, the email
+    // app's own checkout-capture route no-ops rather than subscribing them.
+    captureCheckoutEmail({ email, consent: newsletter, cartValue: total });
   };
 
   const handleApplyDiscount = async () => {
