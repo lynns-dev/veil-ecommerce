@@ -38,10 +38,21 @@ const FUNNEL_RANGE_LABELS = {
   '7d': 'Funnel — last 7 days',
   '30d': 'Funnel — last 30 days',
 };
+// checkout_* are the live 3-step checkout's individual steps (see
+// lib/checkoutStage.js). The plain 'checkout' stage still exists (sent by
+// checkout-square.jsx, the single-page backup with no steps of its own,
+// and as checkout.jsx/checkout-qb.jsx's brief pre-hydration fallback) but
+// is deliberately left out of this list — it's not currently reachable by
+// real traffic, and including it would add a near-always-empty column to
+// the summary row/bar below. A visitor in that stage still shows up
+// correctly in the "who's here right now" list further down, which falls
+// back to the raw stage string for anything not in this map.
 const STAGE_LABELS = {
   browsing: 'Browsing',
   cart_open: 'Cart open',
-  checkout: 'At checkout',
+  checkout_shipping: 'Checkout — Shipping',
+  checkout_payment: 'Checkout — Payment',
+  checkout_review: 'Checkout — Review',
   purchased: 'Just purchased',
 };
 const STAGE_ORDER = Object.keys(STAGE_LABELS);
@@ -1140,7 +1151,12 @@ const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: 
 const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // Lightest (browsing) to darkest (just purchased), same "further down the
 // funnel = more solid" convention as the live-activity sparkline below.
-const STAGE_BAR_COLORS = ['rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)', 'rgba(22,20,15,0.65)', T.ink];
+// One entry per STAGE_LABELS key, in order.
+const STAGE_BAR_COLORS = [
+  'rgba(22,20,15,0.15)', 'rgba(22,20,15,0.3)',
+  'rgba(22,20,15,0.45)', 'rgba(22,20,15,0.6)', 'rgba(22,20,15,0.8)',
+  T.ink,
+];
 // display is intentionally left out of these two and set in CSS instead
 // (.visitor-head-row/.visitor-row below) — an inline `display` would always
 // beat the mobile media query's `display: none` / `flex-wrap`, regardless

@@ -9,6 +9,7 @@ import { TASSEL_GIFT } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { setCheckoutStep } from '../lib/checkoutStage';
 import { T, S } from '../lib/theme';
 
 // Live checkout — charges through QuickBooks Payments. Square's version of
@@ -286,6 +287,16 @@ export default function CheckoutPage() {
   // future step's label.
   const [step, setStep] = React.useState(1);
   const [maxStepReached, setMaxStepReached] = React.useState(1);
+
+  // Reported to the live-view heartbeat in pages/_app.jsx (via
+  // lib/checkoutStage.js) so admin can see which step visitors are stuck
+  // on, not just that they're "at checkout" generically. Cleared on
+  // unmount so a visitor who navigates away doesn't linger as mid-checkout
+  // until their next heartbeat happens to overwrite it.
+  React.useEffect(() => {
+    setCheckoutStep(step);
+    return () => setCheckoutStep(null);
+  }, [step]);
 
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');

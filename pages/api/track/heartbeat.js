@@ -11,7 +11,11 @@ import { isExcludedIp } from '../../../lib/ipFilter';
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const TTL_SECONDS = 25;
-const ALLOWED_STAGES = ['browsing', 'cart_open', 'checkout', 'purchased'];
+const ALLOWED_STAGES = [
+  'browsing', 'cart_open', 'checkout',
+  'checkout_shipping', 'checkout_payment', 'checkout_review',
+  'purchased',
+];
 
 // Trims a client-supplied string to a sane length so a malformed/hostile
 // payload can't bloat the KV entry — none of these fields are ever used for

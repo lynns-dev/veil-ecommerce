@@ -5,6 +5,7 @@ import { loadPixel, fbTrack } from '../lib/fbPixel';
 import { loadClarity } from '../lib/clarity';
 import { captureAttribution, getStoredAttribution, describeTrafficSource } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { getCheckoutStage } from '../lib/checkoutStage';
 import ReserveScratchPopup from '../components/ReserveScratchPopup';
 
 // Kept off checkout/admin/the ad-funnel pages — those already have their
@@ -71,7 +72,12 @@ function Tracking() {
   React.useEffect(() => {
     const currentStage = () => {
       if (router.pathname === '/success') return 'purchased';
-      if (router.pathname === '/checkout') return 'checkout';
+      // checkout.jsx/checkout-qb.jsx report their own step (see
+      // lib/checkoutStage.js); fall back to the generic 'checkout' stage
+      // for the brief window before that effect has run, or for
+      // checkout-square.jsx, which is a single-page form with no steps.
+      if (router.pathname === '/checkout' || router.pathname === '/checkout-qb') return getCheckoutStage() || 'checkout';
+      if (router.pathname === '/checkout-square') return 'checkout';
       if (cart.open) return 'cart_open';
       return 'browsing';
     };
