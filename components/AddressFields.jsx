@@ -9,7 +9,7 @@ export const US_STATES = [
 ];
 
 // Shared shipping/billing address form used by checkout.jsx,
-// checkout-square.jsx, and offer3.jsx — previously duplicated near-
+// checkout-qb.jsx, and offer3.jsx — previously duplicated near-
 // identically in each file; pulled out here so the Address-field
 // autocomplete below only needs to be built (and fixed, if it ever needs
 // fixing) once.
