@@ -157,11 +157,11 @@ function CheckIcon(props) {
 }
 
 // Standard IIN (card number prefix) ranges — used only to label the review
-// step's card recap, not for any validation. No logo artwork here (see
-// this page's header comment) — QuickBooks Payments' raw Charges API has
-// no SDK/card-element of its own to supply real brand marks from, and
-// hand-drawn approximations read as fake rather than as the actual
-// trademarked logos.
+// step's card recap as plain text (e.g. "Visa ending in 4242"), not for
+// any validation. The real network logos (public/images/major-credit-
+// card-logos-png-5.png) only cover the generic "we accept" row above,
+// since that's one flattened image with all four marks baked in — there's
+// no single-brand asset to crop out of it for a specific card here.
 function detectCardBrand(rawNumber) {
   const digits = rawNumber.replace(/\D/g, '');
   if (/^4/.test(digits)) return 'Visa';
@@ -655,7 +655,7 @@ export default function CheckoutPage({ qbEnvironment }) {
                 <div style={{ ...paymentList, marginTop: 20 }}>
                   <div style={accordionRow}>
                     <span style={{ fontWeight: 700, fontSize: 16 }}>Credit or Debit Card</span>
-                    <span style={{ fontSize: 12, color: T.soft }}>Visa · Mastercard · Amex · Discover</span>
+                    <img src="/images/major-credit-card-logos-png-5.png" alt="Visa, Mastercard, American Express, Discover" style={{ height: 20, width: 'auto' }} />
                   </div>
                   <div style={accordionBody}>
                     <div style={{ position: 'relative' }}>
