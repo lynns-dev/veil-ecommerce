@@ -206,6 +206,12 @@ export default function CheckoutPage() {
   const [appleAvailable, setAppleAvailable] = React.useState(null);
   const [googleAvailable, setGoogleAvailable] = React.useState(null);
   const [afterpayAvailable, setAfterpayAvailable] = React.useState(null);
+  // Temporary on-screen diagnostics for whichever wallet(s) fail to
+  // initialize — remove once Apple Pay is confirmed working live; the
+  // underlying error otherwise only ever reaches the browser console
+  // (lib/squareClient.js's own console.error), which isn't reachable from
+  // a phone without a separate computer.
+  const [walletErrors, setWalletErrors] = React.useState({});
 
   // 2-step flow (Shipping -> Payment) — Step 1's submit and Step 2's Back
   // button are the only ways to move between them now that the step
@@ -366,7 +372,9 @@ export default function CheckoutPage() {
     (async () => {
       const amount = latestRef.current.grandTotal;
 
-      const apple = await createApplePayButton(amount, 'apple-pay-button');
+      const apple = await createApplePayButton(amount, 'apple-pay-button', (err) => {
+        setWalletErrors((w) => ({ ...w, apple: err?.message || String(err) }));
+      });
       if (cancelled) {
         apple?.destroy?.().catch(() => {});
       } else if (apple) {
@@ -380,7 +388,9 @@ export default function CheckoutPage() {
         setAppleAvailable(false);
       }
 
-      const google = await createGooglePayButton(amount, 'google-pay-button');
+      const google = await createGooglePayButton(amount, 'google-pay-button', (err) => {
+        setWalletErrors((w) => ({ ...w, google: err?.message || String(err) }));
+      });
       if (cancelled) {
         google?.destroy?.().catch(() => {});
       } else if (google) {
@@ -394,7 +404,9 @@ export default function CheckoutPage() {
         setGoogleAvailable(false);
       }
 
-      const afterpay = await createAfterpayButton(amount, 'afterpay-button');
+      const afterpay = await createAfterpayButton(amount, 'afterpay-button', (err) => {
+        setWalletErrors((w) => ({ ...w, afterpay: err?.message || String(err) }));
+      });
       if (cancelled) {
         afterpay?.destroy?.().catch(() => {});
       } else if (afterpay) {
@@ -424,6 +436,7 @@ export default function CheckoutPage() {
       setAppleAvailable(null);
       setGoogleAvailable(null);
       setAfterpayAvailable(null);
+      setWalletErrors({});
     };
     // handleWalletPay only ever reads fresh state via latestRef and stable
     // setters — safe to omit here so this doesn't re-attach on every
@@ -819,6 +832,15 @@ export default function CheckoutPage() {
                     <span style={orDividerLine} />
                   </div>
                 </div>
+
+                {/* Temporary — see the walletErrors state comment above.
+                    Only renders when a wallet actually failed to
+                    initialize, so it's silent once removed/unneeded. */}
+                {Object.keys(walletErrors).length > 0 && (
+                  <p style={{ fontSize: 11, color: '#a13d2b', marginTop: 10, lineHeight: 1.5 }}>
+                    {Object.entries(walletErrors).map(([k, msg]) => `${k}: ${msg}`).join(' · ')}
+                  </p>
+                )}
 
                 <div style={{ ...paymentList, marginTop: 20 }}>
                   <div style={accordionRow}>
