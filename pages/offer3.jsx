@@ -112,9 +112,9 @@ export default function Offer3Page() {
   const appleMethodRef = React.useRef(null);
   const googleMethodRef = React.useRef(null);
   const afterpayMethodRef = React.useRef(null);
-  const [appleAvailable, setAppleAvailable] = React.useState(false);
-  const [googleAvailable, setGoogleAvailable] = React.useState(false);
-  const [afterpayAvailable, setAfterpayAvailable] = React.useState(false);
+  const [appleAvailable, setAppleAvailable] = React.useState(null);
+  const [googleAvailable, setGoogleAvailable] = React.useState(null);
+  const [afterpayAvailable, setAfterpayAvailable] = React.useState(null);
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -245,16 +245,14 @@ export default function Offer3Page() {
     (async () => {
       const amount = latestRef.current.grandTotal;
 
-      const apple = await createApplePayButton(amount, 'apple-pay-button');
-      if (cancelled) {
-        apple?.destroy?.().catch(() => {});
-      } else if (apple) {
-        appleMethodRef.current = apple;
-        setAppleAvailable(true);
-        const btn = document.getElementById('apple-pay-button');
-        const onClick = (event) => { event.preventDefault(); handleWalletPay(appleMethodRef, 'Apple Pay'); };
-        btn?.addEventListener('click', onClick);
-        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      const apple = await createApplePayButton(amount);
+      if (!cancelled) {
+        if (apple) {
+          appleMethodRef.current = apple;
+          setAppleAvailable(true);
+        } else {
+          setAppleAvailable(false);
+        }
       }
 
       const google = await createGooglePayButton(amount, 'google-pay-button');
@@ -267,6 +265,8 @@ export default function Offer3Page() {
         const onClick = (event) => { event.preventDefault(); handleWalletPay(googleMethodRef, 'Google Pay'); };
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      } else {
+        setGoogleAvailable(false);
       }
 
       const afterpay = await createAfterpayButton(amount, 'afterpay-button');
@@ -279,6 +279,8 @@ export default function Offer3Page() {
         const onClick = (event) => { event.preventDefault(); handleWalletPay(afterpayMethodRef, 'Afterpay'); };
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      } else {
+        setAfterpayAvailable(false);
       }
     })();
 
@@ -545,19 +547,29 @@ export default function Offer3Page() {
                 doesn't collect shipping the way a native Apple Pay sheet
                 can), so putting the buttons here instead of higher up means
                 they're usable the moment they're visible instead of erroring
-                on click. The containers always exist in the DOM (hidden via
-                display:none, not conditional rendering) since Square's
-                attach() needs to find them by id before we know whether that
-                wallet is actually available on this browser/device; the
-                whole section (heading + OR divider) stays hidden the same
-                way until at least one of them is. Sits above Afterpay per
-                request, so shoppers see Apple/Google Pay first. */}
-            <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginBottom: 10 }}>
+                on click. Google Pay's container always exists in the DOM
+                (hidden via display:none, not conditional rendering) since
+                Square's attach() needs to find it by id before we know
+                whether that wallet is actually available on this browser/
+                device; visible while still pending (available === null),
+                not just once confirmed true, only collapsing once confirmed
+                unavailable (=== false). Apple Pay has no attach()/container
+                at all — it's our own native <button> below, styled with
+                Safari's -apple-pay-button appearance, shown/hidden by the
+                same tri-state rule via a plain conditional class instead.
+                Sits above Afterpay per request, so shoppers see Apple/
+                Google Pay first. */}
+            <div style={{ display: (appleAvailable !== false || googleAvailable !== false) ? 'block' : 'none', marginBottom: 10 }}>
               <div style={{ display: 'grid', gap: 10 }}>
-                <div style={{ display: appleAvailable ? 'block' : 'none' }}>
-                  <div id="apple-pay-button" style={walletButtonContainer} />
+                <div style={{ display: appleAvailable !== false ? 'block' : 'none' }}>
+                  <button
+                    type="button"
+                    className="apple-pay-button"
+                    aria-label="Apple Pay"
+                    onClick={() => handleWalletPay(appleMethodRef, 'Apple Pay')}
+                  />
                 </div>
-                <div style={{ display: googleAvailable ? 'block' : 'none' }}>
+                <div style={{ display: googleAvailable !== false ? 'block' : 'none' }}>
                   <div id="google-pay-button" style={walletButtonContainer} />
                 </div>
               </div>
@@ -569,7 +581,7 @@ export default function Offer3Page() {
                 instead of grouped with the other wallets. Only one "OR"
                 divider total, after Afterpay and before Credit card — not
                 also between the wallet buttons and Afterpay. */}
-            <div style={{ display: afterpayAvailable ? 'block' : 'none', marginBottom: 14 }}>
+            <div style={{ display: afterpayAvailable !== false ? 'block' : 'none', marginBottom: 14 }}>
               <div id="afterpay-button" style={walletButtonContainer} />
               <div style={orDivider}>
                 <span style={orDividerLine} />
@@ -691,6 +703,18 @@ export default function Offer3Page() {
         :global(.cta-3d:active:not(:disabled)) {
           transform: translateY(4px);
           box-shadow: 0 1px 0 #C98200, 0 3px 8px rgba(201,130,0,0.3);
+        }
+        .apple-pay-button {
+          display: inline-block;
+          width: 100%;
+          min-height: 44px;
+          border-radius: 6px;
+          -webkit-appearance: -apple-pay-button;
+          -apple-pay-button-type: buy;
+          -apple-pay-button-style: black;
+        }
+        @supports not (-webkit-appearance: -apple-pay-button) {
+          .apple-pay-button { display: none; }
         }
       `}</style>
     </div>
