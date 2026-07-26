@@ -1055,9 +1055,15 @@ const accordionBody = { padding: '16px 18px 20px', background: T.white };
 // no border/padding here, or the card ends up boxed twice; min-height only,
 // to keep the layout from jumping while the SDK script loads and mounts.
 const squareCardContainer = { minHeight: 48 };
-// No background/border here — Apple Pay and Google Pay each style their
-// own attached button (their own colors, logo, corner radius).
-const walletButtonContainer = { width: '100%', minHeight: 44, borderRadius: 14, overflow: 'hidden' };
+// No background/border/border-radius/overflow here — Apple Pay, Google
+// Pay, and Afterpay each render their own styled button (their own colors,
+// logo, corner radius, and — for Google Pay/Afterpay — an iframe sized to
+// its own intrinsic dimensions). An earlier version added borderRadius +
+// overflow:hidden to visually match this page's other rounded boxes, but
+// that clipped the actual attached button (cut off, and reading as "too
+// wide" since the clipped box no longer matched what Square rendered) —
+// width: '100%' is the only sizing this container should constrain.
+const walletButtonContainer = { width: '100%', minHeight: 44 };
 const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0 0' };
 const orDividerLine = { flex: 1, height: 1, background: T.line };
 const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
