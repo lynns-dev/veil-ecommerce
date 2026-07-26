@@ -53,10 +53,6 @@ import { T, S } from '../lib/theme';
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 const EMPTY_CARD = { number: '', expiry: '', cvc: '' };
 
-// Flat optional add-on for reshipment/refund if a package is lost, damaged,
-// or stolen in transit.
-const SHIPPING_PROTECTION_PRICE = 2.79;
-
 // Formats raw digits as "MM / YY" while typing; parseExpiry below splits it
 // back out into the { expMonth, expYear } shape lib/qbPayments.js expects.
 function formatExpiry(raw) {
@@ -128,29 +124,6 @@ function LeafIcon(props) {
   );
 }
 
-// VEIL's shipping-protection mark — an open-flap box with a small
-// shield-check badge overlapping its corner.
-function BoxProtectionIcon(props) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <path d="M2.5 7.5l7.5-3.7 7.5 3.7-7.5 3.7-7.5-3.7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M2.5 7.5v7.6l7.5 3.7 7.5-3.7V7.5M10 11.2v7.6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M16.3 12.6l3 1v2.1c0 1.9-1.3 3-3 3.6-1.7-.6-3-1.7-3-3.6v-2.1l3-1Z" fill="#FCFBF7" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M15.2 16.3l.9.9 1.6-1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function InfoIcon(props) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M12 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="12" cy="7.7" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 function CheckIcon(props) {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -166,7 +139,7 @@ function CheckIcon(props) {
 // indicator used to occupy), so a shopper never loses sight of what
 // they're buying while filling in the form beneath it.
 function OrderItemsPanel({
-  cart, subtotal, totalSavings, shippingCost, addressEntered, shippingProtection, grandTotal,
+  cart, subtotal, totalSavings, shippingCost, addressEntered, grandTotal,
   discountCode, setDiscountCode, discountMessage, setDiscountMessage, appliedDiscount, clearDiscount, handleApplyDiscount,
 }) {
   return (
@@ -230,12 +203,6 @@ function OrderItemsPanel({
           <span style={{ color: T.soft }}>Shipping</span>
           <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
         </div>
-        {shippingProtection && (
-          <div style={summaryRow}>
-            <span style={{ color: T.soft }}>Shipping Protection</span>
-            <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
-          </div>
-        )}
         <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 12, marginTop: 4 }}>
           <span style={{ fontFamily: T.sans, fontSize: 17, fontWeight: 700 }}>Total</span>
           <span style={{ fontFamily: T.sans, fontSize: 20, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
@@ -253,7 +220,6 @@ export default function CheckoutPage() {
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
-  const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — raw card fields (no third-party SDK/iframe); tokenized
   // directly against Intuit at final submit (Step 2) via lib/qbPayments.js.
@@ -371,8 +337,7 @@ export default function CheckoutPage() {
   // above (which is subtotal-vs-total generically) since the Tassel is
   // guaranteed on every order now, not just whenever it happens to be in cart.
   const totalSavings = codeDiscountAmount + TASSEL_GIFT.price;
-  const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
-  const grandTotal = discountedTotal + shippingCost + shippingProtectionCost;
+  const grandTotal = discountedTotal + shippingCost;
 
   const handleEmailBlur = () => {
     if (!email.trim()) return;
@@ -479,7 +444,6 @@ export default function CheckoutPage() {
           url: window.location.href,
           paymentMethod: 'QuickBooks',
           attribution: getStoredAttribution(),
-          shippingProtection: shippingProtectionCost || 0,
         }),
       });
       const data = await res.json();
@@ -578,12 +542,6 @@ export default function CheckoutPage() {
                 <span style={{ color: T.soft }}>Shipping</span>
                 <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
               </div>
-              {shippingProtection && (
-                <div style={summaryRow}>
-                  <span style={{ color: T.soft }}>Shipping Protection</span>
-                  <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
-                </div>
-              )}
               <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
                 <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
                 <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
@@ -602,7 +560,6 @@ export default function CheckoutPage() {
             totalSavings={totalSavings}
             shippingCost={shippingCost}
             addressEntered={addressEntered}
-            shippingProtection={shippingProtection}
             grandTotal={grandTotal}
             discountCode={discountCode}
             setDiscountCode={setDiscountCode}
@@ -647,29 +604,11 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                <div style={{ marginTop: 16 }}>
-                  <div style={protectionCard}>
-                    <div style={protectionIconBox}>
-                      <BoxProtectionIcon style={{ color: T.ink }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
-                        <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
-                          <InfoIcon style={{ color: T.soft }} />
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
-                      <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShippingProtection((v) => !v)}
-                      style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
-                    >
-                      {shippingProtection ? 'Remove' : 'Add'}
-                    </button>
-                  </div>
+                <div style={{ marginTop: 26 }}>
+                  <p style={fieldGroupLabel}>Country</p>
+                  <select value="United States" readOnly style={{ ...bigInput, color: T.soft }}>
+                    <option>United States</option>
+                  </select>
                 </div>
 
                 <div style={{ marginTop: 26 }}>
@@ -688,13 +627,6 @@ export default function CheckoutPage() {
                     <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
                     Email me with news and offers
                   </label>
-                </div>
-
-                <div style={{ marginTop: 26 }}>
-                  <p style={fieldGroupLabel}>Country</p>
-                  <select value="United States" readOnly style={{ ...bigInput, color: T.soft }}>
-                    <option>United States</option>
-                  </select>
                 </div>
 
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
@@ -834,12 +766,6 @@ export default function CheckoutPage() {
             <span style={{ color: T.soft }}>Shipping</span>
             <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
           </div>
-          {shippingProtection && (
-            <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Shipping Protection</span>
-              <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
-            </div>
-          )}
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
@@ -1004,14 +930,6 @@ const billingRecap = {
   display: 'flex', gap: 12, padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14,
 };
 const reviewCard = { padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14 };
-const protectionCard = {
-  display: 'flex', alignItems: 'center', gap: 14, padding: 14,
-  border: `1px solid ${T.line}`, borderRadius: 14, background: T.white,
-};
-const protectionIconBox = {
-  width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: `1px solid ${T.line}`, borderRadius: 10, background: T.white,
-};
 const shipMethod = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px',
   border: `1.5px solid ${T.ink}`, borderRadius: 14, fontSize: 14,
