@@ -194,13 +194,19 @@ export default function CheckoutPage() {
   const [squareError, setSquareError] = React.useState('');
 
   // Apple Pay / Google Pay / Afterpay tokenize on click against the method
-  // instance Square attaches into each container below.
+  // instance Square attaches into each container below. Tri-state, not
+  // boolean: null = still attaching (render the container visible, since
+  // that's exactly when attach() needs it to have real dimensions —
+  // Apple Pay's own button validates the target element's size at attach
+  // time and silently fails against a zero-size/display:none container,
+  // unlike Google Pay/Afterpay which tolerate it and just fill in once
+  // visible). Only collapse a container once we know for sure (false).
   const appleMethodRef = React.useRef(null);
   const googleMethodRef = React.useRef(null);
   const afterpayMethodRef = React.useRef(null);
-  const [appleAvailable, setAppleAvailable] = React.useState(false);
-  const [googleAvailable, setGoogleAvailable] = React.useState(false);
-  const [afterpayAvailable, setAfterpayAvailable] = React.useState(false);
+  const [appleAvailable, setAppleAvailable] = React.useState(null);
+  const [googleAvailable, setGoogleAvailable] = React.useState(null);
+  const [afterpayAvailable, setAfterpayAvailable] = React.useState(null);
 
   // 2-step flow (Shipping -> Payment) — Step 1's submit and Step 2's Back
   // button are the only ways to move between them now that the step
@@ -371,6 +377,8 @@ export default function CheckoutPage() {
         const onClick = (event) => { event.preventDefault(); handleWalletPay(appleMethodRef, 'Apple Pay'); };
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      } else {
+        setAppleAvailable(false);
       }
 
       const google = await createGooglePayButton(amount, 'google-pay-button');
@@ -383,6 +391,8 @@ export default function CheckoutPage() {
         const onClick = (event) => { event.preventDefault(); handleWalletPay(googleMethodRef, 'Google Pay'); };
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      } else {
+        setGoogleAvailable(false);
       }
 
       const afterpay = await createAfterpayButton(amount, 'afterpay-button');
@@ -395,6 +405,8 @@ export default function CheckoutPage() {
         const onClick = (event) => { event.preventDefault(); handleWalletPay(afterpayMethodRef, 'Afterpay'); };
         btn?.addEventListener('click', onClick);
         cleanupFns.push(() => btn?.removeEventListener('click', onClick));
+      } else {
+        setAfterpayAvailable(false);
       }
     })();
 
@@ -407,9 +419,12 @@ export default function CheckoutPage() {
       appleMethodRef.current = null;
       googleMethodRef.current = null;
       afterpayMethodRef.current = null;
-      setAppleAvailable(false);
-      setGoogleAvailable(false);
-      setAfterpayAvailable(false);
+      // Reset to null (pending), not false — a re-mount (leaving and
+      // re-entering Step 2) needs each container visible again for its
+      // next attach() attempt, same reasoning as the initial state.
+      setAppleAvailable(null);
+      setGoogleAvailable(null);
+      setAfterpayAvailable(null);
     };
     // handleWalletPay only ever reads fresh state via latestRef and stable
     // setters — safe to omit here so this doesn't re-attach on every
@@ -772,13 +787,21 @@ export default function CheckoutPage() {
                     rendering) since Square's attach() needs to find them by
                     id before we know whether that wallet is actually
                     available on this browser/device; the whole section
-                    stays hidden the same way until at least one of them is. */}
-                <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginTop: 20 }}>
+                    stays hidden the same way until at least one of them is.
+                    Visible (not display:none) while still pending
+                    (available === null), not just once confirmed true —
+                    Apple Pay's own button validates the container's size at
+                    attach() time and silently fails against a zero-size
+                    display:none element, unlike Google Pay/Afterpay which
+                    tolerate attaching to a hidden container fine. Only
+                    collapses once a wallet is confirmed unavailable
+                    (=== false). */}
+                <div style={{ display: (appleAvailable !== false || googleAvailable !== false) ? 'block' : 'none', marginTop: 20 }}>
                   <div style={{ display: 'grid', gap: 10 }}>
-                    <div style={{ display: appleAvailable ? 'block' : 'none' }}>
+                    <div style={{ display: appleAvailable !== false ? 'block' : 'none' }}>
                       <div id="apple-pay-button" style={walletButtonContainer} />
                     </div>
-                    <div style={{ display: googleAvailable ? 'block' : 'none' }}>
+                    <div style={{ display: googleAvailable !== false ? 'block' : 'none' }}>
                       <div id="google-pay-button" style={walletButtonContainer} />
                     </div>
                   </div>
@@ -789,7 +812,7 @@ export default function CheckoutPage() {
                     presented as an alternative to the card form specifically.
                     Only one "OR" divider total, after Afterpay and before
                     Credit card. */}
-                <div style={{ display: afterpayAvailable ? 'block' : 'none', marginTop: afterpayAvailable && !(appleAvailable || googleAvailable) ? 20 : 10 }}>
+                <div style={{ display: afterpayAvailable !== false ? 'block' : 'none', marginTop: afterpayAvailable !== false && !(appleAvailable !== false || googleAvailable !== false) ? 20 : 10 }}>
                   <div id="afterpay-button" style={walletButtonContainer} />
                   <div style={orDivider}>
                     <span style={orDividerLine} />
