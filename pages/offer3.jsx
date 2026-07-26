@@ -388,7 +388,9 @@ export default function Offer3Page() {
       const token = await tokenizeWallet(methodRef.current);
       await completeSquareOrder(token, `Square (${label})`);
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      if (!err.cancelled) {
+        setError(err.message || 'Something went wrong. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
