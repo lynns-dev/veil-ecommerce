@@ -182,7 +182,7 @@ function OrderItemsPanel({
               <div style={{ fontSize: 14 }}>{item.name}</div>
               <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+            <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
               {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
             </div>
           </div>
@@ -222,8 +222,8 @@ function OrderItemsPanel({
         </div>
         {totalSavings > 0 && (
           <div style={summaryRow}>
-            <span style={{ color: T.soft }}>You saved</span>
-            <span>−${totalSavings.toFixed(2)}</span>
+            <span style={{ color: T.green }}>You saved</span>
+            <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
           </div>
         )}
         <div style={summaryRow}>
@@ -549,7 +549,7 @@ export default function CheckoutPage() {
                     <div style={{ fontSize: 14 }}>{item.name}</div>
                     <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+                  <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
                     {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
                   </div>
                 </div>
@@ -562,14 +562,14 @@ export default function CheckoutPage() {
               </div>
               {discountTotal > 0 && (
                 <div style={summaryRow}>
-                  <span style={{ color: T.soft }}>Discount</span>
-                  <span>−${discountTotal.toFixed(2)}</span>
+                  <span style={{ color: T.green }}>Discount</span>
+                  <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
                 </div>
               )}
               {codeDiscountAmount > 0 && (
                 <div style={summaryRow}>
-                  <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
-                  <span>−${codeDiscountAmount.toFixed(2)}</span>
+                  <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
+                  <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
                 </div>
               )}
               <div style={summaryRow}>
@@ -805,7 +805,7 @@ export default function CheckoutPage() {
                   <div style={{ fontSize: 14 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+                <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
                   {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
                 </div>
               </div>
@@ -818,14 +818,14 @@ export default function CheckoutPage() {
           </div>
           {discountTotal > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Discount</span>
-              <span>−${discountTotal.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Discount</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
             </div>
           )}
           {codeDiscountAmount > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
-              <span>−${codeDiscountAmount.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
             </div>
           )}
           <div style={summaryRow}>
