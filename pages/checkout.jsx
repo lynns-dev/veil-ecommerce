@@ -159,45 +159,88 @@ function CheckIcon(props) {
   );
 }
 
-const STEPS = [
-  { n: 1, label: 'Shipping' },
-  { n: 2, label: 'Payment' },
-];
-
-function StepIndicator({ step, maxStepReached, onJump }) {
+// Itemized cart (image/name/size/qty/price — the free Tassel gift, always
+// present per below, shows "FREE" rather than "$0.00"), discount code
+// entry, and the full price breakdown — shown once at the top of the form
+// column on both steps (in the space the old Shipping/Payment step
+// indicator used to occupy), so a shopper never loses sight of what
+// they're buying while filling in the form beneath it.
+function OrderItemsPanel({
+  cart, subtotal, totalSavings, shippingCost, addressEntered, shippingProtection, grandTotal,
+  discountCode, setDiscountCode, discountMessage, setDiscountMessage, appliedDiscount, clearDiscount, handleApplyDiscount,
+}) {
   return (
-    <div style={stepIndicatorWrap}>
-      {STEPS.map(({ n, label }, i) => {
-        const done = n < step;
-        const active = n === step;
-        const reachable = n <= maxStepReached;
-        return (
-          <React.Fragment key={n}>
-            <button
-              type="button"
-              onClick={() => reachable && onJump(n)}
-              disabled={!reachable}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
-                padding: 0, cursor: reachable ? 'pointer' : 'default', fontFamily: T.sans,
-              }}
-            >
-              <span
-                style={{
-                  ...stepDot,
-                  ...(done ? stepDotDone : active ? stepDotActive : stepDotPending),
-                }}
-              >
-                {done ? <CheckIcon /> : n}
-              </span>
-              <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? T.ink : T.soft }}>
-                {label}
-              </span>
-            </button>
-            {i < STEPS.length - 1 && <span style={stepConnector} />}
-          </React.Fragment>
-        );
-      })}
+    <div style={reviewCard}>
+      <div>
+        {cart.map((item) => (
+          <div key={item.id} style={summaryItem}>
+            <div style={summaryImgWrap}>
+              <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+              <span style={qtyBadge}>{item.quantity}</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14 }}>{item.name}</div>
+              <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+              {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input
+            placeholder="Discount code"
+            value={discountCode}
+            onChange={(e) => {
+              setDiscountCode(e.target.value);
+              if (appliedDiscount) clearDiscount();
+              setDiscountMessage('');
+            }}
+            // Same reasoning as the old inline field this replaces: Enter
+            // must apply the code, not fall through to native form submit.
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              handleApplyDiscount();
+            }}
+            style={{ ...bigInput, height: 46, flex: 1 }}
+          />
+          <button type="button" style={{ ...smallOutlineButton, height: 46 }} onClick={handleApplyDiscount}>Apply</button>
+        </div>
+        {discountMessage && (
+          <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${T.line}` }}>
+        <div style={summaryRow}>
+          <span style={{ color: T.soft }}>Subtotal</span>
+          <span>${subtotal.toFixed(2)}</span>
+        </div>
+        {totalSavings > 0 && (
+          <div style={summaryRow}>
+            <span style={{ color: T.soft }}>You saved</span>
+            <span>−${totalSavings.toFixed(2)}</span>
+          </div>
+        )}
+        <div style={summaryRow}>
+          <span style={{ color: T.soft }}>Shipping</span>
+          <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
+        </div>
+        {shippingProtection && (
+          <div style={summaryRow}>
+            <span style={{ color: T.soft }}>Shipping Protection</span>
+            <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
+          </div>
+        )}
+        <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 12, marginTop: 4 }}>
+          <span style={{ fontFamily: T.sans, fontSize: 17, fontWeight: 700 }}>Total</span>
+          <span style={{ fontFamily: T.sans, fontSize: 20, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -216,12 +259,11 @@ export default function CheckoutPage() {
   // directly against Intuit at final submit (Step 2) via lib/qbPayments.js.
   const [card, setCard] = React.useState(EMPTY_CARD);
 
-  // 2-step flow (Shipping -> Payment). maxStepReached gates the step
-  // indicator's jump-back links — a shopper can always go back to a step
-  // they've already completed, but can't skip ahead by clicking a future
-  // step's label.
+  // 2-step flow (Shipping -> Payment) — Step 1's submit and Step 2's Back
+  // button are the only ways to move between them now that the step
+  // indicator (which also let a shopper jump back by clicking a completed
+  // step's label) is gone.
   const [step, setStep] = React.useState(1);
-  const [maxStepReached, setMaxStepReached] = React.useState(1);
 
   // Reported to the live-view heartbeat in pages/_app.jsx (via
   // lib/checkoutStage.js) so admin can see which step visitors are stuck
@@ -254,12 +296,6 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
   const errorRef = React.useRef(null);
-  const [tasselSeconds, setTasselSeconds] = React.useState(5 * 60);
-
-  React.useEffect(() => {
-    const t = setInterval(() => setTasselSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Scrolled into view on every change so an error is never left off-screen.
   React.useEffect(() => {
@@ -312,17 +348,29 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  const hasTassel = cart.some((i) => i.id === TASSEL_GIFT.id);
-  const tasselExpired = tasselSeconds <= 0;
-  const tasselMins = Math.floor(tasselSeconds / 60);
-  const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
-  const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
+  // The Tassel is now a free gift on every order, not an opt-in upsell —
+  // added automatically once the cart's hydrated rather than via a click,
+  // and re-added if it's ever missing (cart.length as the dep, not the
+  // tassel's own presence, so this can't loop: adding it changes length,
+  // which re-runs the effect once more and then finds it already there).
+  React.useEffect(() => {
+    if (!hydrated || cart.length === 0) return;
+    if (!cart.some((i) => i.id === TASSEL_GIFT.id)) {
+      add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, cart.length]);
 
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
 
   const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
+  // The header line this feeds ("You saved") is the code discount plus the
+  // Tassel's $15 value — explicit rather than derived from discountTotal
+  // above (which is subtotal-vs-total generically) since the Tassel is
+  // guaranteed on every order now, not just whenever it happens to be in cart.
+  const totalSavings = codeDiscountAmount + TASSEL_GIFT.price;
   const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
   const grandTotal = discountedTotal + shippingCost + shippingProtectionCost;
 
@@ -363,7 +411,6 @@ export default function CheckoutPage() {
   const goToStep = (n) => {
     setError('');
     setStep(n);
-    setMaxStepReached((m) => Math.max(m, n));
   };
 
   // Each step is real native <form> validation — required/type="email" on
@@ -456,19 +503,26 @@ export default function CheckoutPage() {
   return (
     <div>
       <header className="desktop-topbar" style={topbar}>
-        <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 64, textDecoration: 'none' }}>
-          <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
-        </Link>
+        <div style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+            <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
+          </Link>
+          <div style={secureBadge}>
+            <LockIcon style={{ color: T.soft }} />
+            <span>Secure Checkout</span>
+          </div>
+        </div>
       </header>
 
-      {/* Mobile-only compact header — small logo left, total right. White
-          background (not the old T.paper toggle bar, which read as an
-          off-white/gray band against the rest of the page). Tapping the
-          total opens the itemized receipt popup below instead of the old
-          inline-collapsing order summary, since that popup now covers the
-          same job in less space. */}
+      {/* Mobile-only compact header — small lock badge + logo left, total
+          right. White background (not the old T.paper toggle bar, which
+          read as an off-white/gray band against the rest of the page).
+          Tapping the total opens the itemized receipt popup below instead
+          of the old inline-collapsing order summary, since that popup now
+          covers the same job in less space. */}
       <header className="mobile-topbar" style={mobileTopbar}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <LockIcon style={{ color: T.soft, flexShrink: 0 }} />
           <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 16, width: 'auto' }} />
         </Link>
         <button type="button" onClick={() => setReceiptOpen(true)} style={mobileTotalButton}>
@@ -495,7 +549,9 @@ export default function CheckoutPage() {
                     <div style={{ fontSize: 14 }}>{item.name}</div>
                     <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                   </div>
-                  <div style={{ fontSize: 14 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                  <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+                    {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+                  </div>
                 </div>
               ))}
             </div>
@@ -538,7 +594,22 @@ export default function CheckoutPage() {
       <div className="checkout-grid" style={checkoutGrid}>
         <div style={formCol}>
           <div ref={formTopRef} />
-          <StepIndicator step={step} maxStepReached={maxStepReached} onJump={goToStep} />
+          <OrderItemsPanel
+            cart={cart}
+            subtotal={subtotal}
+            totalSavings={totalSavings}
+            shippingCost={shippingCost}
+            addressEntered={addressEntered}
+            shippingProtection={shippingProtection}
+            grandTotal={grandTotal}
+            discountCode={discountCode}
+            setDiscountCode={setDiscountCode}
+            discountMessage={discountMessage}
+            setDiscountMessage={setDiscountMessage}
+            appliedDiscount={appliedDiscount}
+            clearDiscount={clearDiscount}
+            handleApplyDiscount={handleApplyDiscount}
+          />
 
           <form
             onSubmit={handleStepSubmit}
@@ -623,7 +694,7 @@ export default function CheckoutPage() {
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
                 <button type="submit" style={{ ...bigButton, marginTop: 24 }}>
-                  Continue to payment
+                  Continue to final step
                 </button>
               </section>
             )}
@@ -700,108 +771,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div style={{ marginTop: 20 }}>
-                  <p style={fieldGroupLabel}>Discount code</p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <input
-                      placeholder="Discount code"
-                      value={discountCode}
-                      onChange={(e) => {
-                        setDiscountCode(e.target.value);
-                        if (appliedDiscount) clearDiscount();
-                        setDiscountMessage('');
-                      }}
-                      // Pressing Enter in a text field inside a <form> triggers
-                      // the browser's native submit-on-Enter behavior — on this
-                      // step that means firing the real charge (handleStepSubmit)
-                      // with whatever grandTotal was already computed, before
-                      // handleApplyDiscount's async validation call has even
-                      // started, let alone updated the total. Confirmed live: a
-                      // discount code entered then Enter-submitted charged the
-                      // full, non-discounted amount. Enter here now applies the
-                      // code instead, same as clicking Apply.
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter') return;
-                        e.preventDefault();
-                        handleApplyDiscount();
-                      }}
-                      style={{ ...bigInput, flex: 1 }}
-                    />
-                    <button type="button" style={smallOutlineButton} onClick={handleApplyDiscount}>Apply</button>
-                  </div>
-                  {discountMessage && (
-                    <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-                  )}
-                </div>
-
-                {!tasselExpired && (
-                  <div style={{ marginTop: 20 }}>
-                    <div style={tasselCard}>
-                      <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
-                      <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                        <div style={tasselImgWrap}>
-                          <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
-                            <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
-                              ${TASSEL_GIFT.price.toFixed(2)}
-                            </span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
-                          </div>
-                        </div>
-                        {hasTassel ? (
-                          <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
-                        ) : (
-                          <button type="button" onClick={handleAddTassel} style={smallOutlineButton}>Add to cart</button>
-                        )}
-                      </div>
-                      {!hasTassel && (
-                        <p style={tasselTimer}>
-                          Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ marginTop: 20 }}>
-                  <p style={fieldGroupLabel}>Your total</p>
-                  <div style={reviewCard}>
-                    <div style={summaryRow}>
-                      <span style={{ color: T.soft }}>Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
-                    </div>
-                    {discountTotal > 0 && (
-                      <div style={summaryRow}>
-                        <span style={{ color: T.soft }}>Discount</span>
-                        <span>−${discountTotal.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {codeDiscountAmount > 0 && (
-                      <div style={summaryRow}>
-                        <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
-                        <span>−${codeDiscountAmount.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div style={summaryRow}>
-                      <span style={{ color: T.soft }}>Shipping</span>
-                      <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-                    </div>
-                    {shippingProtection && (
-                      <div style={summaryRow}>
-                        <span style={{ color: T.soft }}>Shipping Protection</span>
-                        <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 12, marginTop: 4 }}>
-                      <span style={{ fontFamily: T.sans, fontSize: 17, fontWeight: 700 }}>Total</span>
-                      <span style={{ fontFamily: T.sans, fontSize: 20, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
@@ -836,7 +805,9 @@ export default function CheckoutPage() {
                   <div style={{ fontSize: 14 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                 </div>
-                <div style={{ fontSize: 14 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400 }}>
+                  {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+                </div>
               </div>
             ))}
           </div>
@@ -972,6 +943,7 @@ const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', column
 const formCol = { padding: '32px 20px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
+const secureBadge = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.soft, fontFamily: T.sans };
 
 // Step heading — replaces the old small-caps section titles for the
 // 2-step flow's single big question per screen. Sized down from an
@@ -985,15 +957,6 @@ const fieldGroupLabel = {
   fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
 };
 
-const stepIndicatorWrap = { display: 'flex', alignItems: 'center', marginTop: 4 };
-const stepDot = {
-  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontSize: 12, fontWeight: 700, flexShrink: 0,
-};
-const stepDotDone = { background: T.ink, color: T.white };
-const stepDotActive = { background: T.ink, color: T.white };
-const stepDotPending = { background: T.white, color: T.soft, border: `1.5px solid ${T.line}` };
-const stepConnector = { flex: '0 0 24px', height: 1, background: T.line, margin: '0 6px' };
 
 // Bigger than the old `input` (58px vs 44px tall, 14px radius vs 4px) —
 // "large buttons and forms, easy to press on phone" per request. fontSize
@@ -1030,12 +993,6 @@ const billingRecap = {
   display: 'flex', gap: 12, padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14,
 };
 const reviewCard = { padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14 };
-const tasselCard = { border: `1px solid ${T.line}`, borderRadius: 14, background: T.white, padding: 16 };
-const tasselImgWrap = {
-  width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,
-  border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-};
-const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
 const protectionCard = {
   display: 'flex', alignItems: 'center', gap: 14, padding: 14,
   border: `1px solid ${T.line}`, borderRadius: 14, background: T.white,
