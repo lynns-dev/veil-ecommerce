@@ -87,7 +87,7 @@ export default function AddressFields({
         <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={inputStyle} autoComplete={`${section} given-name`} required />
         <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={inputStyle} autoComplete={`${section} family-name`} required />
       </div>
-      <div ref={wrapRef} style={{ position: 'relative', marginTop: 8 }}>
+      <div ref={wrapRef} style={{ position: 'relative', marginTop: 14 }}>
         <input
           placeholder="Address"
           value={value.address}
@@ -109,8 +109,8 @@ export default function AddressFields({
           </ul>
         )}
       </div>
-      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...inputStyle, marginTop: 8 }} autoComplete={`${section} address-line2`} />
-      <div className={rowClass3} style={{ marginTop: 8 }}>
+      <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...inputStyle, marginTop: 14 }} autoComplete={`${section} address-line2`} />
+      <div className={rowClass3} style={{ marginTop: 14 }}>
         <input placeholder="City" value={value.city} onChange={set('city')} style={inputStyle} autoComplete={`${section} address-level2`} required />
         <select value={value.state} onChange={set('state')} style={inputStyle} autoComplete={`${section} address-level1`} required>
           <option value="">State</option>
@@ -122,7 +122,7 @@ export default function AddressFields({
         placeholder="Phone (optional)"
         value={value.phone}
         onChange={set('phone')}
-        style={{ ...inputStyle, marginTop: 8 }}
+        style={{ ...inputStyle, marginTop: 14 }}
         autoComplete={`${section} tel`}
         id={idPrefix ? `${idPrefix}-phone` : undefined}
       />

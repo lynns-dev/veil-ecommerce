@@ -561,7 +561,7 @@ export default function CheckoutPage({ qbEnvironment }) {
               <section style={{ marginTop: 28 }}>
                 <h1 style={stepTitle}>Where should we send your order?</h1>
 
-                <div style={{ marginTop: 24 }}>
+                <div style={{ marginTop: 30 }}>
                   <p style={fieldGroupLabel}>Contact</p>
                   <input
                     type="email"
@@ -579,7 +579,7 @@ export default function CheckoutPage({ qbEnvironment }) {
                   </label>
                 </div>
 
-                <div style={{ marginTop: 24 }}>
+                <div style={{ marginTop: 30 }}>
                   <p style={fieldGroupLabel}>Shipping address</p>
                   <select value="United States" readOnly style={{ ...bigInput, marginBottom: 10, color: T.soft }}>
                     <option>United States</option>
@@ -588,7 +588,7 @@ export default function CheckoutPage({ qbEnvironment }) {
                 </div>
 
                 {addressEntered && (
-                  <div style={{ marginTop: 20 }}>
+                  <div style={{ marginTop: 26 }}>
                     <p style={fieldGroupLabel}>Shipping method</p>
                     <div style={shipMethod}>
                       <div>
@@ -974,13 +974,13 @@ const receiptClose = {
   background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: T.soft, padding: 4,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
-const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
+const formCol = { padding: '32px 20px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 
 // Large, readable step heading — replaces the old small-caps section
 // titles for the 2-step flow's single big question per screen.
-const stepTitle = { fontFamily: T.sans, fontWeight: 800, fontSize: 28, margin: 0, color: T.ink, lineHeight: 1.2 };
+const stepTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0, color: T.ink, lineHeight: 1.25 };
 // letterSpacing dropped from 0.12em to 0.04em — 0.12em on 11px uppercase
 // text read as too spread out, especially on narrow mobile widths.
 const fieldGroupLabel = {
@@ -1002,7 +1002,7 @@ const stepConnector = { flex: '0 0 24px', height: 1, background: T.line, margin:
 // stays 16px or higher — below that, iOS Safari auto-zooms the whole page
 // in when a shopper taps into any of these fields.
 const bigInput = {
-  width: '100%', height: 58, padding: '0 18px', border: `1.5px solid ${T.line}`, background: T.white,
+  width: '100%', height: 58, padding: '0 18px', border: `1.5px solid ${T.fieldLine}`, background: T.white,
   fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 14,
 };
 const bigButton = {

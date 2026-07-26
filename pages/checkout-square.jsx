@@ -845,7 +845,7 @@ const summaryToggle = {
   cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
-const formCol = { padding: '32px 10px', borderRight: `1px solid ${T.line}` };
+const formCol = { padding: '32px 20px', borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
