@@ -373,20 +373,16 @@ export default function CheckoutPage() {
     (async () => {
       const amount = latestRef.current.grandTotal;
 
-      const apple = await createApplePayButton(amount, 'apple-pay-button', (err) => {
+      const apple = await createApplePayButton(amount, (err) => {
         setWalletErrors((w) => ({ ...w, apple: err?.message || String(err) }));
       });
-      if (cancelled) {
-        apple?.destroy?.().catch(() => {});
-      } else if (apple) {
-        appleMethodRef.current = apple;
-        setAppleAvailable(true);
-        const btn = document.getElementById('apple-pay-button');
-        const onClick = (event) => { event.preventDefault(); handleWalletPay(appleMethodRef, 'Apple Pay'); };
-        btn?.addEventListener('click', onClick);
-        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
-      } else {
-        setAppleAvailable(false);
+      if (!cancelled) {
+        if (apple) {
+          appleMethodRef.current = apple;
+          setAppleAvailable(true);
+        } else {
+          setAppleAvailable(false);
+        }
       }
 
       const google = await createGooglePayButton(amount, 'google-pay-button', (err) => {
@@ -795,24 +791,26 @@ export default function CheckoutPage() {
                 <h1 style={stepTitle}>How do you want to pay?</h1>
                 <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>All transactions are secure and encrypted.</p>
 
-                {/* Apple Pay / Google Pay — the containers always exist in
-                    the DOM (hidden via display:none, not conditional
-                    rendering) since Square's attach() needs to find them by
-                    id before we know whether that wallet is actually
-                    available on this browser/device; the whole section
-                    stays hidden the same way until at least one of them is.
-                    Visible (not display:none) while still pending
-                    (available === null), not just once confirmed true —
-                    Apple Pay's own button validates the container's size at
-                    attach() time and silently fails against a zero-size
-                    display:none element, unlike Google Pay/Afterpay which
-                    tolerate attaching to a hidden container fine. Only
-                    collapses once a wallet is confirmed unavailable
-                    (=== false). */}
+                {/* Google Pay's container always exists in the DOM (hidden
+                    via display:none, not conditional rendering) since
+                    Square's attach() needs to find it by id before we know
+                    whether that wallet is actually available on this
+                    browser/device; visible while still pending
+                    (available === null), not just once confirmed true,
+                    only collapsing once confirmed unavailable (=== false).
+                    Apple Pay has no attach()/container at all — it's our
+                    own native <button> below, styled with Safari's
+                    -apple-pay-button appearance, shown/hidden by the same
+                    tri-state rule via a plain conditional class instead. */}
                 <div style={{ display: (appleAvailable !== false || googleAvailable !== false) ? 'block' : 'none', marginTop: 20 }}>
                   <div style={{ display: 'grid', gap: 10 }}>
                     <div style={{ display: appleAvailable !== false ? 'block' : 'none' }}>
-                      <div id="apple-pay-button" style={walletButtonContainer} />
+                      <button
+                        type="button"
+                        className="apple-pay-button"
+                        aria-label="Apple Pay"
+                        onClick={() => handleWalletPay(appleMethodRef, 'Apple Pay')}
+                      />
                     </div>
                     <div style={{ display: googleAvailable !== false ? 'block' : 'none' }}>
                       <div id="google-pay-button" style={walletButtonContainer} />
@@ -1004,6 +1002,18 @@ export default function CheckoutPage() {
         }
         @media (max-width: 520px) {
           :global(.row-3) { grid-template-columns: 1fr; }
+        }
+        .apple-pay-button {
+          display: inline-block;
+          width: 100%;
+          min-height: 44px;
+          border-radius: 6px;
+          -webkit-appearance: -apple-pay-button;
+          -apple-pay-button-type: buy;
+          -apple-pay-button-style: black;
+        }
+        @supports not (-webkit-appearance: -apple-pay-button) {
+          .apple-pay-button { display: none; }
         }
       `}</style>
     </div>
