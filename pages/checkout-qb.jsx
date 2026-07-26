@@ -968,7 +968,7 @@ const fieldGroupLabel = {
 // stays 16px or higher — below that, iOS Safari auto-zooms the whole page
 // in when a shopper taps into any of these fields.
 const bigInput = {
-  width: '100%', height: 58, padding: '0 18px', border: `1.5px solid ${T.fieldLine}`, background: T.white,
+  width: '100%', height: 58, padding: '0 18px', border: `1px solid ${T.fieldLine}`, background: T.white,
   fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 14,
 };
 const bigButton = {
