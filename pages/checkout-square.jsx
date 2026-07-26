@@ -12,26 +12,44 @@ import { TASSEL_GIFT } from '../lib/products';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { setCheckoutStep } from '../lib/checkoutStage';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 
-// Backup checkout page, charging through Square — not linked from anywhere
-// on the live site (components/CartDrawer.jsx points at /checkout, which is
-// now pages/checkout.jsx, charging through QuickBooks Payments instead).
-// Kept as a ready-to-restore fallback: to rotate back to Square, swap which
-// file lives at pages/checkout.jsx the same way this page was moved out of
-// it. Keep this page's non-payment sections in sync with checkout.jsx by
-// hand when either one changes.
+// Backup checkout page on Square (Web Payments SDK), at a stable URL
+// separate from the live /checkout (pages/checkout.jsx) — not linked from
+// anywhere on the site. Identical twin of the live page (same reasoning as
+// pages/checkout-qb.jsx for QuickBooks): to rotate Square back to live,
+// swap which file lives at pages/checkout.jsx. Keep both non-payment
+// sections and Square integration in sync by hand when any of the three
+// checkout pages changes.
+//
+// A 2-step flow (Shipping -> Payment), modeled on Apple's own checkout
+// (large touch-friendly fields/buttons) rather than the single long-scroll
+// form this page used before — brand colors/fonts stay VEIL's own (black/
+// white, Hanken Grotesk/Fraunces), not Apple's blue. Payment is the final
+// step: its submit button ("Complete Order") tokenizes and charges the
+// card directly rather than advancing to a separate review step. Each step
+// is real, native <form> validation (required/type="email" on visible
+// fields only — a step's inputs aren't in the DOM at all while another
+// step is active, so the browser only ever validates what's currently on
+// screen).
+//
+// Square's Web Payments SDK renders its own card number/expiry/CVC/postal
+// element (a single bordered box, already merged the way this redesign
+// wants a card field to look) into #square-card-container — see the mount
+// effect below, gated on step === 2 since that container isn't in the DOM
+// at all until Step 2 renders (Square's attach() needs the element to
+// already exist). Apple Pay / Google Pay / Afterpay mount as soon as the
+// card element is ready, each wrapped so a wallet that isn't available
+// (unsupported browser/device, Afterpay's order-amount range, etc.) just
+// doesn't show its button rather than breaking the rest of checkout.
+//
+// Billing address is always the shipping address entered in Step 1 — no
+// separate billing-address toggle; Step 2 just displays it as a read-only
+// recap.
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
-
-// Flat optional add-on for reshipment/refund if a package is lost, damaged,
-// or stolen in transit. Price mirrors the reference design (necessaire.com)
-// this was modeled on — adjust freely. IMPORTANT: this only means something
-// to a shopper if there's a real support process behind it (reship/refund
-// on request for orders that paid for it) — see the order's shippingProtection
-// field in the admin Orders tab.
-const SHIPPING_PROTECTION_PRICE = 2.79;
 
 function LockIcon(props) {
   return (
@@ -69,33 +87,95 @@ function LeafIcon(props) {
   );
 }
 
-// VEIL's shipping-protection mark — the same open-flap box as ShipIcon
-// above, with a small shield-check badge overlapping its corner to read as
-// "this box is covered," rather than a generic insurance/shield glyph on
-// its own.
-function BoxProtectionIcon(props) {
+function CheckIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <path d="M2.5 7.5l7.5-3.7 7.5 3.7-7.5 3.7-7.5-3.7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M2.5 7.5v7.6l7.5 3.7 7.5-3.7V7.5M10 11.2v7.6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M16.3 12.6l3 1v2.1c0 1.9-1.3 3-3 3.6-1.7-.6-3-1.7-3-3.6v-2.1l3-1Z" fill="#FCFBF7" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M15.2 16.3l.9.9 1.6-1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M4 12.5l5.5 5.5L20 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function InfoIcon(props) {
+// Itemized cart (image/name/size/qty/price — the free Tassel gift, always
+// present per below, shows "FREE" rather than "$0.00"), discount code
+// entry, and the full price breakdown — shown once at the top of the form
+// column on both steps (in the space the old Shipping/Payment step
+// indicator used to occupy), so a shopper never loses sight of what
+// they're buying while filling in the form beneath it.
+function OrderItemsPanel({
+  cart, subtotal, totalSavings, shippingCost, addressEntered, grandTotal,
+  discountCode, setDiscountCode, discountMessage, setDiscountMessage, appliedDiscount, clearDiscount, handleApplyDiscount,
+}) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M12 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="12" cy="7.7" r="1" fill="currentColor" />
-    </svg>
+    <div style={reviewCard}>
+      <div>
+        {cart.map((item) => (
+          <div key={item.id} style={summaryItem}>
+            <div style={summaryImgWrap}>
+              <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+              <span style={qtyBadge}>{item.quantity}</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14 }}>{item.name}</div>
+              <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
+              {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input
+            placeholder="Discount code"
+            value={discountCode}
+            onChange={(e) => {
+              setDiscountCode(e.target.value);
+              if (appliedDiscount) clearDiscount();
+              setDiscountMessage('');
+            }}
+            // Same reasoning as the old inline field this replaces: Enter
+            // must apply the code, not fall through to native form submit.
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              handleApplyDiscount();
+            }}
+            style={{ ...bigInput, height: 46, flex: 1 }}
+          />
+          <button type="button" style={{ ...smallOutlineButton, height: 46 }} onClick={handleApplyDiscount}>Apply</button>
+        </div>
+        {discountMessage && (
+          <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${T.line}` }}>
+        <div style={summaryRow}>
+          <span style={{ color: T.soft }}>Subtotal</span>
+          <span>${subtotal.toFixed(2)}</span>
+        </div>
+        {totalSavings > 0 && (
+          <div style={summaryRow}>
+            <span style={{ color: T.green }}>You saved</span>
+            <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
+          </div>
+        )}
+        <div style={summaryRow}>
+          <span style={{ color: T.soft }}>Shipping</span>
+          <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
+        </div>
+        <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 12, marginTop: 4 }}>
+          <span style={{ fontFamily: T.sans, fontSize: 17, fontWeight: 700 }}>Total</span>
+          <span style={{ fontFamily: T.sans, fontSize: 20, fontWeight: 700 }}>${grandTotal.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-
-export default function CheckoutSquarePage() {
+export default function CheckoutPage() {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
 
@@ -103,14 +183,11 @@ export default function CheckoutSquarePage() {
   const [email, setEmail] = React.useState('');
   const [newsletter, setNewsletter] = React.useState(true);
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
-  const [shippingProtection, setShippingProtection] = React.useState(false);
 
   // Payment — Square's Card element renders its own number/expiry/CVC/
-  // postal-code fields into squareCardContainerRef; the returned Card
-  // instance (not raw field values) lives in squareCardRef for tokenize()
-  // at submit time. squareReady disables submit until it's actually
-  // mounted, same guard the old Stripe Payment Element used.
-  const squareCardContainerRef = React.useRef(null);
+  // postal-code fields into #square-card-container; the returned Card
+  // instance lives in squareCardRef for tokenize() at submit time.
+  // squareReady disables submit until it's actually mounted.
   const squareCardRef = React.useRef(null);
   const [squareReady, setSquareReady] = React.useState(false);
   const [squareError, setSquareError] = React.useState('');
@@ -124,31 +201,58 @@ export default function CheckoutSquarePage() {
   const [googleAvailable, setGoogleAvailable] = React.useState(false);
   const [afterpayAvailable, setAfterpayAvailable] = React.useState(false);
 
+  // 2-step flow (Shipping -> Payment) — Step 1's submit and Step 2's Back
+  // button are the only ways to move between them now that the step
+  // indicator (which also let a shopper jump back by clicking a completed
+  // step's label) is gone.
+  const [step, setStep] = React.useState(1);
+
+  // Reported to the live-view heartbeat in pages/_app.jsx (via
+  // lib/checkoutStage.js) so admin can see which step visitors are stuck
+  // on, not just that they're "at checkout" generically. Cleared on
+  // unmount so a visitor who navigates away doesn't linger as mid-checkout
+  // until their next heartbeat happens to overwrite it.
+  React.useEffect(() => {
+    setCheckoutStep(step);
+    return () => setCheckoutStep(null);
+  }, [step]);
+
+  // Historical funnel counter (admin's Today's funnel card) — reaching
+  // Step 2 for the first time, deduped server-side per session so jumping
+  // back and forth doesn't inflate this. Step 1 is already covered by the
+  // existing checkout_start ping below.
+  React.useEffect(() => {
+    if (step !== 2) return;
+    fetch('/api/track/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'checkout_payment', sessionId: getSessionId() }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [step]);
+
   // Discount + UI state
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
-  const [summaryOpen, setSummaryOpen] = React.useState(false);
+  const [receiptOpen, setReceiptOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
   const errorRef = React.useRef(null);
-  const [tasselSeconds, setTasselSeconds] = React.useState(5 * 60);
 
-  React.useEffect(() => {
-    const t = setInterval(() => setTasselSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // The error message renders once, near the "Place order" button at the
-  // bottom of the form — fine for card errors (the shopper is already right
-  // there), but Apple Pay/Google Pay/Afterpay live mid-page in the Payment
-  // section. A validation failure from one of those buttons (e.g. missing
-  // shipping address) used to set this same error with no visible reaction
-  // near the button that was actually clicked — a shopper scrolled up at
-  // Payment would see nothing happen at all. Scrolling it into view on every
-  // change fixes that regardless of where on the page the error originated.
+  // Scrolled into view on every change so an error is never left off-screen.
   React.useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [error]);
+
+  // Every step change scrolls back to the top of the form — otherwise
+  // advancing from a long Step 1 (address fully filled in, scrolled down)
+  // to a short Step 2 can leave the shopper staring at empty space below
+  // the fold with no visible change.
+  React.useEffect(() => {
+    formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+  const formTopRef = React.useRef(null);
 
   React.useEffect(() => {
     if (appliedDiscount) setDiscountCode(appliedDiscount.code);
@@ -186,22 +290,29 @@ export default function CheckoutSquarePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  const hasTassel = cart.some((i) => i.id === TASSEL_GIFT.id);
-  const tasselExpired = tasselSeconds <= 0;
-  const tasselMins = Math.floor(tasselSeconds / 60);
-  const tasselSecs = String(tasselSeconds % 60).padStart(2, '0');
-  const handleAddTassel = () => add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
-
-  // Mounts Square's own card-entry form into #square-card-container once on
-  // load — this is deliberately the plainest possible version of Square's
-  // own quickstart pattern (payments.card() -> attach()), rebuilt from
-  // scratch after ruling out the billingContact/verificationDetails shape
-  // as the cause of a live "unexpected error" (confirmed byte-for-byte
-  // against Square's own square/web-payments-quickstart example — the
-  // fields were already correct). There's no raw number/expiry/CVC state
-  // to manage here — Square's element owns those fields directly and only
-  // ever hands back a token via tokenize(), never the underlying data.
+  // The Tassel is now a free gift on every order, not an opt-in upsell —
+  // added automatically once the cart's hydrated rather than via a click,
+  // and re-added if it's ever missing (cart.length as the dep, not the
+  // tassel's own presence, so this can't loop: adding it changes length,
+  // which re-runs the effect once more and then finds it already there).
   React.useEffect(() => {
+    if (!hydrated || cart.length === 0) return;
+    if (!cart.some((i) => i.id === TASSEL_GIFT.id)) {
+      add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, cart.length]);
+
+  // Mounts Square's own card-entry form into #square-card-container —
+  // gated on step === 2 since that container isn't in the DOM at all until
+  // Step 2 renders (a step's inputs are removed entirely, not just hidden,
+  // same as every other field on this page), and Square's attach() needs
+  // the element to already exist. Re-mounts fresh every time Step 2 is
+  // (re-)entered — going back to Step 1 unmounts the container along with
+  // the rest of that step's JSX, which would otherwise leave the old Card
+  // instance attached to a now-detached node.
+  React.useEffect(() => {
+    if (step !== 2) return;
     let cancelled = false;
     (async () => {
       try {
@@ -219,31 +330,28 @@ export default function CheckoutSquarePage() {
     })();
     return () => {
       cancelled = true;
-      if (squareCardRef.current) squareCardRef.current.destroy().catch(() => {});
+      if (squareCardRef.current) {
+        squareCardRef.current.destroy().catch(() => {});
+        squareCardRef.current = null;
+      }
+      setSquareReady(false);
     };
-  }, []);
+  }, [step]);
 
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
 
   // Mounts Apple Pay / Google Pay / Afterpay as soon as the Square SDK is
-  // ready — same moment the card element becomes usable, not gated on
-  // shipping being filled in, so a shopper who wants to pay with a wallet
-  // never has to type an address first just to see the button (the section
-  // itself is still positioned after Shipping Protection in the JSX below,
-  // so by the time it's visible shipping is already filled in). Safe to
-  // mount this early either way because handleWalletPay (below) still
-  // validates email/shipping are filled in before it lets a click actually
-  // proceed to tokenize() — the button existing isn't the same as the
-  // button working. Each pre-declares a total when created (whatever
-  // grandTotal is at that moment, which won't yet include shipping if the
-  // address isn't entered yet); known limitation: that displayed total
-  // doesn't live-update as shipping/discounts change afterward (recreating
-  // the buttons on every total change would flicker them) — the amount
-  // actually charged is always read fresh from latestRef at tokenize time,
-  // so this is a display lag, not a billing bug. Afterpay additionally has
-  // its own order-amount eligibility range — outside it, createAfterpayButton
-  // fails the same way an unsupported browser/device does for Apple/Google
-  // Pay, and the button just doesn't appear.
+  // ready (which only happens on Step 2, per the effect above — shipping is
+  // always already filled in by then, unlike this same code's previous
+  // single-page layout). Each pre-declares a total when created (whatever
+  // grandTotal is at that moment); known limitation: that displayed total
+  // doesn't live-update as discounts change afterward (recreating the
+  // buttons on every total change would flicker them) — the amount actually
+  // charged is always read fresh from latestRef at tokenize time, so this
+  // is a display lag, not a billing bug. Afterpay additionally has its own
+  // order-amount eligibility range — outside it, createAfterpayButton fails
+  // the same way an unsupported browser/device does for Apple/Google Pay,
+  // and the button just doesn't appear.
   React.useEffect(() => {
     if (!squareReady) return;
     let cancelled = false;
@@ -308,25 +416,23 @@ export default function CheckoutSquarePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squareReady]);
 
-  // Don't add shipping to the total until there's an address to base it on —
-  // showing $5 on top of what the shopper expected from the product/cart
-  // page, before they've typed anything, just reads as an unexplained price
-  // jump. It only enters the total once addressEntered flips true, same
-  // moment the Shipping method section below stops saying "enter your
-  // address" and starts showing an actual rate.
   const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
   const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
   const discountTotal = subtotal - total;
-  const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
-  const grandTotal = discountedTotal + shippingCost + shippingProtectionCost;
+  // The header line this feeds ("You saved") is the code discount plus the
+  // Tassel's $15 value — explicit rather than derived from discountTotal
+  // above (which is subtotal-vs-total generically) since the Tassel is
+  // guaranteed on every order now, not just whenever it happens to be in cart.
+  const totalSavings = codeDiscountAmount + TASSEL_GIFT.price;
+  const grandTotal = discountedTotal + shippingCost;
 
   // Apple Pay/Google Pay's button click handler is attached once (see the
-  // wallet mount effect below) and can fire long after that — reading
+  // wallet mount effect above) and can fire long after that — reading
   // email/shipping/cart/grandTotal through this ref instead of closing
   // over them directly means it always sees what's currently on the page,
   // not what was there at mount.
   const latestRef = React.useRef({});
-  latestRef.current = { email, shipping, cart, grandTotal, shippingProtectionCost };
+  latestRef.current = { email, shipping, cart, grandTotal };
 
   // Fires once the shopper's attention leaves the email field — a good
   // enough proxy for "entered their email" without hammering the KV store
@@ -367,14 +473,20 @@ export default function CheckoutSquarePage() {
     }
   };
 
-  // Shared by the card submit handler below and the Apple Pay/Google Pay
-  // click handler — every Square payment method resolves to the same
-  // single-use token shape, so charging and fulfilling it is identical
-  // regardless of which method produced it. Reads email/shipping/cart/
-  // grandTotal from latestRef rather than closed-over state since the
-  // wallet path can fire long after the render that created its handler.
+  const goToStep = (n) => {
+    setError('');
+    setStep(n);
+  };
+
+  // Shared by the card submit handler below and the Apple Pay/Google Pay/
+  // Afterpay click handlers — every Square payment method resolves to the
+  // same single-use token shape, so charging and fulfilling it is
+  // identical regardless of which method produced it. Reads email/
+  // shipping/cart/grandTotal from latestRef rather than closed-over state
+  // since the wallet path can fire long after the render that created its
+  // handler.
   const completeSquareOrder = async (token, paymentMethodLabel) => {
-    const { email, shipping, cart, grandTotal, shippingProtectionCost } = latestRef.current;
+    const { email, shipping, cart, grandTotal } = latestRef.current;
     const purchaseEventId = generateEventId();
 
     const res = await fetch('/api/square-checkout', {
@@ -390,7 +502,6 @@ export default function CheckoutSquarePage() {
         url: window.location.href,
         paymentMethod: paymentMethodLabel,
         attribution: getStoredAttribution(),
-        shippingProtection: shippingProtectionCost || 0,
       }),
     });
     const data = await res.json();
@@ -406,10 +517,11 @@ export default function CheckoutSquarePage() {
     clear();
   };
 
-  // Apple Pay / Google Pay only render their own button — there's no
-  // "Place order" click to hang the usual form-level required-field
+  // Apple Pay / Google Pay / Afterpay only render their own button — there's
+  // no "Complete Order" click to hang the usual form-level required-field
   // validation off of, so this checks email/shipping directly before
-  // approving.
+  // approving (belt-and-suspenders here since Step 2 can't be reached
+  // without Step 1's own native validation having already passed).
   const handleWalletPay = async (methodRef, label) => {
     setError('');
     const { email, shipping } = latestRef.current;
@@ -430,41 +542,44 @@ export default function CheckoutSquarePage() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  // Each step is real native <form> validation — required/type="email" on
+  // whichever fields are actually mounted for the current step (a step
+  // that isn't showing has its inputs removed from the DOM entirely, not
+  // just hidden, so the browser only ever validates what's on screen).
+  const handleStepSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
+    if (step === 1) {
+      goToStep(2);
+      return;
+    }
+
+    // Step 2 — charge via Square's Card element.
     if (!squareReady || !squareCardRef.current) {
       setError('Payment form is still loading — please wait a moment and try again.');
       return;
     }
-
     setSubmitting(true);
     try {
-      // Step 1: tokenize the card via Square's Web Payments SDK
+      // Step A: tokenize the card via Square's Web Payments SDK
       // (lib/squareClient.js) — the raw card number never reaches our own
       // server, only Square's. The token is single-use.
       //
-      // verificationDetails deliberately omitted entirely (not just
-      // billingContact): passing ANY verificationDetails object — even with
-      // billingContact removed — still routes tokenize() through Square's
-      // separate buyer-verification call to
-      // pci-connect.squareup.com/v2/analytics/verifications, which — live,
-      // confirmed via the real Square error response body — rejects this
-      // account's location ("Invalid location id") even though that same
-      // location processes real charges fine (confirmed via a completed
-      // charge and via Square's own ListLocations API showing it ACTIVE with
-      // CREDIT_CARD_PROCESSING). The wallet buttons (Apple/Google
-      // Pay/Afterpay) call tokenize() with no arguments at all and always
-      // succeeded — mirroring that here avoids the broken verification call.
-      // verificationDetails only supports AVS/CVV/SCA verification, not
-      // whether the charge itself can complete.
+      // verificationDetails deliberately omitted — passing one (even with
+      // billingContact removed) routes tokenize() through Square's separate
+      // buyer-verification call, which has previously rejected this
+      // account's location even though the same location processes real
+      // charges fine. The wallet buttons above call tokenize() with no
+      // arguments and always succeed — mirroring that here avoids the
+      // broken verification call.
       const token = await tokenizeSquareCard(squareCardRef.current);
 
-      // Step 2: charge that token server-side (/api/square-checkout). Like
-      // QuickBooks, a Square charge has no redirect step and no webhook —
-      // it either succeeds or fails in this same request — so fulfillment
-      // and the success-page navigation both happen right here.
+      // Step B: charge that token server-side (/api/square-checkout) —
+      // like every processor this site has used, a Square charge has no
+      // redirect step and no webhook: it either succeeds or fails in this
+      // same request, so fulfillment and the success-page navigation both
+      // happen right here.
       await completeSquareOrder(token, 'Square');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -477,239 +592,269 @@ export default function CheckoutSquarePage() {
 
   return (
     <div>
-      <header style={topbar}>
-        <Link href="/" style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 64, textDecoration: 'none' }}>
-          <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
-        </Link>
+      <header className="desktop-topbar" style={topbar}>
+        <div style={{ ...S.wrap, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+            <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 24, width: 'auto' }} />
+          </Link>
+          <div style={secureBadge}>
+            <LockIcon style={{ color: T.soft }} />
+            <span>Secure Checkout</span>
+          </div>
+        </div>
       </header>
 
-      <button className="summary-toggle" style={summaryToggle} onClick={() => setSummaryOpen((o) => !o)}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>{summaryOpen ? 'Hide' : 'Show'} order summary</span>
-          <span style={{ fontSize: 10 }}>{summaryOpen ? '▲' : '▼'}</span>
-        </span>
-        <span style={{ fontFamily: T.sans, fontSize: 17 }}>${grandTotal.toFixed(2)}</span>
-      </button>
+      {/* Mobile-only compact header — small lock badge + logo left, total
+          right. White background (not the old T.paper toggle bar, which
+          read as an off-white/gray band against the rest of the page).
+          Tapping the total opens the itemized receipt popup below instead
+          of the old inline-collapsing order summary, since that popup now
+          covers the same job in less space. */}
+      <header className="mobile-topbar" style={mobileTopbar}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <LockIcon style={{ color: T.soft, flexShrink: 0 }} />
+          <img src="/images/veil-logo-black.png" alt="VEIL" style={{ height: 16, width: 'auto' }} />
+        </Link>
+        <button type="button" onClick={() => setReceiptOpen(true)} style={mobileTotalButton}>
+          <span style={{ fontFamily: T.sans, fontSize: 16, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 3 }}>${grandTotal.toFixed(2)}</span>
+          <span style={{ fontSize: 10, color: T.soft }}>▾</span>
+        </button>
+      </header>
 
-      <div className="checkout-grid" style={checkoutGrid}>
-        <form onSubmit={handleSubmit} style={formCol}>
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Contact</h2>
+      {receiptOpen && (
+        <div style={receiptOverlay} onClick={() => setReceiptOpen(false)}>
+          <div style={receiptSheet} onClick={(e) => e.stopPropagation()}>
+            <div style={receiptHead}>
+              <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 16 }}>Order summary</span>
+              <button type="button" onClick={() => setReceiptOpen(false)} style={receiptClose} aria-label="Close">✕</button>
             </div>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={handleEmailBlur}
-              style={input}
-              autoComplete="email"
-              required
-            />
-            <label style={checkboxLabel}>
-              <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
-              Email me with news and offers
-            </label>
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Delivery</h2>
-            </div>
-            <select value="United States" readOnly style={{ ...input, marginBottom: 12, color: T.soft }}>
-              <option>United States</option>
-            </select>
-            <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={input} />
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Shipping method</h2>
-            </div>
-            {addressEntered ? (
-              <div style={shipMethod}>
-                <div>
-                  <div>Standard Shipping</div>
-                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>3–5 business days after order placed</div>
-                </div>
-                <span>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-              </div>
-            ) : (
-              <p style={{ color: T.soft, fontSize: 14 }}>Enter your delivery address to see shipping options.</p>
-            )}
-          </section>
-
-          <section style={{ marginTop: 16 }}>
-            <div style={protectionCard}>
-              <div style={protectionIconBox}>
-                <BoxProtectionIcon style={{ color: T.ink }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontFamily: T.sans, fontWeight: 700, fontSize: 14, color: T.ink }}>Shipping Protection</span>
-                  <span title="Covers reshipment or a refund if your order is lost, damaged, or stolen in transit. Contact us and we'll make it right.">
-                    <InfoIcon style={{ color: T.soft }} />
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>For lost, damaged, or stolen packages</div>
-                <div style={{ fontSize: 13, color: T.ink, marginTop: 4 }}>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShippingProtection((v) => !v)}
-                style={{ ...S.btnOutline, height: 38, padding: '0 20px', ...(shippingProtection ? { background: T.paper } : {}) }}
-              >
-                {shippingProtection ? 'Remove' : 'Add'}
-              </button>
-            </div>
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <h2 style={{ ...sectionTitle, marginBottom: 4 }}>Payment</h2>
-            <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
-
-            {/* Apple Pay / Google Pay, positioned after shipping is
-                collected — both need email/shipping already filled in before
-                handleWalletPay lets a click through to tokenize() (this
-                doesn't collect shipping the way a native Apple Pay sheet
-                can), so putting the buttons here instead of higher up means
-                they're usable the moment they're visible instead of erroring
-                on click. The containers always exist in the DOM (hidden via
-                display:none, not conditional rendering) since Square's
-                attach() needs to find them by id before we know whether that
-                wallet is actually available on this browser/device; the
-                whole section (heading + OR divider) stays hidden the same
-                way until at least one of them is. Sits above Afterpay per
-                request, so shoppers see Apple/Google Pay first. */}
-            <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginBottom: 10 }}>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div style={{ display: appleAvailable ? 'block' : 'none' }}>
-                  <div id="apple-pay-button" style={walletButtonContainer} />
-                </div>
-                <div style={{ display: googleAvailable ? 'block' : 'none' }}>
-                  <div id="google-pay-button" style={walletButtonContainer} />
-                </div>
-              </div>
-            </div>
-
-            {/* Afterpay sits right above the card box — same
-                email/shipping validation via handleWalletPay, just
-                presented as an alternative to the card form specifically
-                instead of grouped with the other wallets. Only one "OR"
-                divider total, after Afterpay and before Credit card — not
-                also between the wallet buttons and Afterpay. */}
-            <div style={{ display: afterpayAvailable ? 'block' : 'none', marginBottom: 14 }}>
-              <div id="afterpay-button" style={walletButtonContainer} />
-              <div style={orDivider}>
-                <span style={orDividerLine} />
-                <span style={orDividerText}>OR</span>
-                <span style={orDividerLine} />
-              </div>
-            </div>
-
-            <div style={paymentList}>
-              <div style={accordionRow}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
-              </div>
-              <div style={accordionBody}>
-                {/* Square's Web Payments SDK renders its own card
-                    number/expiry/CVC/postal fields into this container,
-                    including its own network-brand logo as you type — see
-                    the mount effect above. Nothing here reads or holds the
-                    raw card data. */}
-                <div id="square-card-container" style={squareCardContainer} />
-                {!squareReady && !squareError && (
-                  <p style={{ fontSize: 12, color: T.soft, marginTop: 8 }}>Loading payment form…</p>
-                )}
-                {squareError && (
-                  <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <div style={sectionHead}>
-              <h2 style={sectionTitle}>Discount code</h2>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                placeholder="Discount code"
-                value={discountCode}
-                onChange={(e) => {
-                  setDiscountCode(e.target.value);
-                  if (appliedDiscount) clearDiscount();
-                  setDiscountMessage('');
-                }}
-                style={{ ...input, flex: 1 }}
-              />
-              <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-            </div>
-            {discountMessage && (
-              <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-            )}
-          </section>
-
-          {/* Moved to sit right above the submit button, not at the top of
-              the form — a free-gift upsell competing for attention before
-              a shopper has even started filling in their info was more
-              distracting than persuasive; here it's the last thing they
-              see before placing the order. */}
-          {!tasselExpired && (
-            <section style={{ marginTop: 24 }}>
-              <div style={tasselCard}>
-                <p style={{ ...S.label, marginBottom: 10 }}>Get the Veil Scented Tassel for free</p>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={tasselImgWrap}>
-                    <ProductVisual id={TASSEL_GIFT.id} images={TASSEL_GIFT.images} alt={TASSEL_GIFT.name} width={48} />
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', padding: '4px 20px' }}>
+              {cart.map((item) => (
+                <div key={item.id} style={summaryItem}>
+                  <div style={summaryImgWrap}>
+                    <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+                    <span style={qtyBadge}>{item.quantity}</span>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: T.sans, fontSize: 15, color: T.ink }}>{TASSEL_GIFT.name}</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
-                      <span style={{ fontSize: 13, color: T.soft, textDecoration: 'line-through' }}>
-                        ${TASSEL_GIFT.price.toFixed(2)}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>$0.00</span>
-                    </div>
+                    <div style={{ fontSize: 14 }}>{item.name}</div>
+                    <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                   </div>
-                  {hasTassel ? (
-                    <span style={{ fontSize: 12, color: T.ink, whiteSpace: 'nowrap' }}>✓ Added</span>
-                  ) : (
-                    <button type="button" onClick={handleAddTassel} style={S.btnOutline}>Add to cart</button>
-                  )}
+                  <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
+                    {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+                  </div>
                 </div>
-                {!hasTassel && (
-                  <p style={tasselTimer}>
-                    Offer expires in {tasselMins}:{tasselSecs} — place your order before time runs out.
-                  </p>
-                )}
+              ))}
+            </div>
+            <div style={{ padding: '4px 20px 24px' }}>
+              <div style={summaryRow}>
+                <span style={{ color: T.soft }}>Subtotal</span>
+                <span>${subtotal.toFixed(2)}</span>
               </div>
-            </section>
-          )}
+              {discountTotal > 0 && (
+                <div style={summaryRow}>
+                  <span style={{ color: T.green }}>Discount</span>
+                  <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {codeDiscountAmount > 0 && (
+                <div style={summaryRow}>
+                  <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
+                  <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={summaryRow}>
+                <span style={{ color: T.soft }}>Shipping</span>
+                <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
+              </div>
+              <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
+                <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
+                <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {error && <p ref={errorRef} style={errorText}>{error}</p>}
+      <div className="checkout-grid" style={checkoutGrid}>
+        <div className="form-col" style={formCol}>
+          <div ref={formTopRef} />
+          <OrderItemsPanel
+            cart={cart}
+            subtotal={subtotal}
+            totalSavings={totalSavings}
+            shippingCost={shippingCost}
+            addressEntered={addressEntered}
+            grandTotal={grandTotal}
+            discountCode={discountCode}
+            setDiscountCode={setDiscountCode}
+            discountMessage={discountMessage}
+            setDiscountMessage={setDiscountMessage}
+            appliedDiscount={appliedDiscount}
+            clearDiscount={clearDiscount}
+            handleApplyDiscount={handleApplyDiscount}
+          />
 
-          <button
-            type="submit"
-            disabled={submitting || !squareReady}
-            style={{
-              ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 20,
-              height: 58, fontSize: 13, opacity: submitting || !squareReady ? 0.6 : 1,
+          <form
+            onSubmit={handleStepSubmit}
+            // Defense in depth alongside the discount-code field's own
+            // Enter handling above: on Step 2 specifically, Enter pressed
+            // anywhere that isn't the actual "Complete Order" button must
+            // never submit — that's a real charge, not a step advance like
+            // Step 1. Step 1 keeps normal Enter-to-advance behavior; only
+            // Step 2's real-money submit is guarded.
+            onKeyDown={(e) => {
+              if (step === 2 && e.key === 'Enter' && e.target.type !== 'submit') e.preventDefault();
             }}
           >
-            {submitting ? 'Processing…' : `Place order — $${grandTotal.toFixed(2)}`}
-          </button>
-          <div style={secureNote}>
-            <LockIcon />
-            <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
-          </div>
-          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-            Payments securely processed by Square
-          </p>
-        </form>
+            {step === 1 && (
+              <section style={{ marginTop: 28 }}>
+                <h1 style={stepTitle}>Where should we send your order?</h1>
 
-        <aside className={`order-summary ${summaryOpen ? 'open' : ''}`} style={summaryCol}>
+                <div style={{ marginTop: 30 }}>
+                  <p style={fieldGroupLabel}>Shipping address</p>
+                  <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={bigInput} />
+                </div>
+
+                {addressEntered && (
+                  <div style={{ marginTop: 26 }}>
+                    <p style={fieldGroupLabel}>Shipping method</p>
+                    <div style={shipMethod}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>Standard Shipping</div>
+                        <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>3–5 business days after order placed</div>
+                      </div>
+                      <span style={{ fontWeight: 700 }}>{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginTop: 26 }}>
+                  <p style={fieldGroupLabel}>Country</p>
+                  <select value="United States" readOnly style={{ ...bigInput, color: T.soft }}>
+                    <option>United States</option>
+                  </select>
+                </div>
+
+                <div style={{ marginTop: 26 }}>
+                  <p style={fieldGroupLabel}>Contact</p>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={handleEmailBlur}
+                    style={bigInput}
+                    autoComplete="email"
+                    required
+                  />
+                  <label style={checkboxLabel}>
+                    <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
+                    Email me with news and offers
+                  </label>
+                </div>
+
+                {error && <p ref={errorRef} style={errorText}>{error}</p>}
+
+                <button type="submit" style={{ ...bigButton, marginTop: 24 }}>
+                  Continue to final step
+                </button>
+              </section>
+            )}
+
+            {step === 2 && (
+              <section style={{ marginTop: 28 }}>
+                <h1 style={stepTitle}>How do you want to pay?</h1>
+                <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>All transactions are secure and encrypted.</p>
+
+                {/* Apple Pay / Google Pay — the containers always exist in
+                    the DOM (hidden via display:none, not conditional
+                    rendering) since Square's attach() needs to find them by
+                    id before we know whether that wallet is actually
+                    available on this browser/device; the whole section
+                    stays hidden the same way until at least one of them is. */}
+                <div style={{ display: (appleAvailable || googleAvailable) ? 'block' : 'none', marginTop: 20 }}>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ display: appleAvailable ? 'block' : 'none' }}>
+                      <div id="apple-pay-button" style={walletButtonContainer} />
+                    </div>
+                    <div style={{ display: googleAvailable ? 'block' : 'none' }}>
+                      <div id="google-pay-button" style={walletButtonContainer} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Afterpay sits right above the card box — same
+                    email/shipping validation via handleWalletPay, just
+                    presented as an alternative to the card form specifically.
+                    Only one "OR" divider total, after Afterpay and before
+                    Credit card. */}
+                <div style={{ display: afterpayAvailable ? 'block' : 'none', marginTop: afterpayAvailable && !(appleAvailable || googleAvailable) ? 20 : 10 }}>
+                  <div id="afterpay-button" style={walletButtonContainer} />
+                  <div style={orDivider}>
+                    <span style={orDividerLine} />
+                    <span style={orDividerText}>OR</span>
+                    <span style={orDividerLine} />
+                  </div>
+                </div>
+
+                <div style={{ ...paymentList, marginTop: 20 }}>
+                  <div style={accordionRow}>
+                    <span style={{ fontWeight: 700, fontSize: 16 }}>Credit or Debit Card</span>
+                  </div>
+                  <div style={accordionBody}>
+                    {/* Square's Web Payments SDK renders its own card
+                        number/expiry/CVC/postal fields into this container,
+                        including its own network-brand logo as you type —
+                        see the mount effect above. Nothing here reads or
+                        holds the raw card data. */}
+                    <div id="square-card-container" style={squareCardContainer} />
+                    {!squareReady && !squareError && (
+                      <p style={{ fontSize: 12, color: T.soft, marginTop: 8 }}>Loading payment form…</p>
+                    )}
+                    {squareError && (
+                      <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 20 }}>
+                  <p style={fieldGroupLabel}>Billing address</p>
+                  <div style={billingRecap}>
+                    <CheckIcon style={{ color: T.ink, flexShrink: 0, marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>Same as shipping address</div>
+                      <div style={{ color: T.soft, fontSize: 13, lineHeight: 1.6 }}>
+                        {shipping.firstName} {shipping.lastName}<br />
+                        {shipping.address}{shipping.apt ? `, ${shipping.apt}` : ''}<br />
+                        {shipping.city}, {shipping.state} {shipping.zip}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {error && <p ref={errorRef} style={errorText}>{error}</p>}
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                  <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary} disabled={submitting}>
+                    Back
+                  </button>
+                  <button type="submit" disabled={submitting || !squareReady} style={{ ...bigButton, flex: 1, opacity: submitting || !squareReady ? 0.6 : 1 }}>
+                    {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
+                  </button>
+                </div>
+                <div style={secureNote}>
+                  <LockIcon />
+                  <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
+                </div>
+                <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
+                  Payments securely processed by Square
+                </p>
+              </section>
+            )}
+          </form>
+        </div>
+
+        <aside className="order-summary" style={summaryCol}>
           <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
             {cart.map((item) => (
               <div key={item.id} style={summaryItem}>
@@ -721,7 +866,9 @@ export default function CheckoutSquarePage() {
                   <div style={{ fontSize: 14 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>{item.size}</div>
                 </div>
-                <div style={{ fontSize: 14 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                <div style={{ fontSize: 14, fontWeight: item.id === TASSEL_GIFT.id ? 700 : 400, color: item.id === TASSEL_GIFT.id ? T.green : T.ink }}>
+                  {item.id === TASSEL_GIFT.id ? 'FREE' : `$${(item.price * item.quantity).toFixed(2)}`}
+                </div>
               </div>
             ))}
           </div>
@@ -732,47 +879,24 @@ export default function CheckoutSquarePage() {
           </div>
           {discountTotal > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Discount</span>
-              <span>−${discountTotal.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Discount</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
             </div>
           )}
           {codeDiscountAmount > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
-              <span>−${codeDiscountAmount.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
             </div>
           )}
           <div style={summaryRow}>
             <span style={{ color: T.soft }}>Shipping</span>
             <span>{!addressEntered ? 'Enter address' : (shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`)}</span>
           </div>
-          {shippingProtection && (
-            <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Shipping Protection</span>
-              <span>${SHIPPING_PROTECTION_PRICE.toFixed(2)}</span>
-            </div>
-          )}
           <div style={{ ...summaryRow, borderTop: `1px solid ${T.line}`, paddingTop: 16, marginTop: 6 }}>
             <span style={{ fontFamily: T.sans, fontSize: 18 }}>Total</span>
             <span style={{ fontFamily: T.sans, fontSize: 24 }}>${grandTotal.toFixed(2)}</span>
           </div>
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <input
-              placeholder="Discount code"
-              value={discountCode}
-              onChange={(e) => {
-                setDiscountCode(e.target.value);
-                if (appliedDiscount) clearDiscount();
-                setDiscountMessage('');
-              }}
-              style={{ ...input, flex: 1 }}
-            />
-            <button type="button" style={S.btnOutline} onClick={handleApplyDiscount}>Apply</button>
-          </div>
-          {discountMessage && (
-            <p style={{ fontSize: 12, color: appliedDiscount ? T.ink : '#a13d2b', marginTop: 8 }}>{discountMessage}</p>
-          )}
         </aside>
       </div>
 
@@ -805,8 +929,9 @@ export default function CheckoutSquarePage() {
       <style jsx>{`
         :global(.row-2) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 10px; }
-        .summary-toggle { display: none; }
+        .mobile-topbar { display: none; }
         .checkout-grid { grid-template-columns: 1.35fr 1fr; }
+        .form-col { padding: 32px 20px; }
         .reassurance-grid { grid-template-columns: repeat(4, 1fr); }
         @media (max-width: 860px) {
           .reassurance-grid { grid-template-columns: repeat(2, 1fr); }
@@ -826,9 +951,10 @@ export default function CheckoutSquarePage() {
         }
         @media (max-width: 860px) {
           .checkout-grid { grid-template-columns: 1fr; }
-          .summary-toggle { display: flex; }
-          .order-summary { display: none; order: -1; border-bottom: 1px solid ${T.line}; }
-          .order-summary.open { display: block; }
+          .desktop-topbar { display: none; }
+          .mobile-topbar { display: flex; }
+          .order-summary { display: none; }
+          .form-col { padding: 32px 25px; }
         }
         @media (max-width: 520px) {
           :global(.row-3) { grid-template-columns: 1fr; }
@@ -839,65 +965,110 @@ export default function CheckoutSquarePage() {
 }
 
 const topbar = { borderBottom: `1px solid ${T.line}`, textAlign: 'center' };
-const summaryToggle = {
-  width: '100%', border: 'none', borderBottom: `1px solid ${T.line}`, background: T.paper,
-  padding: '16px 24px', alignItems: 'center', justifyContent: 'space-between',
-  cursor: 'pointer', fontFamily: T.sans, fontSize: 13, color: T.ink,
+// Compact mobile-only header — small logo left, total right (tap to open
+// the itemized receipt popup). White background explicitly, not T.paper —
+// the old T.paper toggle bar this replaces was reading as an off-white/
+// gray band against the rest of the page on mobile.
+// display is deliberately NOT set here — inline styles always beat CSS
+// rules, so if 'none' were set inline here, the <style jsx> media query
+// below meant to show this at mobile widths could never override it.
+// display: none/flex lives entirely in that stylesheet instead.
+const mobileTopbar = {
+  alignItems: 'center', justifyContent: 'space-between',
+  padding: '14px 20px', borderBottom: `1px solid ${T.line}`, background: T.white,
+};
+const mobileTotalButton = {
+  display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+  padding: 0, cursor: 'pointer', color: T.ink,
+};
+const receiptOverlay = {
+  position: 'fixed', inset: 0, background: 'rgba(22,20,15,0.4)', zIndex: 50,
+  display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+};
+const receiptSheet = {
+  width: '100%', maxWidth: 480, background: T.white, borderRadius: '20px 20px 0 0',
+  maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+};
+const receiptHead = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  padding: '18px 20px', borderBottom: `1px solid ${T.line}`,
+};
+const receiptClose = {
+  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: T.soft, padding: 4,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
-const formCol = { padding: '32px 20px', borderRight: `1px solid ${T.line}` };
+// Horizontal padding lives in the .form-col CSS class below (not inline)
+// specifically so the mobile media query can override it — an inline style
+// always wins over a plain CSS rule regardless of media query, so this
+// value can't just be bumped in place for mobile the way most of this
+// file's styling works.
+const formCol = { borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
-const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: 12, color: T.soft };
-const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 8 };
-const sectionTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0 };
-// fontSize must stay at 16px or higher — below that, iOS Safari
-// auto-zooms the whole page in when a shopper taps into any of these
-// fields, which is the "moves the checkout page weird" behavior on focus.
-const input = {
-  width: '100%', height: 44, padding: '0 14px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 4,
+const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
+const secureBadge = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.soft, fontFamily: T.sans };
+
+// Step heading — replaces the old small-caps section titles for the
+// 2-step flow's single big question per screen. Sized down from an
+// earlier 28px/800 — that read as too heavy/loud as the very first thing
+// on the page, competing with the logo above it instead of sitting
+// underneath it in the hierarchy.
+const stepTitle = { fontFamily: T.sans, fontWeight: 700, fontSize: 22, margin: 0, color: T.ink, lineHeight: 1.25 };
+// letterSpacing dropped from 0.12em to 0.04em — 0.12em on 11px uppercase
+// text read as too spread out, especially on narrow mobile widths.
+const fieldGroupLabel = {
+  fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.soft, fontWeight: 700, marginBottom: 10,
 };
-const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 13, color: T.soft };
-const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
+
+// Bigger than the old `input` (58px vs 44px tall, 14px radius vs 4px) —
+// "large buttons and forms, easy to press on phone" per request. fontSize
+// stays 16px or higher — below that, iOS Safari auto-zooms the whole page
+// in when a shopper taps into any of these fields.
+const bigInput = {
+  width: '100%', height: 58, padding: '0 18px', border: `1px solid ${T.fieldLine}`, background: T.white,
+  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 14,
+};
+const bigButton = {
+  ...S.btnFill, width: '100%', height: 60, borderRadius: 14, justifyContent: 'center',
+  fontSize: 15, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+const bigButtonSecondary = {
+  ...S.btnOutline, height: 60, borderRadius: 14, justifyContent: 'center', padding: '0 26px',
+  fontSize: 15, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+// Same rounded/white-outline treatment as bigButtonSecondary, but sized to
+// match bigInput's height (58px) exactly for the Apply button that sits
+// directly beside a bigInput.
+const smallOutlineButton = {
+  ...S.btnOutline, height: 58, borderRadius: 14, justifyContent: 'center', padding: '0 22px',
+  fontSize: 13, letterSpacing: 'normal', textTransform: 'none', fontWeight: 700,
+};
+const checkboxLabel = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 13, color: T.soft };
+const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 14, background: T.white, overflow: 'hidden' };
 const accordionRow = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.white,
+  padding: '18px 18px', borderBottom: `1px solid ${T.line}`, background: T.white,
 };
-const accordionBody = { padding: '14px 14px 18px', background: T.white };
+const accordionBody = { padding: '16px 18px 20px', background: T.white };
 // Square's Web Payments SDK renders its own iframe-based fields into this
 // container (card.attach), already inside its own bordered/rounded box —
 // no border/padding here, or the card ends up boxed twice; min-height only,
 // to keep the layout from jumping while the SDK script loads and mounts.
 const squareCardContainer = { minHeight: 48 };
-const walletDivider = {
-  fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
-  textAlign: 'center', margin: 0,
-};
-const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 0' };
-const orDividerLine = { flex: 1, height: 1, background: T.line };
-const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
 // No background/border here — Apple Pay and Google Pay each style their
 // own attached button (their own colors, logo, corner radius).
-const walletButtonContainer = { width: '100%', minHeight: 44 };
-const tasselCard = { border: `1px solid ${T.line}`, background: T.white, padding: 16 };
-const tasselImgWrap = {
-  width: 48, height: 48, flexShrink: 0, overflow: 'hidden', background: T.white,
-  border: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+const walletButtonContainer = { width: '100%', minHeight: 44, borderRadius: 14, overflow: 'hidden' };
+const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0 0' };
+const orDividerLine = { flex: 1, height: 1, background: T.line };
+const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
+const billingRecap = {
+  display: 'flex', gap: 12, padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14,
 };
-const tasselTimer = { fontSize: 11, color: '#a13d2b', marginTop: 10, marginBottom: 0 };
-const protectionCard = {
-  display: 'flex', alignItems: 'center', gap: 14, padding: 14,
-  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
-};
-const protectionIconBox = {
-  width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
-};
+const reviewCard = { padding: 16, border: `1.5px solid ${T.line}`, borderRadius: 14, background: T.white, fontSize: 14 };
 const shipMethod = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 14px',
-  border: `1px solid ${T.ink}`, fontSize: 14,
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px',
+  border: `1.5px solid ${T.ink}`, borderRadius: 14, fontSize: 14,
 };
-const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 20 };
+const errorText = { color: '#a13d2b', fontSize: 13, marginTop: 16 };
 const summaryItem = { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0' };
 const summaryImgWrap = { position: 'relative', width: 48, height: 48, flexShrink: 0, overflow: 'hidden', border: `1px solid ${T.line}`, background: T.white };
 const qtyBadge = {

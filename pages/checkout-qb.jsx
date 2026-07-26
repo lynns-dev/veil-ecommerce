@@ -14,9 +14,10 @@ import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 
 // Backup checkout page on QuickBooks Payments, at a stable URL separate
-// from the live /checkout (pages/checkout.jsx, also QuickBooks right now)
-// — not linked from anywhere on the site, kept in sync with checkout.jsx's
-// non-payment sections by hand. Reads QB_ENVIRONMENT straight from the
+// from the live /checkout (pages/checkout.jsx, on Square now — see that
+// file and pages/checkout-square.jsx) — not linked from anywhere on the
+// site, kept in sync with the other two checkout pages' non-payment
+// sections by hand. Reads QB_ENVIRONMENT straight from the
 // server via getServerSideProps below rather than the separately-
 // configured NEXT_PUBLIC_QB_ENVIRONMENT checkout.jsx uses, so this page's
 // client-side tokenization can never drift out of sync with the server's
