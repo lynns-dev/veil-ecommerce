@@ -51,7 +51,7 @@ import { T, S } from '../lib/theme';
 // the reference checkout's "Use my shipping address" checked state).
 
 const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
-const EMPTY_CARD = { number: '', expiry: '', cvc: '', name: '' };
+const EMPTY_CARD = { number: '', expiry: '', cvc: '' };
 
 // Flat optional add-on for reshipment/refund if a package is lost, damaged,
 // or stolen in transit.
@@ -431,7 +431,7 @@ export default function CheckoutPage() {
 
     // Step 2 — validate card fields, then actually charge the card.
     const expiry = parseExpiry(card.expiry);
-    if (!card.number.trim() || !expiry || !card.cvc.trim() || !card.name.trim()) {
+    if (!card.number.trim() || !expiry || !card.cvc.trim()) {
       setError('Fill in your card details to continue.');
       return;
     }
@@ -440,14 +440,16 @@ export default function CheckoutPage() {
       // Step A: tokenize the card directly against Intuit's Payments
       // Tokens API from the browser (lib/qbPayments.js) — the raw card
       // number never reaches our own server. The token is single-use and
-      // tied to this exact card + billing address + CVC.
+      // tied to this exact card + billing address + CVC. No separate
+      // "Name on card" field — the cardholder name Intuit's API wants is
+      // just the shipping name already collected in Step 1.
       const token = await tokenizeCard(
         {
           number: card.number,
           expMonth: expiry.expMonth,
           expYear: expiry.expYear,
           cvc: card.cvc,
-          name: card.name.trim(),
+          name: `${shipping.firstName} ${shipping.lastName}`.trim(),
           street: shipping.address,
           city: shipping.city,
           region: shipping.state,
@@ -714,49 +716,45 @@ export default function CheckoutPage() {
                     <img src="/images/major-credit-card-logos-png-5.png" alt="Visa, Mastercard, American Express, Discover" style={{ height: 20, width: 'auto' }} />
                   </div>
                   <div style={accordionBody}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        placeholder="Card number"
-                        value={card.number}
-                        onChange={(e) => setCard({ ...card, number: e.target.value })}
-                        style={{ ...bigInput, paddingRight: 46 }}
-                        inputMode="numeric"
-                        autoComplete="cc-number"
-                        required
-                      />
-                      <LockIconSolid style={{ position: 'absolute', right: 18, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
-                    </div>
-                    <div className="row-2" style={{ marginTop: 10 }}>
-                      <input
-                        placeholder="MM / YY"
-                        value={card.expiry}
-                        onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
-                        style={bigInput}
-                        inputMode="numeric"
-                        autoComplete="cc-exp"
-                        required
-                      />
+                    <div style={cardFieldGroup}>
                       <div style={{ position: 'relative' }}>
                         <input
-                          placeholder="Security code"
-                          value={card.cvc}
-                          onChange={(e) => setCard({ ...card, cvc: e.target.value })}
-                          style={{ ...bigInput, paddingRight: 38 }}
+                          placeholder="Card number"
+                          value={card.number}
+                          onChange={(e) => setCard({ ...card, number: e.target.value })}
+                          style={{ ...cardSubInput, paddingRight: 46 }}
                           inputMode="numeric"
-                          autoComplete="cc-csc"
+                          autoComplete="cc-number"
                           required
                         />
-                        <HelpIcon style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                        <LockIconSolid style={{ position: 'absolute', right: 18, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                      </div>
+                      <div style={{ height: 1, background: T.line }} />
+                      <div style={{ display: 'flex' }}>
+                        <input
+                          placeholder="MM / YY"
+                          value={card.expiry}
+                          onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
+                          style={{ ...cardSubInput, flex: 1 }}
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
+                          required
+                        />
+                        <div style={{ width: 1, background: T.line }} />
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <input
+                            placeholder="Security code"
+                            value={card.cvc}
+                            onChange={(e) => setCard({ ...card, cvc: e.target.value })}
+                            style={{ ...cardSubInput, paddingRight: 38 }}
+                            inputMode="numeric"
+                            autoComplete="cc-csc"
+                            required
+                          />
+                          <HelpIcon style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: T.soft }} />
+                        </div>
                       </div>
                     </div>
-                    <input
-                      placeholder="Name on card"
-                      value={card.name}
-                      onChange={(e) => setCard({ ...card, name: e.target.value })}
-                      style={{ ...bigInput, marginTop: 10 }}
-                      autoComplete="cc-name"
-                      required
-                    />
                   </div>
                 </div>
 
@@ -969,6 +967,15 @@ const fieldGroupLabel = {
 const bigInput = {
   width: '100%', height: 58, padding: '0 18px', border: `1px solid ${T.fieldLine}`, background: T.white,
   fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box', borderRadius: 14,
+};
+// Card number/expiry/CVC as one visual field (a single outlined box with
+// thin internal dividers) rather than three separately-bordered inputs —
+// matches how Stripe's own default card element reads. cardSubInput has no
+// border/background of its own; cardFieldGroup supplies the one outer box.
+const cardFieldGroup = { border: `1px solid ${T.fieldLine}`, borderRadius: 14, background: T.white, overflow: 'hidden' };
+const cardSubInput = {
+  width: '100%', height: 54, padding: '0 18px', border: 'none', background: 'transparent',
+  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box',
 };
 const bigButton = {
   ...S.btnFill, width: '100%', height: 60, borderRadius: 14, justifyContent: 'center',
