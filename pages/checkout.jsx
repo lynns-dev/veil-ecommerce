@@ -628,28 +628,7 @@ export default function CheckoutPage() {
                 <h1 style={stepTitle}>Where should we send your order?</h1>
 
                 <div style={{ marginTop: 30 }}>
-                  <p style={fieldGroupLabel}>Contact</p>
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onBlur={handleEmailBlur}
-                    style={bigInput}
-                    autoComplete="email"
-                    required
-                  />
-                  <label style={checkboxLabel}>
-                    <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
-                    Email me with news and offers
-                  </label>
-                </div>
-
-                <div style={{ marginTop: 30 }}>
                   <p style={fieldGroupLabel}>Shipping address</p>
-                  <select value="United States" readOnly style={{ ...bigInput, marginBottom: 10, color: T.soft }}>
-                    <option>United States</option>
-                  </select>
                   <AddressFields value={shipping} onChange={setShipping} idPrefix="ship" inputStyle={bigInput} />
                 </div>
 
@@ -689,6 +668,31 @@ export default function CheckoutPage() {
                       {shippingProtection ? 'Remove' : 'Add'}
                     </button>
                   </div>
+                </div>
+
+                <div style={{ marginTop: 26 }}>
+                  <p style={fieldGroupLabel}>Contact</p>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={handleEmailBlur}
+                    style={bigInput}
+                    autoComplete="email"
+                    required
+                  />
+                  <label style={checkboxLabel}>
+                    <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />
+                    Email me with news and offers
+                  </label>
+                </div>
+
+                <div style={{ marginTop: 26 }}>
+                  <p style={fieldGroupLabel}>Country</p>
+                  <select value="United States" readOnly style={{ ...bigInput, color: T.soft }}>
+                    <option>United States</option>
+                  </select>
                 </div>
 
                 {error && <p ref={errorRef} style={errorText}>{error}</p>}
