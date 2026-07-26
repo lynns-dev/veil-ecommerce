@@ -557,7 +557,7 @@ export default function CheckoutPage({ qbEnvironment }) {
       )}
 
       <div className="checkout-grid" style={checkoutGrid}>
-        <div style={formCol}>
+        <div className="form-col" style={formCol}>
           <div ref={formTopRef} />
           <OrderItemsPanel
             cart={cart}
@@ -809,6 +809,7 @@ export default function CheckoutPage({ qbEnvironment }) {
         :global(.row-3) { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 10px; }
         .mobile-topbar { display: none; }
         .checkout-grid { grid-template-columns: 1.35fr 1fr; }
+        .form-col { padding: 32px 20px; }
         .reassurance-grid { grid-template-columns: repeat(4, 1fr); }
         @media (max-width: 860px) {
           .reassurance-grid { grid-template-columns: repeat(2, 1fr); }
@@ -831,6 +832,7 @@ export default function CheckoutPage({ qbEnvironment }) {
           .desktop-topbar { display: none; }
           .mobile-topbar { display: flex; }
           .order-summary { display: none; }
+          .form-col { padding: 32px 25px; }
         }
         @media (max-width: 520px) {
           :global(.row-3) { grid-template-columns: 1fr; }
@@ -873,7 +875,12 @@ const receiptClose = {
   background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: T.soft, padding: 4,
 };
 const checkoutGrid = { display: 'grid', maxWidth: 1280, margin: '0 auto', columnGap: 40, rowGap: 20 };
-const formCol = { padding: '32px 20px', borderRight: `1px solid ${T.line}` };
+// Horizontal padding lives in the .form-col CSS class below (not inline)
+// specifically so the mobile media query can override it — an inline style
+// always wins over a plain CSS rule regardless of media query, so this
+// value can't just be bumped in place for mobile the way most of this
+// file's styling works.
+const formCol = { borderRight: `1px solid ${T.line}` };
 const summaryCol = { padding: '32px 40px', background: T.white };
 const secureNote = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, fontSize: 12, color: T.soft };
 const secureBadge = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.soft, fontFamily: T.sans };
