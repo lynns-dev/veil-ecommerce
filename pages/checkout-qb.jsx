@@ -10,6 +10,7 @@ import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { setCheckoutStep } from '../lib/checkoutStage';
+import { loadCheckoutProgress, saveCheckoutProgress, clearCheckoutProgress } from '../lib/checkoutProgress';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 
@@ -224,10 +225,15 @@ export default function CheckoutPage({ qbEnvironment }) {
   const router = useRouter();
   const { cart, total, hydrated, clear, add, appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal } = useCart();
 
+  // Loaded once at mount — see lib/checkoutProgress.js. Seeds the step +
+  // contact/shipping state below so a refresh mid-checkout resumes instead
+  // of starting over.
+  const [savedProgress] = React.useState(loadCheckoutProgress);
+
   // Contact + delivery
-  const [email, setEmail] = React.useState('');
-  const [newsletter, setNewsletter] = React.useState(true);
-  const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
+  const [email, setEmail] = React.useState(savedProgress?.email ?? '');
+  const [newsletter, setNewsletter] = React.useState(savedProgress?.newsletter ?? true);
+  const [shipping, setShipping] = React.useState(savedProgress?.shipping ?? EMPTY_ADDRESS);
 
   // Payment — raw card fields (no third-party SDK/iframe); tokenized
   // directly against Intuit at final submit (Step 2) via lib/qbPayments.js.
@@ -237,7 +243,7 @@ export default function CheckoutPage({ qbEnvironment }) {
   // button are the only ways to move between them now that the step
   // indicator (which also let a shopper jump back by clicking a completed
   // step's label) is gone.
-  const [step, setStep] = React.useState(1);
+  const [step, setStep] = React.useState(savedProgress?.step ?? 1);
 
   // Reported to the live-view heartbeat in pages/_app.jsx (via
   // lib/checkoutStage.js) so admin can see which step visitors are stuck
@@ -246,6 +252,14 @@ export default function CheckoutPage({ qbEnvironment }) {
     setCheckoutStep(step);
     return () => setCheckoutStep(null);
   }, [step]);
+
+  // Mirrors step/email/newsletter/shipping to sessionStorage on every
+  // change so a mid-checkout refresh (F5, accidental reload) resumes on
+  // the same step with the address/email already filled in, rather than
+  // bouncing back to a blank Step 1. Cleared on successful order below.
+  React.useEffect(() => {
+    saveCheckoutProgress({ step, email, newsletter, shipping });
+  }, [step, email, newsletter, shipping]);
 
   // Historical funnel counter (admin's Today's funnel card) — reaching
   // Step 2 for the first time, deduped server-side per session so jumping
@@ -461,6 +475,7 @@ export default function CheckoutPage({ qbEnvironment }) {
         contentIds: cart.map((i) => i.id),
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
       }));
+      clearCheckoutProgress();
       await router.push('/success');
       clear();
     } catch (err) {
