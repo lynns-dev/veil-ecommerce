@@ -270,7 +270,7 @@ const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', t
 const heroWrap = { position: 'relative' };
 const heroBg = {
   position: 'relative', height: '88vh', minHeight: 560,
-  backgroundImage: 'url(/images/veil-model-7.9.png)', backgroundSize: 'cover', backgroundPosition: 'center 25%',
+  backgroundImage: 'url(/images/veil-model-powder-puff.png)', backgroundSize: 'cover', backgroundPosition: '65% 75%',
   display: 'flex', alignItems: 'flex-end',
 };
 const heroScrim = {
