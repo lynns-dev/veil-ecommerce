@@ -628,7 +628,7 @@ export default function Offer3Page() {
         <aside style={summaryCol}>
           <div style={summaryItem}>
             <div style={summaryImgWrap}>
-              <ProductVisual id={product.id} images={product.images} alt={product.name} width={48} />
+              <ProductVisual id={product.id} images={product.images} alt={product.name} width={48} hoverSwap={false} />
               <span style={qtyBadge}>{quantity}</span>
             </div>
             <div style={{ flex: 1 }}>

@@ -153,7 +153,7 @@ function OrderItemsPanel({
         {cart.map((item) => (
           <div key={item.id} style={summaryItem}>
             <div style={summaryImgWrap}>
-              <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+              <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} hoverSwap={false} />
               <span style={qtyBadge}>{item.quantity}</span>
             </div>
             <div style={{ flex: 1 }}>
@@ -529,7 +529,7 @@ export default function CheckoutPage({ qbEnvironment }) {
               {cart.map((item) => (
                 <div key={item.id} style={summaryItem}>
                   <div style={summaryImgWrap}>
-                    <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+                    <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} hoverSwap={false} />
                     <span style={qtyBadge}>{item.quantity}</span>
                   </div>
                   <div style={{ flex: 1 }}>
@@ -753,7 +753,7 @@ export default function CheckoutPage({ qbEnvironment }) {
             {cart.map((item) => (
               <div key={item.id} style={summaryItem}>
                 <div style={summaryImgWrap}>
-                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} />
+                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={48} hoverSwap={false} />
                   <span style={qtyBadge}>{item.quantity}</span>
                 </div>
                 <div style={{ flex: 1 }}>

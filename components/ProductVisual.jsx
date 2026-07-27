@@ -6,10 +6,13 @@ const fillStyle = { width: '100%', height: '100%', display: 'block', objectFit: 
 // stand-in (a VEIL tin, an inverted tin, or a puff) for products without one.
 // Accepts an `images` array; when a second image exists, swaps to it on
 // hover (used on collection/grid cards, not the single-image PDP gallery,
-// which reads the full array itself for its thumbnail strip).
-export default function ProductVisual({ id = 'original', width = 150, images, alt }) {
+// which reads the full array itself for its thumbnail strip). Cart/checkout
+// line items pass hoverSwap={false} — those thumbnails represent what's in
+// the order, so they should always show images[0], never swap on hover.
+export default function ProductVisual({ id = 'original', width = 150, images, alt, hoverSwap = true }) {
   const [showSecond, setShowSecond] = React.useState(false);
-  const [image, image2] = images || [];
+  const [image, rawImage2] = images || [];
+  const image2 = hoverSwap ? rawImage2 : undefined;
 
   if (image) {
     return (

@@ -90,7 +90,7 @@ export default function CartDrawer({
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '18px 0', borderBottom: `1px solid ${T.line}` }}>
               <div style={{ display: 'flex', gap: 14 }}>
                 <div style={itemImg}>
-                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={56} />
+                  <ProductVisual id={item.id} images={item.images} alt={item.name} width={56} hoverSwap={false} />
                 </div>
                 <div>
                   <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 20 }}>{item.name}</div>
