@@ -678,10 +678,14 @@ export default function AdminDashboard() {
               </div>
             </>
           )}
-        </div>
 
-        {/* LIVE ACTIVITY */}
-        <Section title="Live activity (last 5 minutes)">
+          {/* LIVE ACTIVITY — folded into the same card as Live view above
+              (same "everything live in one place" reasoning that merged
+              the map/funnel/visitor-list into liveViewCard originally)
+              instead of a separate bordered Section directly underneath
+              it, which read as two disconnected boxes for data that's all
+              the same "right now" snapshot. */}
+          <p style={{ ...S.label, margin: '32px 0 18px', paddingTop: 28, borderTop: `1px solid ${T.line}` }}>Live activity (last 5 minutes)</p>
           <div style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap' }}>
             <FunnelStep label="Added to cart" value={live.activity.counts.addtocart} />
             <FunnelStep label="Checkouts started" value={live.activity.counts.checkout_start} />
@@ -733,7 +737,7 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
-        </Section>
+        </div>
 
         {/* PAYMENT METHODS */}
         <Section title={`Payment methods — ${revenueDateLabel(revenueDate)}`}>
