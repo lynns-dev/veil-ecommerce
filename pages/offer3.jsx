@@ -51,7 +51,7 @@ const ctaBtn = {
 };
 const SCENT_IDS = ['original', 'citron', 'violette', 'grand-jar'];
 
-const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
+const EMPTY_ADDRESS = { name: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
 function LockIcon(props) {
   return (
@@ -513,7 +513,7 @@ export default function Offer3Page() {
               <h2 style={sectionTitle}>2. Shipping</h2>
             </div>
             <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={handleEmailBlur} style={{ ...input, marginBottom: 12 }} autoComplete="email" required />
-            <AddressFields value={shipping} onChange={setShipping} inputStyle={input} rowClass2="o3-row-2" rowClass3="o3-row-3" />
+            <AddressFields value={shipping} onChange={setShipping} inputStyle={input} rowClass2="o3-row-2" />
           </section>
 
           <section style={{ marginTop: 16 }}>

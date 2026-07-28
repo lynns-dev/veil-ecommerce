@@ -51,7 +51,7 @@ import { T, S } from '../lib/theme';
 // separate billing-address toggle; Step 2 just displays it as a read-only
 // recap.
 
-const EMPTY_ADDRESS = { firstName: '', lastName: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
+const EMPTY_ADDRESS = { name: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
 function LockIcon(props) {
   return (
@@ -608,6 +608,16 @@ export default function CheckoutPage() {
     setError('');
 
     if (step === 1) {
+      // City/State are normally filled in from the ZIP rather than typed
+      // (components/AddressFields.jsx), so native `required` can't vouch
+      // for them — they aren't in the DOM while the lookup is holding
+      // them. Guard here instead, otherwise a lookup still in flight lets
+      // Step 1 pass with no city and the order is recorded with no
+      // shippable address.
+      if (!shipping.city.trim() || !shipping.state) {
+        setError('Enter a ZIP code so we can confirm your city and state.');
+        return;
+      }
       goToStep(2);
       return;
     }
@@ -905,7 +915,7 @@ export default function CheckoutPage() {
                     <div>
                       <div style={{ fontWeight: 700, marginBottom: 4 }}>Same as shipping address</div>
                       <div style={{ color: T.soft, fontSize: 13, lineHeight: 1.6 }}>
-                        {shipping.firstName} {shipping.lastName}<br />
+                        {shipping.name || `${shipping.firstName || ''} ${shipping.lastName || ''}`.trim()}<br />
                         {shipping.address}{shipping.apt ? `, ${shipping.apt}` : ''}<br />
                         {shipping.city}, {shipping.state} {shipping.zip}
                       </div>

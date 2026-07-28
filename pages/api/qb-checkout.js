@@ -10,13 +10,17 @@ import { fulfillOrder } from '../../lib/orderFulfillment';
 
 // Same flat shape used by every other checkout path on this site and
 // rendered in the admin Orders tab ({ name, address, apt, city, state,
-// zip, phone }) — the raw checkout form uses firstName/lastName instead of
-// a single name field, so that needs collapsing here rather than storing
-// the form's own shape.
+// zip, phone }).
+//
+// `name` is the field the checkout form sends now (components/
+// AddressFields.jsx collapsed First/Last into one input), but the older
+// firstName/lastName pair is still accepted: a checkout resumed from
+// sessionStorage saved before that change, and Apple Pay contacts (which
+// carry givenName/familyName natively), both still arrive in that shape.
 function normalizeFormShipping(shipping) {
   if (!shipping?.address || !shipping?.city) return null;
   return {
-    name: `${shipping.firstName || ''} ${shipping.lastName || ''}`.trim(),
+    name: (shipping.name || `${shipping.firstName || ''} ${shipping.lastName || ''}`).trim(),
     address: shipping.address,
     apt: shipping.apt || '',
     city: shipping.city,

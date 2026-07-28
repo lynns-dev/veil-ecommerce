@@ -9,31 +9,41 @@ export const US_STATES = [
 ];
 
 // Shared shipping/billing address form used by checkout.jsx,
-// checkout-square.jsx, and offer3.jsx — previously duplicated near-
-// identically in each file; pulled out here so the Address-field
-// autocomplete below only needs to be built (and fixed, if it ever needs
-// fixing) once.
+// checkout-square.jsx, checkout-qb.jsx, and offer3.jsx.
 //
-// Autocomplete: typing 4+ characters into the Address field debounces a
-// lookup (lib/addressAutocomplete.js, Mapbox's Geocoding API) and shows a dropdown of
-// matching full addresses below the field; selecting one fills
-// address/city/state/zip in one action. Manual typing always still works
-// whether or not autocomplete returns anything (no key set, network
-// failure, no matches) — this only ever adds a shortcut, never blocks the
-// plain form fields underneath it.
+// Deliberately short: one Name field, Address, optional Apt, then ZIP —
+// entering a 5-digit ZIP fills City and State automatically
+// (/api/zip-lookup), so those two fields collapse into a single confirmed
+// "Austin, TX" line instead of a city input plus a 50-option dropdown.
+//
+// Nothing here is allowed to trap a shopper. If the ZIP lookup misses,
+// errors, or is slow, the plain City and State inputs are revealed and the
+// order can be completed by hand exactly as before; an "Edit" control does
+// the same on demand when the lookup guessed a city the shopper doesn't
+// want (ZIPs can span more than one place name).
+//
+// Name is a single field rather than First/Last: every consumer here only
+// ever needs a display/shipping label, and the split fields were the most
+// common two-field row on the page. `value.name` is the field of record —
+// see normalizeFormShipping in pages/api/square-checkout.js, which still
+// accepts the older firstName/lastName pair so an in-flight checkout
+// resumed from sessionStorage (lib/checkoutProgress.js) or an Apple Pay
+// contact still resolves to a name.
+//
+// Autocomplete: typing 4+ characters into Address debounces a lookup
+// (lib/addressAutocomplete.js, Mapbox Geocoding) and offers full matching
+// addresses; picking one fills address/city/state/ZIP at once. Manual
+// typing always still works whether or not it returns anything.
 //
 // inputStyle: passed in by each page rather than imported from a shared
-// constant, since each page's `input` style is defined locally (though
-// currently identical in shape/values across all three) — keeps this
-// component decoupled from any one page's style module.
-// rowClass2/rowClass3: the CSS grid classes each page defines in its own
-// <style jsx> block for the two-column (name) and three-column
-// (city/state/zip) rows — named differently per page (offer3.jsx uses an
-// "o3-" prefix to avoid colliding with its own other grids), so these are
-// passed in rather than hardcoded.
+// constant, since each page's `input` style is defined locally.
+// rowClass2: the CSS grid class each page defines in its own <style jsx>
+// block for two-column rows — named differently per page (offer3.jsx uses
+// an "o3-" prefix to avoid colliding with its own grids), so it's passed
+// in rather than hardcoded.
 export default function AddressFields({
   value, onChange, idPrefix, inputStyle,
-  rowClass2 = 'row-2', rowClass3 = 'row-3',
+  rowClass2 = 'row-2',
 }) {
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
   const section = idPrefix === 'bill' ? 'billing' : 'shipping';
@@ -42,6 +52,14 @@ export default function AddressFields({
   const [open, setOpen] = React.useState(false);
   const debounceRef = React.useRef(null);
   const wrapRef = React.useRef(null);
+
+  // 'idle' | 'loading' | 'resolved' | 'failed'
+  const [zipStatus, setZipStatus] = React.useState(value.city && value.state ? 'resolved' : 'idle');
+  // Once true the City/State inputs stay visible for the rest of the
+  // session — either the lookup couldn't answer, or the shopper asked to
+  // correct it, and yanking the fields away again mid-edit would be hostile.
+  const [showCityState, setShowCityState] = React.useState(false);
+  const zipRequestRef = React.useRef(0);
 
   React.useEffect(() => {
     const onDocClick = (e) => {
@@ -79,14 +97,52 @@ export default function AddressFields({
     });
     setSuggestions([]);
     setOpen(false);
+    if (suggestion.city && suggestion.state) setZipStatus('resolved');
   };
+
+  const handleZipChange = async (e) => {
+    const zip = e.target.value.replace(/[^\d]/g, '').slice(0, 5);
+    // City/State are cleared alongside an edited ZIP so a stale pair from
+    // the previous ZIP can never ride along with the new one.
+    onChange({ ...value, zip, city: '', state: '' });
+
+    if (zip.length !== 5) {
+      setZipStatus('idle');
+      return;
+    }
+
+    // Guards against an earlier, slower lookup landing after a later one
+    // and overwriting the newer ZIP's city/state.
+    const requestId = zipRequestRef.current + 1;
+    zipRequestRef.current = requestId;
+    setZipStatus('loading');
+    try {
+      const res = await fetch(`/api/zip-lookup?zip=${zip}`);
+      if (zipRequestRef.current !== requestId) return;
+      if (!res.ok) throw new Error('lookup failed');
+      const { city, state } = await res.json();
+      if (!city || !state) throw new Error('incomplete');
+      onChange({ ...value, zip, city, state });
+      setZipStatus('resolved');
+    } catch {
+      if (zipRequestRef.current !== requestId) return;
+      setZipStatus('failed');
+      setShowCityState(true);
+    }
+  };
+
+  const cityStateVisible = showCityState || zipStatus === 'failed';
 
   return (
     <>
-      <div className={rowClass2}>
-        <input placeholder="First name" value={value.firstName} onChange={set('firstName')} style={inputStyle} autoComplete={`${section} given-name`} required />
-        <input placeholder="Last name" value={value.lastName} onChange={set('lastName')} style={inputStyle} autoComplete={`${section} family-name`} required />
-      </div>
+      <input
+        placeholder="Full name"
+        value={value.name || ''}
+        onChange={set('name')}
+        style={inputStyle}
+        autoComplete={`${section} name`}
+        required
+      />
       <div ref={wrapRef} style={{ position: 'relative', marginTop: 14 }}>
         <input
           placeholder="Address"
@@ -110,14 +166,45 @@ export default function AddressFields({
         )}
       </div>
       <input placeholder="Apartment, suite, etc. (optional)" value={value.apt} onChange={set('apt')} style={{ ...inputStyle, marginTop: 14 }} autoComplete={`${section} address-line2`} />
-      <div className={rowClass3} style={{ marginTop: 14 }}>
-        <input placeholder="City" value={value.city} onChange={set('city')} style={inputStyle} autoComplete={`${section} address-level2`} required />
-        <select value={value.state} onChange={set('state')} style={inputStyle} autoComplete={`${section} address-level1`} required>
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP code" value={value.zip} onChange={set('zip')} style={inputStyle} autoComplete={`${section} postal-code`} required />
-      </div>
+
+      <input
+        placeholder="ZIP code"
+        value={value.zip}
+        onChange={handleZipChange}
+        style={{ ...inputStyle, marginTop: 14 }}
+        autoComplete={`${section} postal-code`}
+        inputMode="numeric"
+        maxLength={5}
+        required
+      />
+
+      {zipStatus === 'loading' && (
+        <p style={zipNote}>Looking up your city…</p>
+      )}
+      {zipStatus === 'resolved' && !cityStateVisible && (
+        <p style={zipNote}>
+          <span style={{ color: T.ink }}>{value.city}, {value.state}</span>
+          <button type="button" onClick={() => setShowCityState(true)} style={editButton}>Edit</button>
+        </p>
+      )}
+      {zipStatus === 'failed' && (
+        <p style={{ ...zipNote, color: T.soft }}>We couldn’t find that ZIP — please enter your city and state.</p>
+      )}
+
+      {/* Kept mounted only while actually needed: `required` on an input
+          that isn't in the DOM is ignored by native form validation, so
+          these must be present whenever they're the shopper's own
+          responsibility to fill in. */}
+      {cityStateVisible && (
+        <div className={rowClass2} style={{ marginTop: 14 }}>
+          <input placeholder="City" value={value.city} onChange={set('city')} style={inputStyle} autoComplete={`${section} address-level2`} required />
+          <select value={value.state} onChange={set('state')} style={inputStyle} autoComplete={`${section} address-level1`} required>
+            <option value="">State</option>
+            {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      )}
+
       <input
         placeholder="Phone (optional)"
         value={value.phone}
@@ -138,4 +225,12 @@ const suggestionList = {
 const suggestionItem = {
   display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', background: 'none',
   cursor: 'pointer', fontFamily: T.sans, fontSize: 14, color: T.ink, borderRadius: 3,
+};
+const zipNote = {
+  display: 'flex', alignItems: 'center', gap: 10,
+  fontSize: 13, color: T.soft, marginTop: 8,
+};
+const editButton = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.sans,
+  fontSize: 12, color: T.soft, textDecoration: 'underline', textUnderlineOffset: 3,
 };
