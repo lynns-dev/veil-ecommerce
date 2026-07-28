@@ -7,6 +7,7 @@ import { captureAttribution, getStoredAttribution, describeTrafficSource } from 
 import { getSessionId } from '../lib/session';
 import { getCheckoutStage } from '../lib/checkoutStage';
 import ReserveScratchPopup from '../components/ReserveScratchPopup';
+import ShopAssistant from '../components/ShopAssistant';
 
 // Kept off checkout/admin/the ad-funnel pages — those already have their
 // own single-minded call to action (place the order, review analytics),
@@ -25,6 +26,14 @@ const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/succ
 // per-page exclusions above) is left intact, so flipping this back to true
 // is the only change needed to bring it back.
 const RESERVE_POPUP_ENABLED = false;
+
+// The browsing assistant (components/ShopAssistant.jsx) is kept off the same
+// pages as the popup above, for the same reason. Its own off switch is
+// separate so the two can be turned on and off independently — and it can be
+// dropped sitewide here if the Anthropic key is ever pulled, without the
+// launcher lingering on a chat that can't answer.
+const ASSISTANT_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
+const ASSISTANT_ENABLED = true;
 
 const HEARTBEAT_MS = 10000;
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
@@ -129,6 +138,8 @@ export default function App({ Component, pageProps }) {
   const router = useRouter();
   const reservePopupEnabled = RESERVE_POPUP_ENABLED
     && !RESERVE_POPUP_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
+  const assistantEnabled = ASSISTANT_ENABLED
+    && !ASSISTANT_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
 
   return (
     <CartProvider>
@@ -137,6 +148,7 @@ export default function App({ Component, pageProps }) {
         <Component {...pageProps} />
       </div>
       <ReserveScratchPopup enabled={reservePopupEnabled} />
+      <ShopAssistant enabled={assistantEnabled} />
       <style jsx global>{`
         .page-fade {
           animation: page-fade-in 0.28s ease both;
