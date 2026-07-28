@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Seo, { SITE_URL } from '../../components/Seo';
 import Header from '../../components/Header';
 import CartDrawer from '../../components/CartDrawer';
 import ProductVisual from '../../components/ProductVisual';
@@ -160,8 +161,47 @@ export default function ProductPage({ product }) {
 
   const handleAddTrio = () => trio && c.add(trio, 1);
 
+  // Product structured data — what makes a product page eligible for
+  // Google's image/price/rating-enriched result, not just a plain blue
+  // link. aggregateRating is omitted entirely when there are no reviews
+  // yet (a fabricated 0-review rating would be invalid per Google's own
+  // guidelines and can get the markup penalized).
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description,
+    image: images.map((src) => `${SITE_URL}${src}`),
+    sku: product.id,
+    offers: {
+      '@type': 'Offer',
+      url: `${SITE_URL}/product/${product.id}`,
+      priceCurrency: 'USD',
+      price: product.price,
+      availability: 'https://schema.org/InStock',
+    },
+    ...(reviewData.count > 0 ? {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: reviewData.average,
+        reviewCount: reviewData.count,
+      },
+    } : {}),
+  };
+
   return (
     <div style={{ paddingBottom: 76 }}>
+      <Seo
+        title={product.name}
+        description={product.description}
+        image={images[0]}
+        path={`/product/${product.id}`}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
       <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '22px 40px 0' }}>

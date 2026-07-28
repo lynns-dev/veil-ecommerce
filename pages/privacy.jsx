@@ -3,7 +3,7 @@ import PolicyLayout, { PolicySection } from '../components/PolicyLayout';
 
 export default function PrivacyPolicy() {
   return (
-    <PolicyLayout title="Privacy Policy" updated="July 2026">
+    <PolicyLayout title="Privacy Policy" path="/privacy" updated="July 2026">
       <p>
         This policy explains what information VEIL ("we," "us") collects when you visit veilpuff.com or place an
         order, how we use it, and the choices you have. By using this site, you agree to the collection and use of

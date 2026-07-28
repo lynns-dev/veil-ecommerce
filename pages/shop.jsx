@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Seo from '../components/Seo';
 import Header from '../components/Header';
 import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
@@ -15,6 +16,11 @@ export default function ShopPage() {
   const reviews = useAllReviews();
   return (
     <div>
+      <Seo
+        title="Shop"
+        description="Shop the full VEIL collection — featherlight perfume powders in Original, Citron Lumineaux, Violette Ambrée, and the Grand Jar."
+        path="/shop"
+      />
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
       {/* BANNER */}

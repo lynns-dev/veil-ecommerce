@@ -3,7 +3,7 @@ import PolicyLayout, { PolicySection } from '../components/PolicyLayout';
 
 export default function ReturnPolicy() {
   return (
-    <PolicyLayout title="Return Policy" updated="July 2026">
+    <PolicyLayout title="Return Policy" path="/returns" updated="July 2026">
       <p>We want you to love what you ordered. If something's not right, here's how returns and exchanges work.</p>
 
       <PolicySection title="Return window">

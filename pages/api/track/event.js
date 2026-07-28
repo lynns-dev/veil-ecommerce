@@ -40,11 +40,12 @@ export default async function handler(req, res) {
           eventName: capiEventName,
           eventId,
           eventSourceUrl: url,
-          userData: getRequestUserData(req),
+          userData: getRequestUserData(req, { externalId: sessionId || undefined }),
           customData: {
             currency: 'USD',
             value,
             content_ids: contentIds || (contentId ? [contentId] : undefined),
+            content_type: 'product',
             contents,
           },
         });

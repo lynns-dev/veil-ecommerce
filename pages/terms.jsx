@@ -3,7 +3,7 @@ import PolicyLayout, { PolicySection } from '../components/PolicyLayout';
 
 export default function TermsOfService() {
   return (
-    <PolicyLayout title="Terms & Conditions" updated="July 2026">
+    <PolicyLayout title="Terms & Conditions" path="/terms" updated="July 2026">
       <p>
         These terms govern your use of veilpuff.com and any purchase you make from us. By using this site or placing
         an order, you agree to these terms.

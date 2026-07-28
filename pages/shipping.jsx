@@ -3,7 +3,7 @@ import PolicyLayout, { PolicySection } from '../components/PolicyLayout';
 
 export default function ShippingPolicy() {
   return (
-    <PolicyLayout title="Shipping Policy" updated="July 2026">
+    <PolicyLayout title="Shipping Policy" path="/shipping" updated="July 2026">
       <p>We currently ship to addresses within the United States only.</p>
 
       <PolicySection title="Processing time">

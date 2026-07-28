@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { token, amount, items, email, shipping, eventId, url, paymentMethod, attribution, shippingProtection } = req.body;
+    const { token, amount, items, email, shipping, eventId, url, paymentMethod, attribution, shippingProtection, sessionId } = req.body;
 
     if (!token) return res.status(400).json({ error: 'Missing card token' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
@@ -53,6 +53,7 @@ export default async function handler(req, res) {
       shipping: normalizeFormShipping(shipping),
       processor: 'quickbooks',
       shippingProtection: Number(shippingProtection) > 0 ? Number(shippingProtection) : 0,
+      sessionId,
     });
 
     return res.status(200).json({ id: charge.id, status: charge.status });

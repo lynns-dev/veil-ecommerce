@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Seo, { SITE_URL, SITE_NAME } from '../components/Seo';
 import Header from '../components/Header';
 import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
@@ -41,8 +42,25 @@ export default function HomePage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const organizationJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: `${SITE_URL}/images/veil-logo-black.png`,
+  };
+
   return (
     <div>
+      <Seo
+        description="A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close. Vegan, cruelty-free, talc-free."
+        path="/"
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
       <div style={announce}>
         <div
           style={{
