@@ -76,7 +76,16 @@ export default function ProductPage({ product }) {
   const [openSection, setOpenSection] = React.useState('scent-story');
   const [openFaq, setOpenFaq] = React.useState(null);
   const images = React.useMemo(() => product?.images || [], [product]);
-  const [activeImage, setActiveImage] = React.useState(images[0] || '');
+  // Product photos, plus a trailing how-to-use video for powder products
+  // that have one (product.video, set in lib/products.js) — always last,
+  // after every photo, so it reads as "here's how it's used" once you've
+  // already seen the product itself.
+  const galleryAssets = React.useMemo(() => {
+    const assets = images.map((src) => ({ type: 'image', src }));
+    if (product?.video) assets.push({ type: 'video', src: product.video });
+    return assets;
+  }, [images, product]);
+  const [activeAsset, setActiveAsset] = React.useState(galleryAssets[0] || null);
   const [reviewData, setReviewData] = React.useState({ reviews: [], average: 0, count: 0 });
   const [reviewForm, setReviewForm] = React.useState({ rating: 5, text: '', author: '' });
   const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
@@ -84,8 +93,8 @@ export default function ProductPage({ product }) {
   const [reviewSubmitted, setReviewSubmitted] = React.useState(false);
 
   React.useEffect(() => {
-    setActiveImage(images[0] || '');
-  }, [images]);
+    setActiveAsset(galleryAssets[0] || null);
+  }, [galleryAssets]);
 
   React.useEffect(() => {
     if (!product) return;
@@ -165,23 +174,40 @@ export default function ProductPage({ product }) {
           <div className="pdp-gallery" style={gallery}>
             <div style={imgSide}>
               {product.badge && <span style={imageBadge}>{product.badge}</span>}
-              {activeImage ? (
-                <img src={activeImage} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              {activeAsset ? (
+                activeAsset.type === 'video' ? (
+                  <video
+                    key={activeAsset.src}
+                    src={activeAsset.src}
+                    controls
+                    playsInline
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                ) : (
+                  <img src={activeAsset.src} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )
               ) : (
                 <ProductVisual id={product.id} width={230} />
               )}
             </div>
-            {images.length > 1 && (
+            {galleryAssets.length > 1 && (
               <div className="thumb-col" style={thumbCol}>
-                {images.map((src, i) => (
+                {galleryAssets.map((asset, i) => (
                   <button
-                    key={src}
-                    onClick={() => setActiveImage(src)}
-                    style={{ ...thumbBtn, borderColor: activeImage === src ? T.ink : T.line }}
-                    aria-label={`Show image ${i + 1}`}
-                    aria-current={activeImage === src}
+                    key={asset.src}
+                    onClick={() => setActiveAsset(asset)}
+                    style={{ ...thumbBtn, borderColor: activeAsset?.src === asset.src ? T.ink : T.line }}
+                    aria-label={asset.type === 'video' ? 'Play how-to-use video' : `Show image ${i + 1}`}
+                    aria-current={activeAsset?.src === asset.src}
                   >
-                    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    {asset.type === 'video' ? (
+                      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                        <video src={asset.src} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        <span style={videoThumbPlayIcon}>▶</span>
+                      </div>
+                    ) : (
+                      <img src={asset.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    )}
                   </button>
                 ))}
               </div>
@@ -475,6 +501,13 @@ const imageBadge = {
 };
 const thumbCol = { display: 'flex', gap: 10, flexShrink: 0 };
 const thumbBtn = { width: 64, height: 64, padding: 0, border: '1px solid', cursor: 'pointer', overflow: 'hidden', background: 'none', flexShrink: 0 };
+// Overlaid on the video thumbnail since a muted <video> may render as a
+// blank/black frame before its metadata loads — the play icon makes it
+// read as "video" regardless of whether a preview frame is showing yet.
+const videoThumbPlayIcon = {
+  position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 14, color: T.white, background: 'rgba(22,20,15,0.28)', pointerEvents: 'none',
+};
 const infoCol = { position: 'sticky', top: 110 };
 const pdpRating = {
   display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 14,
