@@ -1,19 +1,30 @@
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { T, S } from '../lib/theme';
 import ProductVisual from './ProductVisual';
 import { getProductById } from '../lib/products';
+import { computeCartTotals } from '../lib/cartTotals';
+import { createApplePayButton, tokenizeWalletWithContact } from '../lib/squareClient';
+import { generateEventId } from '../lib/fbPixel';
+import { getStoredAttribution } from '../lib/attribution';
+import { getSessionId } from '../lib/session';
 
 const FREE_SHIP_AT = 50;
 const FREE_GIFT_AT = 70;
 
 export default function CartDrawer({
-  cart, open, onClose, remove, setQty, total, add,
+  cart, open, onClose, remove, setQty, total, add, clear,
   appliedDiscount, applyDiscount, clearDiscount, codeDiscountAmount, discountedTotal,
 }) {
+  const router = useRouter();
   const [discountCode, setDiscountCode] = React.useState('');
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [discountSubmitting, setDiscountSubmitting] = React.useState(false);
+  const [applePayReady, setApplePayReady] = React.useState(false);
+  const [payError, setPayError] = React.useState('');
+  const [paying, setPaying] = React.useState(false);
+  const applePayRef = React.useRef(null);
   const puff = getProductById('puff');
   const hasPuff = cart.some((i) => i.id === 'puff');
   const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
@@ -37,9 +48,89 @@ export default function CartDrawer({
     }
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
-  const discountTotal = subtotal - total;
   const freeShipping = total >= FREE_SHIP_AT;
+  // Shipping is only truly known once there's an address, but Apple Pay
+  // from here has to commit to a number before opening its sheet — this
+  // mirrors the checkout pages' own rule (free at $50+, otherwise $5).
+  const shippingCost = cart.length === 0 ? 0 : (freeShipping ? 0 : 5);
+  const { subtotal, giftValue, totalSavings, hasGift, grandTotal } = computeCartTotals({
+    cart, codeDiscountAmount, shippingCost, discountedTotal,
+  });
+
+  // Apple Pay reads the amount at creation time, so the button is rebuilt
+  // whenever the charged total changes (quantity edits, promo codes) —
+  // otherwise the sheet could show a stale figure. Only mounted while the
+  // drawer is actually open with something in it; createApplePayButton
+  // resolves null off Safari, which just leaves the button hidden.
+  const latestRef = React.useRef({});
+  latestRef.current = { cart, grandTotal, shippingCost };
+
+  React.useEffect(() => {
+    if (!open || cart.length === 0) return undefined;
+    let cancelled = false;
+    (async () => {
+      const apple = await createApplePayButton(grandTotal, null, { requestContact: true });
+      if (cancelled) return;
+      applePayRef.current = apple;
+      setApplePayReady(Boolean(apple));
+    })();
+    return () => {
+      cancelled = true;
+      applePayRef.current = null;
+      setApplePayReady(false);
+    };
+  }, [open, cart.length, grandTotal]);
+
+  const handleApplePay = async () => {
+    if (!applePayRef.current) return;
+    setPayError('');
+    setPaying(true);
+    try {
+      const { token, contact } = await tokenizeWalletWithContact(applePayRef.current);
+      // Nothing is charged until there's somewhere to ship it — Apple
+      // returns the sheet's contact info alongside the token, and an order
+      // without a usable address can't be fulfilled.
+      if (!contact) {
+        setPayError('Apple Pay didn’t return a shipping address. Please use checkout instead.');
+        return;
+      }
+      const { cart: items, grandTotal: amount } = latestRef.current;
+      const purchaseEventId = generateEventId();
+      const res = await fetch('/api/square-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          amount,
+          items,
+          email: contact.email,
+          shipping: contact,
+          eventId: purchaseEventId,
+          url: window.location.href,
+          paymentMethod: 'Square (Apple Pay)',
+          attribution: getStoredAttribution(),
+          sessionId: getSessionId(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment failed');
+
+      sessionStorage.setItem('veil-purchase', JSON.stringify({
+        eventId: purchaseEventId,
+        orderId: data.id,
+        amount,
+        contentIds: items.map((i) => i.id),
+        contents: items.map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
+      }));
+      onClose?.();
+      await router.push('/success');
+      clear?.();
+    } catch (err) {
+      if (!err.cancelled) setPayError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const progressPct = Math.min(100, (total / FREE_GIFT_AT) * 100);
   const shipMarkerPct = (FREE_SHIP_AT / FREE_GIFT_AT) * 100;
@@ -155,16 +246,19 @@ export default function CartDrawer({
             <span style={{ color: T.soft }}>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
           </div>
-          {discountTotal > 0 && (
+          {hasGift && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Discount</span>
-              <span>−${discountTotal.toFixed(2)}</span>
+              <span style={{ color: T.soft }}>Gift</span>
+              <span>
+                <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 8 }}>${giftValue.toFixed(2)}</span>
+                <span style={{ color: T.green, fontWeight: 700 }}>$0.00</span>
+              </span>
             </div>
           )}
-          {codeDiscountAmount > 0 && (
+          {totalSavings > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.soft }}>Promo ({appliedDiscount.code})</span>
-              <span>−${codeDiscountAmount.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Savings</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
             </div>
           )}
           <p style={shippingNote}>{freeShipping ? 'Free shipping' : 'Shipping and taxes calculated at checkout'}</p>
@@ -179,6 +273,46 @@ export default function CartDrawer({
           >
             Checkout
           </Link>
+
+          {/* Apple Pay, under the main Checkout button and split off by an
+              "or". Renders only once Square confirms the wallet is actually
+              available (Safari + a verified merchant domain), so nothing
+              shows on browsers that can't offer it. */}
+          {applePayReady && cart.length > 0 && (
+            <>
+              <div style={orDivider}>
+                <span style={orDividerLine} />
+                <span style={orDividerText}>or</span>
+                <span style={orDividerLine} />
+              </div>
+              <button
+                type="button"
+                className="cart-apple-pay-button"
+                aria-label="Buy with Apple Pay"
+                disabled={paying}
+                onClick={handleApplePay}
+                style={{ opacity: paying ? 0.6 : 1 }}
+              />
+            </>
+          )}
+          {payError && <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 10 }}>{payError}</p>}
+
+          <style jsx>{`
+            .cart-apple-pay-button {
+              display: block;
+              width: 100%;
+              min-height: 44px;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              -webkit-appearance: -apple-pay-button;
+              -apple-pay-button-type: buy;
+              -apple-pay-button-style: black;
+            }
+            @supports not (-webkit-appearance: -apple-pay-button) {
+              .cart-apple-pay-button { display: none; }
+            }
+          `}</style>
         </div>
       </aside>
     </>
@@ -215,4 +349,7 @@ const discountInput = {
 };
 
 const summaryRow = { display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0' };
+const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0' };
+const orDividerLine = { flex: 1, height: 1, background: T.line };
+const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
 const shippingNote = { fontSize: 11, color: T.soft, marginTop: 8, letterSpacing: '0.02em' };

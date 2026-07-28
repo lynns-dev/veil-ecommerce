@@ -6,6 +6,7 @@ import AddressFields from '../components/AddressFields';
 import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { TASSEL_GIFT } from '../lib/products';
+import { computeCartTotals } from '../lib/cartTotals';
 import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
@@ -144,7 +145,7 @@ function CheckIcon(props) {
 // indicator used to occupy), so a shopper never loses sight of what
 // they're buying while filling in the form beneath it.
 function OrderItemsPanel({
-  cart, subtotal, totalSavings, shippingCost, addressEntered, grandTotal,
+  cart, subtotal, giftValue, hasGift, totalSavings, shippingCost, addressEntered, grandTotal,
   discountCode, setDiscountCode, discountMessage, setDiscountMessage, appliedDiscount, clearDiscount, handleApplyDiscount,
 }) {
   return (
@@ -198,9 +199,18 @@ function OrderItemsPanel({
           <span style={{ color: T.soft }}>Subtotal</span>
           <span>${subtotal.toFixed(2)}</span>
         </div>
+        {hasGift && (
+          <div style={summaryRow}>
+            <span style={{ color: T.soft }}>Gift</span>
+            <span>
+              <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 8 }}>${giftValue.toFixed(2)}</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>$0.00</span>
+            </span>
+          </div>
+        )}
         {totalSavings > 0 && (
           <div style={summaryRow}>
-            <span style={{ color: T.green }}>You saved</span>
+            <span style={{ color: T.green }}>Savings</span>
             <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
           </div>
         )}
@@ -350,14 +360,12 @@ export default function CheckoutPage({ qbEnvironment }) {
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
 
   const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
-  const subtotal = cart.reduce((sum, item) => sum + (item.originalPrice ?? item.price) * item.quantity, 0);
-  const discountTotal = subtotal - total;
-  // The header line this feeds ("You saved") is the code discount plus the
-  // Tassel's $15 value — explicit rather than derived from discountTotal
-  // above (which is subtotal-vs-total generically) since the Tassel is
-  // guaranteed on every order now, not just whenever it happens to be in cart.
-  const totalSavings = codeDiscountAmount + TASSEL_GIFT.price;
-  const grandTotal = discountedTotal + shippingCost;
+  // Subtotal covers the paid items only, with the free Tassel broken out
+  // as its own $0.00 "Gift" row (its $15 value struck through) and folded
+  // into the single "Savings" figure instead — see lib/cartTotals.js.
+  const { subtotal, giftValue, totalSavings, hasGift, grandTotal } = computeCartTotals({
+    cart, codeDiscountAmount, shippingCost, discountedTotal,
+  });
 
   const handleEmailBlur = () => {
     if (!email.trim()) return;
@@ -549,16 +557,19 @@ export default function CheckoutPage({ qbEnvironment }) {
                 <span style={{ color: T.soft }}>Subtotal</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              {discountTotal > 0 && (
+              {hasGift && (
                 <div style={summaryRow}>
-                  <span style={{ color: T.green }}>Discount</span>
-                  <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
+                  <span style={{ color: T.soft }}>Gift</span>
+                  <span>
+                    <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 8 }}>${giftValue.toFixed(2)}</span>
+                    <span style={{ color: T.green, fontWeight: 700 }}>$0.00</span>
+                  </span>
                 </div>
               )}
-              {codeDiscountAmount > 0 && (
+              {totalSavings > 0 && (
                 <div style={summaryRow}>
-                  <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
-                  <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
+                  <span style={{ color: T.green }}>Savings</span>
+                  <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
                 </div>
               )}
               <div style={summaryRow}>
@@ -580,6 +591,8 @@ export default function CheckoutPage({ qbEnvironment }) {
           <OrderItemsPanel
             cart={cart}
             subtotal={subtotal}
+            giftValue={giftValue}
+            hasGift={hasGift}
             totalSavings={totalSavings}
             shippingCost={shippingCost}
             addressEntered={addressEntered}
@@ -773,16 +786,19 @@ export default function CheckoutPage({ qbEnvironment }) {
             <span style={{ color: T.soft }}>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
           </div>
-          {discountTotal > 0 && (
+          {hasGift && (
             <div style={summaryRow}>
-              <span style={{ color: T.green }}>Discount</span>
-              <span style={{ color: T.green, fontWeight: 700 }}>−${discountTotal.toFixed(2)}</span>
+              <span style={{ color: T.soft }}>Gift</span>
+              <span>
+                <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 8 }}>${giftValue.toFixed(2)}</span>
+                <span style={{ color: T.green, fontWeight: 700 }}>$0.00</span>
+              </span>
             </div>
           )}
-          {codeDiscountAmount > 0 && (
+          {totalSavings > 0 && (
             <div style={summaryRow}>
-              <span style={{ color: T.green }}>Promo ({appliedDiscount.code})</span>
-              <span style={{ color: T.green, fontWeight: 700 }}>−${codeDiscountAmount.toFixed(2)}</span>
+              <span style={{ color: T.green }}>Savings</span>
+              <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
             </div>
           )}
           <div style={summaryRow}>
