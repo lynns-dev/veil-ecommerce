@@ -464,6 +464,7 @@ export default function CheckoutPage({ qbEnvironment }) {
           url: window.location.href,
           paymentMethod: 'QuickBooks',
           attribution: getStoredAttribution(),
+          sessionId: getSessionId(),
         }),
       });
       const data = await res.json();
@@ -471,9 +472,10 @@ export default function CheckoutPage({ qbEnvironment }) {
 
       sessionStorage.setItem('veil-purchase', JSON.stringify({
         eventId: purchaseEventId,
+        orderId: data.id,
         amount: grandTotal,
         contentIds: cart.map((i) => i.id),
-        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
+        contents: cart.map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
       }));
       clearCheckoutProgress();
       await router.push('/success');

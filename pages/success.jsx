@@ -22,7 +22,10 @@ export default function SuccessPage() {
       const purchase = JSON.parse(raw);
       fbTrack('Purchase', {
         content_ids: purchase.contentIds,
+        content_type: 'product',
         contents: purchase.contents,
+        num_items: purchase.contents?.reduce((sum, i) => sum + i.quantity, 0),
+        order_id: purchase.orderId,
         value: purchase.amount,
         currency: 'USD',
       }, purchase.eventId);

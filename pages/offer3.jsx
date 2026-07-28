@@ -355,6 +355,7 @@ export default function Offer3Page() {
         paymentMethod: paymentMethodLabel,
         attribution: getStoredAttribution(),
         shippingProtection: shippingProtectionCost || 0,
+        sessionId: getSessionId(),
       }),
     });
     const data = await res.json();
@@ -362,9 +363,10 @@ export default function Offer3Page() {
 
     sessionStorage.setItem('veil-purchase', JSON.stringify({
       eventId: purchaseEventId,
+      orderId: data.id,
       amount: grandTotal,
       contentIds: [product.id],
-      contents: [{ id: product.id, quantity }],
+      contents: [{ id: product.id, quantity, item_price: product.price }],
     }));
     await router.push('/success');
     clear();
