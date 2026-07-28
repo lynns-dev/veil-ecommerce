@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /checkout-square
+Disallow: /checkout-qb
+Disallow: /admin
+Disallow: /api/
+Disallow: /success
+
+Sitemap: https://veilpuff.com/sitemap.xml

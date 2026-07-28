@@ -1,18 +1,16 @@
 import React from 'react';
-import Head from 'next/head';
+import Seo from './Seo';
 import Header from './Header';
 import Footer from './Footer';
 import CartDrawer from './CartDrawer';
 import { useCart } from '../lib/useCart';
 import { T, S } from '../lib/theme';
 
-export default function PolicyLayout({ title, updated, children }) {
+export default function PolicyLayout({ title, path, updated, children }) {
   const c = useCart();
   return (
     <div>
-      <Head>
-        <title>{title} — VEIL</title>
-      </Head>
+      <Seo title={title} path={path} />
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
       <section style={{ ...S.wrap, maxWidth: 760, padding: '80px 40px 100px' }}>
