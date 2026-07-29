@@ -335,7 +335,7 @@ export default function CheckoutPage() {
   React.useEffect(() => {
     if (!hydrated || cart.length === 0) return;
     if (!cart.some((i) => i.id === TASSEL_GIFT.id)) {
-      add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1);
+      add({ ...TASSEL_GIFT, price: 0, originalPrice: TASSEL_GIFT.price }, 1, { silent: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, cart.length]);
