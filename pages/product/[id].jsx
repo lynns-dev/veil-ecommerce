@@ -5,6 +5,7 @@ import Seo, { SITE_URL } from '../../components/Seo';
 import Header from '../../components/Header';
 import CartDrawer from '../../components/CartDrawer';
 import ProductVisual from '../../components/ProductVisual';
+import PaymentMethods from '../../components/PaymentMethods';
 import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
 import { PRODUCTS, getProductById } from '../../lib/products';
@@ -279,6 +280,8 @@ export default function ProductPage({ product }) {
               </div>
               <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
+
+            <PaymentMethods />
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
             {product.category === 'fragrance' && (
