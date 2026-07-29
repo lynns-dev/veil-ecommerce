@@ -11,7 +11,6 @@ import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 
 const FREE_SHIP_AT = 50;
-const FREE_GIFT_AT = 70;
 
 export default function CartDrawer({
   cart, open, onClose, remove, setQty, total, add, clear,
@@ -132,16 +131,15 @@ export default function CartDrawer({
     }
   };
 
-  const progressPct = Math.min(100, (total / FREE_GIFT_AT) * 100);
-  const shipMarkerPct = (FREE_SHIP_AT / FREE_GIFT_AT) * 100;
-  let progressMessage;
-  if (total >= FREE_GIFT_AT) {
-    progressMessage = 'You’ve unlocked free shipping and a free scented tassel gift.';
-  } else if (freeShipping) {
-    progressMessage = `Free shipping unlocked — add $${(FREE_GIFT_AT - total).toFixed(2)} more for a free scented tassel gift.`;
-  } else {
-    progressMessage = `Add $${(FREE_SHIP_AT - total).toFixed(2)} more for free shipping.`;
-  }
+  // The gift is no longer something to earn — checkout adds the Tassel to
+  // every order (pages/checkout.jsx), and the promo bar now says so on every
+  // page, so the old "add $X more for a free scented tassel gift" copy was
+  // telling shoppers to spend more for something they already had. Free
+  // shipping is the only remaining threshold, so the bar tracks just that.
+  const progressPct = Math.min(100, (total / FREE_SHIP_AT) * 100);
+  const progressMessage = freeShipping
+    ? 'Free shipping unlocked — and your free scented tassel is included.'
+    : `Add $${(FREE_SHIP_AT - total).toFixed(2)} more for free shipping. Your free scented tassel is already included.`;
 
   return (
     <>
@@ -170,7 +168,6 @@ export default function CartDrawer({
             <p style={{ fontSize: 12, color: T.ink, marginBottom: 8 }}>{progressMessage}</p>
             <div style={progressTrack}>
               <div style={{ ...progressFill, width: `${progressPct}%` }} />
-              <div style={{ ...progressMarker, left: `${shipMarkerPct}%` }} />
             </div>
           </div>
         )}
@@ -334,7 +331,6 @@ const subscribeNote = { fontSize: 11, color: T.soft, marginTop: 3, letterSpacing
 
 const progressTrack = { position: 'relative', height: 4, background: T.paper, marginTop: 2 };
 const progressFill = { position: 'absolute', top: 0, left: 0, bottom: 0, background: T.ink, transition: 'width .3s ease' };
-const progressMarker = { position: 'absolute', top: -3, bottom: -3, width: 2, background: T.white, boxShadow: `0 0 0 1px ${T.ink}` };
 
 const upsellSection = { background: T.paper, padding: '18px 16px', marginTop: 12 };
 const upsellCard = { display: 'flex', alignItems: 'center', gap: 14 };

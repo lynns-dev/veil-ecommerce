@@ -11,8 +11,6 @@ import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
-const BANNER_MESSAGES = ['Free shipping $50+', '15% off with code VEIL15'];
-
 export default function HomePage() {
   const c = useCart();
   const featured = getFeaturedProducts();
@@ -25,15 +23,7 @@ export default function HomePage() {
     const recommendPct = count === 0 ? 0 : Math.round((all.filter((r) => r.rating >= 4).length / count) * 100);
     return { all, count, average, recommendPct };
   }, [reviewsByProduct]);
-  const [bannerIndex, setBannerIndex] = React.useState(0);
   const [scrolled, setScrolled] = React.useState(false);
-
-  React.useEffect(() => {
-    const id = setInterval(() => {
-      setBannerIndex((i) => (i + 1) % BANNER_MESSAGES.length);
-    }, 3500);
-    return () => clearInterval(id);
-  }, []);
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -61,20 +51,8 @@ export default function HomePage() {
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
       />
-      <div style={announce}>
-        <div
-          style={{
-            display: 'flex',
-            width: `${BANNER_MESSAGES.length * 100}%`,
-            transform: `translateX(-${(100 / BANNER_MESSAGES.length) * bannerIndex}%)`,
-            transition: 'transform 0.6s ease',
-          }}
-        >
-          {BANNER_MESSAGES.map((msg, i) => (
-            <span key={i} style={{ width: `${100 / BANNER_MESSAGES.length}%` }}>{msg}</span>
-          ))}
-        </div>
-      </div>
+      {/* The promo bar that used to sit here is now rendered sitewide from
+          pages/_app.jsx (components/AnnouncementBar.jsx). */}
       {/* HERO */}
       <section style={heroWrap}>
         <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} overlay scrolled={scrolled} />
@@ -284,7 +262,6 @@ export default function HomePage() {
   );
 }
 
-const announce = { textAlign: 'center', fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: T.white, background: T.ink, padding: '14px 20px', borderBottom: `1px solid ${T.dline}`, overflow: 'hidden' };
 const heroWrap = { position: 'relative' };
 const heroBg = {
   position: 'relative', height: '88vh', minHeight: 560,

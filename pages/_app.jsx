@@ -8,6 +8,7 @@ import { getSessionId } from '../lib/session';
 import { getCheckoutStage } from '../lib/checkoutStage';
 import ReserveScratchPopup from '../components/ReserveScratchPopup';
 import ShopAssistant from '../components/ShopAssistant';
+import AnnouncementBar from '../components/AnnouncementBar';
 
 // Kept off checkout/admin/the ad-funnel pages — those already have their
 // own single-minded call to action (place the order, review analytics),
@@ -34,6 +35,16 @@ const RESERVE_POPUP_ENABLED = false;
 // launcher lingering on a chat that can't answer.
 const ASSISTANT_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
 const ASSISTANT_ENABLED = true;
+
+// The promo bar rides above every storefront page, rendered here rather than
+// per-page so a new page can't quietly ship without it. Two exclusions:
+//   - /admin isn't a storefront; it's the back office.
+//   - /offer* are deliberately chrome-free advertorials (see pages/offer.jsx)
+//     with no Header or CartDrawer and a single hand-off CTA. Dropping the
+//     site's own promo bar on top of them would work against that design.
+// Checkout deliberately keeps it — the free-gift line is worth reinforcing
+// while someone is deciding whether to finish.
+const ANNOUNCEMENT_EXCLUDED_PREFIXES = ['/admin', '/offer'];
 
 const HEARTBEAT_MS = 10000;
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
@@ -140,10 +151,12 @@ export default function App({ Component, pageProps }) {
     && !RESERVE_POPUP_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
   const assistantEnabled = ASSISTANT_ENABLED
     && !ASSISTANT_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
+  const showAnnouncement = !ANNOUNCEMENT_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
 
   return (
     <CartProvider>
       <Tracking />
+      {showAnnouncement && <AnnouncementBar />}
       <div key={router.asPath} className="page-fade">
         <Component {...pageProps} />
       </div>

@@ -3,9 +3,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { T } from '../lib/theme';
 
+// "Bundles" points at the Scent Trio — the store's only multi-product set
+// (lib/products.js, category 'set'). If a second bundle is ever added, this
+// should become a collection page rather than a deep link to one product.
+const BUNDLES_HREF = '/product/scent-trio';
+
 export default function Header({ cartCount = 0, onCartClick, overlay = false, scrolled = false }) {
   const router = useRouter();
   const active = (p) => router.pathname === p;
+  // Product pages all share the /product/[id] route, so the active state has
+  // to look at which product is actually being viewed.
+  const bundlesActive = router.pathname === '/product/[id]' && router.query.id === 'scent-trio';
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = () => setMenuOpen(false);
 
@@ -27,6 +35,7 @@ export default function Header({ cartCount = 0, onCartClick, overlay = false, sc
         <div style={styles.side}>
           <div className="desktop-links" style={styles.desktopLinks}>
             <Link href="/shop" style={{ ...styles.navLink, color: linkColor, opacity: active('/shop') ? 1 : 0.7 }}>Shop</Link>
+            <Link href={BUNDLES_HREF} style={{ ...styles.navLink, color: linkColor, opacity: bundlesActive ? 1 : 0.7 }}>Bundles</Link>
             <a href="/#notes" style={{ ...styles.navLink, color: linkColor }}>Scent</a>
           </div>
           <button
@@ -59,6 +68,7 @@ export default function Header({ cartCount = 0, onCartClick, overlay = false, sc
       {menuOpen && (
         <div className="mobile-menu" style={styles.mobileMenu}>
           <Link href="/shop" onClick={closeMenu} style={styles.mobileMenuLink}>Shop</Link>
+          <Link href={BUNDLES_HREF} onClick={closeMenu} style={styles.mobileMenuLink}>Bundles</Link>
           <a href="/#notes" onClick={closeMenu} style={styles.mobileMenuLink}>Scent</a>
           <a href="/#reviews" onClick={closeMenu} style={styles.mobileMenuLink}>Reviews</a>
         </div>
