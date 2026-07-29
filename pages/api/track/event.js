@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone } = req.body || {};
   if (ALLOWED.includes(event) && !isExcludedTraffic(req)) {
     try {
       await incrementEvent(event, sessionId);
@@ -40,7 +40,16 @@ export default async function handler(req, res) {
           eventName: capiEventName,
           eventId,
           eventSourceUrl: url,
-          userData: getRequestUserData(req, { externalId: sessionId || undefined }),
+          // email/phone ride along whenever the shopper has already given
+          // them (lib/identity.js remembers them across the visit), so an
+          // AddToCart or InitiateCheckout later in a session carries the
+          // same identifiers Purchase does instead of matching on cookies
+          // alone. They're hashed in getRequestUserData before sending.
+          userData: getRequestUserData(req, {
+            email,
+            phone,
+            externalId: sessionId || undefined,
+          }),
           customData: {
             currency: 'USD',
             value,

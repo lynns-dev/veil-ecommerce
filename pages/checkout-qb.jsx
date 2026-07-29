@@ -7,9 +7,10 @@ import { useCart } from '../lib/useCart';
 import { tokenizeCard } from '../lib/qbPayments';
 import { TASSEL_GIFT } from '../lib/products';
 import { computeCartTotals } from '../lib/cartTotals';
-import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { getIdentity, rememberIdentity } from '../lib/identity';
 import { setCheckoutStep } from '../lib/checkoutStage';
 import { loadCheckoutProgress, saveCheckoutProgress, clearCheckoutProgress } from '../lib/checkoutProgress';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
@@ -337,6 +338,7 @@ export default function CheckoutPage({ qbEnvironment }) {
         contents: cart.map((i) => ({ id: i.id, quantity: i.quantity })),
         url: window.location.href,
         sessionId: getSessionId(),
+        ...getIdentity(),
       }),
       keepalive: true,
     }).catch(() => {});
@@ -369,6 +371,11 @@ export default function CheckoutPage({ qbEnvironment }) {
 
   const handleEmailBlur = () => {
     if (!email.trim()) return;
+    // Remember it for ad matching, and re-init the Pixel so the rest of
+    // this visit's events carry it rather than waiting for the next page
+    // load (lib/identity.js, lib/fbPixel.js).
+    rememberIdentity({ email, phone: shipping.phone });
+    refreshPixelIdentity(process.env.NEXT_PUBLIC_META_PIXEL_ID);
     fetch('/api/checkout-lead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
