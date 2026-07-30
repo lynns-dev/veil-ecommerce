@@ -59,23 +59,30 @@ Square's Web Payments SDK tokenize flow (`lib/squareClient.js`) was built and re
 
 An embedded Shop Pay button in the cart drawer, alongside Apple Pay — the shopper pays in a popup on this site rather than being redirected to a Shopify-hosted checkout page. Requires a Shopify store with Shopify Payments already active (Shop Pay only works through Shopify's own payment processing).
 
-### What to set up in Shopify admin
+### What to set up in Shopify
 
-1. **A Custom App**: Settings → Apps and sales channels → Develop apps → Create an app.
-2. **API scopes**: Configure → give it both Storefront API access (for creating Shop Pay sessions) and Admin API access (`read_orders`, `write_orders` — for the reconciliation fallback and refunds). Install the app once scopes are set.
-3. **Credentials**, from that app's API credentials page:
-   - `SHOPIFY_STOREFRONT_ACCESS_TOKEN`
-   - `SHOPIFY_ADMIN_ACCESS_TOKEN`
-4. **Store domain** → `SHOPIFY_STORE_DOMAIN` (the `*.myshopify.com` address).
-5. **A webhook**: same app → Webhooks → create one for `orders/create`, pointed at `https://<your-domain>/api/shop-pay/webhook`. Shopify gives you a signing secret when you save it — that's `SHOPIFY_WEBHOOK_SECRET`.
-6. **A cron secret you make up yourself** (any random string) → `CRON_SECRET`. This isn't from Shopify — it's what protects `/api/shop-pay/reconcile` (the fallback for a webhook that never arrives) from being triggered by anyone but Vercel's own scheduler.
-7. **Product variants**: every item that can appear in a Shop Pay cart needs a matching Shopify product/variant, including the free Tassel gift — create a $0 variant for it too, or Shop Pay simply won't offer itself on a cart that includes the free gift (which is every cart, since checkout adds it automatically). Copy each variant's numeric id from its admin URL into `lib/shopifyProductMap.js`'s `SHOPIFY_VARIANT_MAP`.
+Shopify retired the old "legacy custom app" screen that used to hand you a static Admin API access token and Storefront API access token directly — confirmed live against the real xjywhy-ce store admin, not assumed. Every store is now funneled into **Dev Dashboard** apps, which only ever give you a client id + client secret and require a real OAuth authorization to actually get a token. That's a bigger setup than a copy-paste, but it only has to be done once.
+
+1. **Create (or reuse) a Dev Dashboard app** — `npm init @shopify/app@latest`, or via Shopify's Partner/Dev Dashboard directly. This gives you a **Client ID** and **Client Secret**.
+   - `SHOPIFY_STORE_DOMAIN`: the store's `*.myshopify.com` address (e.g. `xjywhy-ce.myshopify.com`).
+   - `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET`: from that app's Credentials page. Treat the secret like any other production credential — if it's ever been pasted somewhere insecure (a chat, a ticket), rotate it from that same page before going live.
+2. **Declare Admin API scopes** for the app: `read_orders`, `write_orders`. Where this lives depends on how the app was created — for a CLI-scaffolded app it's `shopify.app.toml`'s `[access_scopes]`; for one made directly in Dev Dashboard, look for a Configuration/API access section. The OAuth flow below requests exactly `read_orders,write_orders` — if the app has fewer scopes declared than that, Shopify's approval screen won't grant it.
+3. **Allow-list the OAuth redirect URL**: same app's settings, add `https://<your-domain>/api/shopify-auth/callback` to whatever field lists allowed redirect/callback URLs.
+4. **A cron secret you make up yourself** (any random string, not from Shopify) → `CRON_SECRET`. Protects `/api/shop-pay/reconcile` (the fallback for a webhook that never arrives) from being triggered by anyone but Vercel's own scheduler.
+5. **Deploy with those four env vars set**, then visit `https://<your-domain>/api/shopify-auth/connect` once in a browser and approve the authorization screen. This one visit does everything the old legacy-app screen used to require manually:
+   - exchanges the authorization code for an Admin API access token and stores it
+   - uses that token to mint a Storefront API access token (`storefrontAccessTokenCreate`) and stores it too
+   - registers the `orders/create` webhook that makes order recording actually work
+   - You should never need to visit `/connect` again unless the connection is revoked from Shopify admin (uninstalling the app).
+6. **Product variants**: every item that can appear in a Shop Pay cart needs a matching Shopify product/variant, including the free Tassel gift — create a $0 variant for it too, or Shop Pay simply won't offer itself on a cart that includes the free gift (which is every cart, since checkout adds it automatically). Copy each variant's numeric id from its admin URL into `lib/shopifyProductMap.js`'s `SHOPIFY_VARIANT_MAP`.
+
+`SHOPIFY_STOREFRONT_ACCESS_TOKEN`, `SHOPIFY_ADMIN_ACCESS_TOKEN`, and `SHOPIFY_WEBHOOK_SECRET` are **not** env vars anymore — the OAuth connect flow obtains and stores the first two itself (`lib/shopifyTokenStore.js`, backed by the same KV store everything else here uses), and webhook signatures are verified with `SHOPIFY_CLIENT_SECRET` directly, since the separate "webhook secret" only ever existed on the retired legacy screen.
 
 ### A note on verification
 
-shopify.dev was unreachable from the environment this was built in (bot-protection blocked every fetch attempt), so this was built from Shopify's own indexed API schema pages and a Shopify Partner's published reference connector rather than reading the primary docs directly. `lib/shopPayServer.js` and `lib/shopPayClient.js` both flag exactly which pieces are lower-confidence in their file-level comments — mainly the GraphQL session-create mutation's precise field shapes, and the browser SDK's exact method names/event names. Everything downstream of a created session (webhook HMAC verification, order recording, refunds, the reconciliation fallback) is either standard Shopify webhook behavior or shares this codebase's existing, already-proven order-fulfillment path — that part doesn't need re-verifying.
+shopify.dev was unreachable from the environment this was built in (bot-protection blocked every fetch attempt), so most of this was built from Shopify's own indexed API schema pages and a Shopify Partner's published reference connector rather than reading the primary docs directly. `lib/shopPayServer.js` and `lib/shopPayClient.js` both flag exactly which pieces are lower-confidence in their file-level comments — mainly the Shop Pay session-create mutation's precise field shapes, and the browser SDK's exact method/event names. The OAuth install flow itself (`buildShopifyAuthorizeUrl`, `verifyOAuthCallbackHmac`, `exchangeShopifyAuthorizationCode`) is Shopify's classic, long-stable mechanism and doesn't carry that same uncertainty — and it's been exercised end-to-end over real HTTP (state/HMAC verification correctly rejects a forged, tampered, or mismatched callback; a genuine one passes both checks and reaches the real token-exchange call). Everything downstream of a created session (webhook HMAC verification, order recording, refunds, the reconciliation fallback) is either standard Shopify webhook behavior or shares this codebase's existing, already-proven order-fulfillment path — that part doesn't need re-verifying either.
 
-Once credentials are in place: open the Custom App's GraphiQL explorer (same admin page, there's a link to it) and confirm `shopPayPaymentRequestSessionCreate`'s real input/return shape matches `lib/shopPayServer.js`. Then open the site with a cart containing only mapped items and confirm the button actually renders and opens a working sheet — that's the one live check this integration needs before real traffic sees it.
+Once connected: open the app's GraphiQL explorer if Dev Dashboard offers one for this app, and confirm `shopPayPaymentRequestSessionCreate`'s real input/return shape matches `lib/shopPayServer.js`. Then open the site with a cart containing only mapped items and confirm the button actually renders and opens a working sheet — that's the one live check this integration needs before real traffic sees it.
 
 ### A note on the reconciliation cron
 
