@@ -55,6 +55,34 @@ Square's Web Payments SDK tokenize flow (`lib/squareClient.js`) was built and re
 
 ---
 
+## Step 3 (optional): Set Up Shop Pay
+
+An embedded Shop Pay button in the cart drawer, alongside Apple Pay — the shopper pays in a popup on this site rather than being redirected to a Shopify-hosted checkout page. Requires a Shopify store with Shopify Payments already active (Shop Pay only works through Shopify's own payment processing).
+
+### What to set up in Shopify admin
+
+1. **A Custom App**: Settings → Apps and sales channels → Develop apps → Create an app.
+2. **API scopes**: Configure → give it both Storefront API access (for creating Shop Pay sessions) and Admin API access (`read_orders`, `write_orders` — for the reconciliation fallback and refunds). Install the app once scopes are set.
+3. **Credentials**, from that app's API credentials page:
+   - `SHOPIFY_STOREFRONT_ACCESS_TOKEN`
+   - `SHOPIFY_ADMIN_ACCESS_TOKEN`
+4. **Store domain** → `SHOPIFY_STORE_DOMAIN` (the `*.myshopify.com` address).
+5. **A webhook**: same app → Webhooks → create one for `orders/create`, pointed at `https://<your-domain>/api/shop-pay/webhook`. Shopify gives you a signing secret when you save it — that's `SHOPIFY_WEBHOOK_SECRET`.
+6. **A cron secret you make up yourself** (any random string) → `CRON_SECRET`. This isn't from Shopify — it's what protects `/api/shop-pay/reconcile` (the fallback for a webhook that never arrives) from being triggered by anyone but Vercel's own scheduler.
+7. **Product variants**: every item that can appear in a Shop Pay cart needs a matching Shopify product/variant, including the free Tassel gift — create a $0 variant for it too, or Shop Pay simply won't offer itself on a cart that includes the free gift (which is every cart, since checkout adds it automatically). Copy each variant's numeric id from its admin URL into `lib/shopifyProductMap.js`'s `SHOPIFY_VARIANT_MAP`.
+
+### A note on verification
+
+shopify.dev was unreachable from the environment this was built in (bot-protection blocked every fetch attempt), so this was built from Shopify's own indexed API schema pages and a Shopify Partner's published reference connector rather than reading the primary docs directly. `lib/shopPayServer.js` and `lib/shopPayClient.js` both flag exactly which pieces are lower-confidence in their file-level comments — mainly the GraphQL session-create mutation's precise field shapes, and the browser SDK's exact method names/event names. Everything downstream of a created session (webhook HMAC verification, order recording, refunds, the reconciliation fallback) is either standard Shopify webhook behavior or shares this codebase's existing, already-proven order-fulfillment path — that part doesn't need re-verifying.
+
+Once credentials are in place: open the Custom App's GraphiQL explorer (same admin page, there's a link to it) and confirm `shopPayPaymentRequestSessionCreate`'s real input/return shape matches `lib/shopPayServer.js`. Then open the site with a cart containing only mapped items and confirm the button actually renders and opens a working sheet — that's the one live check this integration needs before real traffic sees it.
+
+### A note on the reconciliation cron
+
+Vercel Cron on the free/Hobby plan is limited to once-per-day schedules — `vercel.json` here requests every 10 minutes, which needs a Pro plan (or higher) to actually run that often. On Hobby, either upgrade or expect Vercel to silently collapse it to once a day; check what Vercel's dashboard actually shows for this cron job after deploying rather than assuming the configured schedule took effect.
+
+---
+
 ## Step 3: Connect Your Domain (Squarespace)
 
 1. In Vercel, go to "Settings" → "Domains"

@@ -6,9 +6,13 @@ import ProductVisual from './ProductVisual';
 import { getProductById } from '../lib/products';
 import { computeCartTotals } from '../lib/cartTotals';
 import { createApplePayButton, tokenizeWalletWithContact } from '../lib/squareClient';
-import { generateEventId } from '../lib/fbPixel';
+import { isShopPayAvailable, mountShopPayButton } from '../lib/shopPayClient';
+import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
+import { getIdentity } from '../lib/identity';
+
+const SHOP_PAY_CONTAINER_ID = 'cart-shop-pay-button';
 
 const FREE_SHIP_AT = 50;
 
@@ -21,9 +25,11 @@ export default function CartDrawer({
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [discountSubmitting, setDiscountSubmitting] = React.useState(false);
   const [applePayReady, setApplePayReady] = React.useState(false);
+  const [shopPayReady, setShopPayReady] = React.useState(false);
   const [payError, setPayError] = React.useState('');
   const [paying, setPaying] = React.useState(false);
   const applePayRef = React.useRef(null);
+  const shopPayEventIdRef = React.useRef(null);
   const puff = getProductById('puff');
   const hasPuff = cart.some((i) => i.id === 'puff');
   const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
@@ -62,7 +68,7 @@ export default function CartDrawer({
   // drawer is actually open with something in it; createApplePayButton
   // resolves null off Safari, which just leaves the button hidden.
   const latestRef = React.useRef({});
-  latestRef.current = { cart, grandTotal, shippingCost };
+  latestRef.current = { cart, grandTotal, shippingCost, discountCode: appliedDiscount?.code };
 
   React.useEffect(() => {
     if (!open || cart.length === 0) return undefined;
@@ -130,6 +136,87 @@ export default function CartDrawer({
       setPaying(false);
     }
   };
+
+  // Shop Pay's button, unlike Apple Pay's, doesn't bake the amount in at
+  // creation — a fresh session is requested (POST /api/shop-pay/session)
+  // every time the shopper actually opens the sheet, so it's mounted once
+  // per drawer-open rather than rebuilt on every total change. Availability
+  // is a static SDK check (isShopPayAvailable), not tied to cart contents —
+  // per-cart eligibility (every item needs a mapped Shopify variant, see
+  // lib/shopifyProductMap.js) is discovered when a session is actually
+  // requested, and a 422 there just surfaces as a normal payment error
+  // rather than hiding the button pre-emptively, since there's no cheap way
+  // to check mapping without asking the server.
+  React.useEffect(() => {
+    if (!open || cart.length === 0) return undefined;
+    let cancelled = false;
+    let teardown = null;
+    (async () => {
+      const available = await isShopPayAvailable();
+      if (cancelled || !available) return;
+      teardown = await mountShopPayButton(SHOP_PAY_CONTAINER_ID, {
+        onSessionRequest: async () => {
+          setPayError('');
+          setPaying(true);
+          const { cart: items, grandTotal: amount, shippingCost: shipping, discountCode: code } = latestRef.current;
+          const purchaseEventId = generateEventId();
+          shopPayEventIdRef.current = purchaseEventId;
+          const res = await fetch('/api/shop-pay/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cart: items,
+              amount,
+              shippingCost: shipping,
+              discountCode: code,
+              eventId: purchaseEventId,
+              email: getIdentity().email || undefined,
+              url: window.location.href,
+              attribution: getStoredAttribution(),
+              sessionId: getSessionId(),
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Shop Pay is unavailable for this cart.');
+          return data.session;
+        },
+        onComplete: () => {
+          // Optimistic, best-effort UX only — the order that actually lands
+          // in this site's own ledger/admin comes from the Shopify webhook
+          // (pages/api/shop-pay/webhook.js), which is the one thing
+          // guaranteed to see every completed order even if this event
+          // never fires (Shopify's own guidance: the shopper can close the
+          // tab or lose their connection right after paying). Firing the
+          // pixel here with the same eventId the webhook's server-side CAPI
+          // call will use is what lets Meta dedupe the pair, same as every
+          // other payment method on this site.
+          const { cart: items, grandTotal: amount } = latestRef.current;
+          fbTrack('Purchase', {
+            content_ids: items.map((i) => i.id),
+            content_type: 'product',
+            contents: items.map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
+            value: amount,
+            currency: 'USD',
+          }, shopPayEventIdRef.current);
+          onClose?.();
+          router.push('/success');
+          clear?.();
+          setPaying(false);
+        },
+        onClose: () => setPaying(false),
+        onError: (err) => {
+          setPayError(err?.message || 'Something went wrong with Shop Pay. Please try again.');
+          setPaying(false);
+        },
+      });
+      if (!cancelled) setShopPayReady(Boolean(teardown));
+    })();
+    return () => {
+      cancelled = true;
+      teardown?.();
+      setShopPayReady(false);
+    };
+  }, [open, cart.length]);
 
   // The gift is no longer something to earn — checkout adds the Tassel to
   // every order (pages/checkout.jsx), and the promo bar now says so on every
@@ -275,22 +362,31 @@ export default function CartDrawer({
               "or". Renders only once Square confirms the wallet is actually
               available (Safari + a verified merchant domain), so nothing
               shows on browsers that can't offer it. */}
-          {applePayReady && cart.length > 0 && (
+          {(applePayReady || shopPayReady) && cart.length > 0 && (
             <>
               <div style={orDivider}>
                 <span style={orDividerLine} />
                 <span style={orDividerText}>or</span>
                 <span style={orDividerLine} />
               </div>
-              <button
-                type="button"
-                className="cart-apple-pay-button"
-                aria-label="Buy with Apple Pay"
-                disabled={paying}
-                onClick={handleApplePay}
-                style={{ opacity: paying ? 0.6 : 1 }}
-              />
+              {applePayReady && (
+                <button
+                  type="button"
+                  className="cart-apple-pay-button"
+                  aria-label="Buy with Apple Pay"
+                  disabled={paying}
+                  onClick={handleApplePay}
+                  style={{ opacity: paying ? 0.6 : 1, marginBottom: shopPayReady ? 10 : 0 }}
+                />
+              )}
             </>
+          )}
+          {/* Always in the DOM once there's a cart to mount into — the SDK
+              (lib/shopPayClient.js) targets this id as soon as
+              isShopPayAvailable() resolves, which can happen before
+              shopPayReady flips true. Only the visible space collapses. */}
+          {cart.length > 0 && (
+            <div id={SHOP_PAY_CONTAINER_ID} style={{ display: shopPayReady ? 'block' : 'none', opacity: paying ? 0.6 : 1, pointerEvents: paying ? 'none' : 'auto' }} />
           )}
           {payError && <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 10 }}>{payError}</p>}
 

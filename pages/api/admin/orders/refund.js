@@ -10,6 +10,7 @@ import { refundCapture } from '../../../../lib/paypal';
 import { refundCharge as refundQuickBooksCharge } from '../../../../lib/qbPaymentsServer';
 import { refundCharge as refundBankfulCharge } from '../../../../lib/bankfulServer';
 import { refundCharge as refundSquareCharge } from '../../../../lib/squareServer';
+import { refundShopifyOrder } from '../../../../lib/shopPayServer';
 import { updateOrderStatus } from '../../../../lib/analyticsStore';
 
 export default async function handler(req, res) {
@@ -37,6 +38,9 @@ export default async function handler(req, res) {
     } else if (processor === 'square') {
       if (!amount) return res.status(400).json({ error: 'Missing order amount — Square refunds require the amount to refund.' });
       await refundSquareCharge(orderId, amount);
+    } else if (processor === 'shopify') {
+      if (!amount) return res.status(400).json({ error: 'Missing order amount — Shop Pay refunds require the amount to refund.' });
+      await refundShopifyOrder(orderId, amount);
     } else {
       return res.status(400).json({ error: `Don't know how to refund a "${processor}" order.` });
     }
