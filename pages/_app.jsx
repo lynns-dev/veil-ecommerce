@@ -34,7 +34,10 @@ const RESERVE_POPUP_ENABLED = false;
 // dropped sitewide here if the Anthropic key is ever pulled, without the
 // launcher lingering on a chat that can't answer.
 const ASSISTANT_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
-const ASSISTANT_ENABLED = true;
+// Hidden sitewide for now. Everything else (the component, its promo-code
+// wiring, /api/chat) is left intact, so flipping this back to true is the
+// only change needed to bring it back.
+const ASSISTANT_ENABLED = false;
 
 // The promo bar rides above every storefront page, rendered here rather than
 // per-page so a new page can't quietly ship without it. Two exclusions:
