@@ -90,6 +90,17 @@ Vercel Cron on the free/Hobby plan is limited to once-per-day schedules — `ver
 
 ---
 
+## Step 3 (optional): Resolve ad set/creative names in admin
+
+Order source in admin shows which ad set and creative brought a buyer in — but only as a readable name if the ad's own URL tags were built with Meta's name-based macro (`{{adset.name}}`, `{{ad.name}}`). Some ad templates use the id-based macro instead (`{{adset.id}}`, `{{ad.id}}`), which captures a bare numeric id at click time instead. This step resolves those ids to real names for display, without changing anything about how attribution is captured.
+
+1. **Generate a Marketing API access token with `ads_read` permission** on the ad account these ads run under — via Meta Business Settings → System Users (a system user token with `ads_read` is the standard way to do this without it being tied to a personal login that can expire), or the Graph API Explorer if you just want to test first. This is a **different scope** from `META_CAPI_ACCESS_TOKEN` (Conversions API events only) — that existing token will fail permission checks if reused here.
+2. Set it as `META_MARKETING_ACCESS_TOKEN` in Vercel.
+
+Without this token set, admin behaves exactly as before — a numeric id is shown as-is, nothing breaks. With it set, ids resolve to names automatically (cached in KV for a week per id, so this isn't hitting Meta's API on every admin page load), and — the more durable fix — go into Ads Manager and change each ad's URL parameters template to use `{{adset.name}}`/`{{ad.name}}` going forward, so new clicks capture a real name at the source instead of needing this lookup at all.
+
+---
+
 ## Step 3: Connect Your Domain (Squarespace)
 
 1. In Vercel, go to "Settings" → "Domains"

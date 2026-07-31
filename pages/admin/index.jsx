@@ -128,22 +128,30 @@ function countryName(code) {
   }
 }
 
-// Which ad/campaign/ad set brought the buyer in, from whatever was captured
-// at their first click-through (lib/attribution.js). Falls back to the raw
-// click id if a platform's utm params weren't present, since fbclid/gclid
-// alone still proves the visit came from a paid click. The ad set name only
-// shows up at all when the ad's URL tags actually carried one — see
-// describeAdPlacement() in lib/attribution.js for the two naming styles it
-// understands (Meta's own {{adset.name}} convention, or an explicit
-// adset_name param).
+// Which ad/campaign/ad set/creative brought the buyer in, from whatever was
+// captured at their first click-through (lib/attribution.js). Falls back to
+// the raw click id if a platform's utm params weren't present, since
+// fbclid/gclid alone still proves the visit came from a paid click.
+//
+// adset/ad prefer order.resolvedAdset/resolvedAd — names resolved
+// server-side (pages/api/admin/orders.js, lib/metaAdsResolver.js) whenever
+// the ad's own URL tags carried Meta's id-based macro
+// ({{adset.id}}/{{ad.id}}) instead of the name-based one, so what was
+// actually captured at click time was a bare numeric id. Falls back to the
+// raw describeAdPlacement() value when no resolved name exists — no
+// Marketing API token configured, resolution failed, or it just already
+// was a name — so this never shows blank where the old behavior showed
+// something.
 function attributionSource(order) {
   const attr = order.attribution;
-  if (!attr) return { source: 'Direct / organic', campaign: null, adset: null };
-  const { adset } = describeAdPlacement(attr);
-  if (attr.utm_source) return { source: attr.utm_source, campaign: attr.utm_campaign || null, adset };
-  if (attr.fbclid) return { source: 'Facebook/Instagram ad', campaign: null, adset };
-  if (attr.gclid) return { source: 'Google ad', campaign: null, adset };
-  return { source: 'Direct / organic', campaign: null, adset: null };
+  if (!attr) return { source: 'Direct / organic', campaign: null, adset: null, ad: null };
+  const raw = describeAdPlacement(attr);
+  const adset = order.resolvedAdset || raw.adset;
+  const ad = order.resolvedAd || raw.ad;
+  if (attr.utm_source) return { source: attr.utm_source, campaign: attr.utm_campaign || null, adset, ad };
+  if (attr.fbclid) return { source: 'Facebook/Instagram ad', campaign: null, adset, ad };
+  if (attr.gclid) return { source: 'Google ad', campaign: null, adset, ad };
+  return { source: 'Direct / organic', campaign: null, adset: null, ad: null };
 }
 
 const ORDER_STATUS_COLORS = {
@@ -973,7 +981,7 @@ export default function AdminDashboard() {
                 <span style={{ flex: '0 0 90px' }}>Status</span>
               </div>
               {visibleOrders.map((o) => {
-                const { source, campaign, adset } = attributionSource(o);
+                const { source, campaign, adset, ad } = attributionSource(o);
                 const itemSummary = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ');
                 const expanded = expandedOrderId === o.id;
                 const busy = Boolean(orderActionBusy[o.id]);
@@ -1018,6 +1026,7 @@ export default function AdminDashboard() {
                             <div style={formLabel}>Order source</div>
                             <div style={{ fontSize: 13 }}>{source}{campaign && ` · ${campaign}`}</div>
                             {adset && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Ad set: {adset}</div>}
+                            {ad && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Creative: {ad}</div>}
                           </div>
                           {o.shippingProtection > 0 && (
                             <div>
