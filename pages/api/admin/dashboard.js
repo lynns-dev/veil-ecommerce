@@ -45,7 +45,9 @@ export default async function handler(req, res) {
       paymentMethods,
       funnelRange,
       funnel: {
-        pageviews: events.pageview,
+        // events.pageview is deduped per session per day (lib/analyticsStore.js)
+        // — this counts people who visited, not how many pages they loaded.
+        visitors: events.pageview,
         addToCart: events.addtocart,
         checkoutStarts: events.checkout_start,
         reachedPayment: events.checkout_payment,

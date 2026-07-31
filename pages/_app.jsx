@@ -93,7 +93,10 @@ function Tracking() {
     fetch('/api/track/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'pageview' }),
+      // sessionId lets incrementEvent (lib/analyticsStore.js) dedupe this to
+      // one count per visitor per day rather than once per page navigated
+      // to — admin shows Visitors, not a raw hit counter.
+      body: JSON.stringify({ event: 'pageview', sessionId: getSessionId() }),
       keepalive: true,
     }).catch(() => {});
   }, [router.asPath]);
