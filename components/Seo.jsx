@@ -11,7 +11,7 @@ const DEFAULT_DESCRIPTION = 'A featherlight perfume powder that melts into skin 
 const DEFAULT_IMAGE = '/images/veil-model-powder-puff.png';
 
 export default function Seo({ title, description = DEFAULT_DESCRIPTION, image = DEFAULT_IMAGE, path = '/', noindex = false }) {
-  const fullTitle = title ? `${title} — ${SITE_NAME}` : `${SITE_NAME} — Poudre de Corps Parfumée`;
+  const fullTitle = title ? `${title} — ${SITE_NAME}` : 'Veil Powdered Fragrance';
   const url = `${SITE_URL}${path}`;
   const absoluteImage = image.startsWith('http') ? image : `${SITE_URL}${image}`;
 

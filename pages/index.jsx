@@ -40,6 +40,22 @@ export default function HomePage() {
     logo: `${SITE_URL}/images/veil-logo-black.png`,
   };
 
+  // Signals which pages are the site's primary sections — the standard
+  // schema.org way to state that, alongside prominent, consistent links to
+  // the same two pages from the global nav (components/Header.jsx) and
+  // this page's own collection grid below. Worth being direct about what
+  // this can and can't do: Google's own documentation says sitelinks (the
+  // extra indented links Google sometimes shows under a search result) are
+  // chosen algorithmically from real site structure and click behavior —
+  // no markup, this included, can request or guarantee specific ones. This
+  // is one honest input into that algorithm, not a lever that controls it.
+  const siteNavigationJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SiteNavigationElement',
+    name: ['Shop', 'Original'],
+    url: [`${SITE_URL}/shop`, `${SITE_URL}/product/original`],
+  };
+
   return (
     <div>
       <Seo
@@ -50,6 +66,11 @@ export default function HomePage() {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationJsonLd) }}
       />
       {/* The promo bar that used to sit here is now rendered sitewide from
           pages/_app.jsx (components/AnnouncementBar.jsx). */}

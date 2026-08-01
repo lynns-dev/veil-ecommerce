@@ -8,6 +8,16 @@ import { SITE_URL } from '../components/Seo';
 // (also blocked in public/robots.txt).
 const STATIC_PATHS = ['/', '/shop', '/terms', '/privacy', '/returns', '/shipping'];
 
+// priority is a relative signal within this one sitemap, not a promise —
+// Google's own guidance is explicit that it doesn't affect ranking or
+// guarantee sitelinks, which are chosen algorithmically. This just states,
+// as plainly as the format allows, that the homepage, the full catalog,
+// and the flagship Original scent are the pages that matter most here —
+// one real input among many (internal linking, click data, site
+// structure) into what Google eventually shows.
+const PRIORITY = { '/': 1.0, '/shop': 0.9, '/product/original': 0.9 };
+const DEFAULT_PRIORITY = 0.6;
+
 function buildSitemap() {
   const urls = [
     ...STATIC_PATHS,
@@ -15,7 +25,7 @@ function buildSitemap() {
   ];
 
   const body = urls
-    .map((path) => `  <url><loc>${SITE_URL}${path}</loc></url>`)
+    .map((path) => `  <url><loc>${SITE_URL}${path}</loc><priority>${(PRIORITY[path] ?? DEFAULT_PRIORITY).toFixed(1)}</priority></url>`)
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>`;
