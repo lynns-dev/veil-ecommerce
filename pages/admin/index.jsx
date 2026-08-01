@@ -521,6 +521,12 @@ export default function AdminDashboard() {
           >
             Orders ({orders.length})
           </button>
+          <button
+            onClick={() => setActiveTab('visitors')}
+            style={{ ...tabBtn, ...(activeTab === 'visitors' ? tabBtnActive : {}) }}
+          >
+            Visitors
+          </button>
         </div>
 
         {activeTab === 'dashboard' && (
@@ -752,40 +758,6 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
-
-        {/* PAST TRAFFIC — last 10 visitors and where each came from, distinct
-            from "Who's here right now" above (which only shows who's
-            currently on the site — those entries disappear ~25s after a
-            visitor leaves). Sourced from lib/analyticsStore.js's
-            visitors:recent list, one entry per visitor per day. */}
-        <Section title="Past traffic — last 10 visitors">
-          {live.pastVisitors.length === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No visitors logged yet today.</p>
-          ) : (
-            <div>
-              <div className="visitor-head-row" style={visitorHeadRow}>
-                <span className="visitor-col-source">Source</span>
-                <span className="visitor-col-page">Landed on</span>
-                <span className="visitor-col-location">Location</span>
-                <span className="visitor-col-when">When</span>
-              </div>
-              {live.pastVisitors.map((v) => (
-                <div key={v.sessionId} className="visitor-row" style={visitorRow}>
-                  <span className="visitor-col-source" style={{ color: T.soft }} title={v.campaign || undefined}>
-                    {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
-                  </span>
-                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
-                    {pageLabel(v.path)}
-                  </span>
-                  <span className="visitor-col-location" style={{ color: T.soft }}>
-                    {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
-                  </span>
-                  <span className="visitor-col-when" style={{ color: T.soft, fontSize: 13 }}>{timeAgo(v.ts)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
 
         {/* PAYMENT METHODS */}
         <Section title={`Payment methods — ${revenueDateLabel(revenueDate)}`}>
@@ -1117,6 +1089,44 @@ export default function AdminDashboard() {
             </div>
           )}
         </Section>
+        )}
+
+        {activeTab === 'visitors' && (
+        <>
+        {/* PAST TRAFFIC — last 10 visitors and where each came from, distinct
+            from the Dashboard tab's "Who's here right now" (which only shows
+            who's currently on the site — those entries disappear ~25s after
+            a visitor leaves). Sourced from lib/analyticsStore.js's
+            visitors:recent list, one entry per visitor per day. */}
+        <Section title="Past traffic — last 10 visitors">
+          {live.pastVisitors.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No visitors logged yet today.</p>
+          ) : (
+            <div>
+              <div className="visitor-head-row" style={visitorHeadRow}>
+                <span className="visitor-col-source">Source</span>
+                <span className="visitor-col-page">Landed on</span>
+                <span className="visitor-col-location">Location</span>
+                <span className="visitor-col-when">When</span>
+              </div>
+              {live.pastVisitors.map((v) => (
+                <div key={v.sessionId} className="visitor-row" style={visitorRow}>
+                  <span className="visitor-col-source" style={{ color: T.soft }} title={v.campaign || undefined}>
+                    {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
+                  </span>
+                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
+                    {pageLabel(v.path)}
+                  </span>
+                  <span className="visitor-col-location" style={{ color: T.soft }}>
+                    {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
+                  </span>
+                  <span className="visitor-col-when" style={{ color: T.soft, fontSize: 13 }}>{timeAgo(v.ts)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+        </>
         )}
       </div>
 
