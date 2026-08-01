@@ -174,7 +174,7 @@ export default function AdminDashboard() {
   const [dashboard, setDashboard] = React.useState(null);
   const [funnelRange, setFunnelRange] = React.useState('today');
   const [revenueDate, setRevenueDate] = React.useState(todayDateKey());
-  const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, visitors: [], activity: EMPTY_ACTIVITY });
+  const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, visitors: [], activity: EMPTY_ACTIVITY, pastVisitors: [] });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
@@ -753,6 +753,40 @@ export default function AdminDashboard() {
           )}
         </div>
 
+        {/* PAST TRAFFIC — last 10 visitors and where each came from, distinct
+            from "Who's here right now" above (which only shows who's
+            currently on the site — those entries disappear ~25s after a
+            visitor leaves). Sourced from lib/analyticsStore.js's
+            visitors:recent list, one entry per visitor per day. */}
+        <Section title="Past traffic — last 10 visitors">
+          {live.pastVisitors.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No visitors logged yet today.</p>
+          ) : (
+            <div>
+              <div className="visitor-head-row" style={visitorHeadRow}>
+                <span className="visitor-col-source">Source</span>
+                <span className="visitor-col-page">Landed on</span>
+                <span className="visitor-col-location">Location</span>
+                <span className="visitor-col-when">When</span>
+              </div>
+              {live.pastVisitors.map((v) => (
+                <div key={v.sessionId} className="visitor-row" style={visitorRow}>
+                  <span className="visitor-col-source" style={{ color: T.soft }} title={v.campaign || undefined}>
+                    {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
+                  </span>
+                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
+                    {pageLabel(v.path)}
+                  </span>
+                  <span className="visitor-col-location" style={{ color: T.soft }}>
+                    {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
+                  </span>
+                  <span className="visitor-col-when" style={{ color: T.soft, fontSize: 13 }}>{timeAgo(v.ts)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
         {/* PAYMENT METHODS */}
         <Section title={`Payment methods — ${revenueDateLabel(revenueDate)}`}>
           {!dashboard || dashboard.paymentMethods.length === 0 ? (
@@ -1099,6 +1133,7 @@ export default function AdminDashboard() {
         .visitor-col-page { flex: 1; }
         .visitor-col-scroll { flex: 0 0 130px; }
         .visitor-col-location { flex: 0 0 120px; }
+        .visitor-col-when { flex: 0 0 90px; text-align: right; }
         @media (max-width: 640px) {
           .visitor-head-row { display: none; }
           .visitor-row { flex-wrap: wrap; row-gap: 6px; }
@@ -1107,6 +1142,7 @@ export default function AdminDashboard() {
           .visitor-col-source { flex: 1 1 100%; order: 3; }
           .visitor-col-page { flex: 1 1 60%; order: 4; }
           .visitor-col-scroll { flex: 1 1 40%; order: 5; justify-content: flex-end; }
+          .visitor-col-when { flex: 1 1 40%; order: 5; }
         }
         .live-dot {
           width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;

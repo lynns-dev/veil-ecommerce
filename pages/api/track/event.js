@@ -2,7 +2,7 @@
 // would surface to the visitor — a lost analytics ping shouldn't affect
 // their experience.
 
-import { incrementEvent, logEvent } from '../../../lib/analyticsStore';
+import { incrementEvent, logEvent, logVisitor } from '../../../lib/analyticsStore';
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
 import { isExcludedTraffic } from '../../../lib/ipFilter';
 
@@ -10,6 +10,15 @@ const ALLOWED = ['pageview', 'addtocart', 'checkout_start', 'checkout_payment'];
 // Logged to the timestamped recent-events feed for the live-activity view.
 // pageview is excluded — too high-volume to be useful there.
 const LOGGED = ['addtocart', 'checkout_start'];
+
+// Trims a client-supplied string to a sane length so a malformed/hostile
+// payload can't bloat the stored visitor entry — same guard
+// pages/api/track/heartbeat.js uses on its own fields.
+function clip(value, maxLength) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
 
 // Maps our internal event names to Meta's standard event names for CAPI,
 // paired with the browser Pixel call sharing the same eventId (see
@@ -23,7 +32,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path } = req.body || {};
   if (ALLOWED.includes(event) && !isExcludedTraffic(req)) {
     try {
       await incrementEvent(event, sessionId);
@@ -31,6 +40,22 @@ export default async function handler(req, res) {
         await logEvent(event, {
           ...(productName ? { productName } : {}),
           ...(sessionId ? { sessionId } : {}),
+        });
+      }
+      // One entry per visitor per day (see logVisitor's own dedup) into the
+      // admin "past traffic" list — pageview is the highest-fidelity signal
+      // for "this is a real visit," same reasoning DEDUPED_EVENTS in
+      // lib/analyticsStore.js already gives it for the funnel counters.
+      if (event === 'pageview' && sessionId) {
+        const city = req.headers['x-vercel-ip-city'];
+        const country = req.headers['x-vercel-ip-country'] || 'XX';
+        await logVisitor({
+          sessionId,
+          source: clip(source, 80) || 'Direct',
+          campaign: clip(campaign, 80),
+          path: clip(path, 200),
+          city: city ? decodeURIComponent(city) : null,
+          country,
         });
       }
 

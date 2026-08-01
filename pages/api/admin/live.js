@@ -5,7 +5,7 @@
 // heartbeats (see pages/api/track/heartbeat.js), so no cleanup job is needed.
 // Activity data comes from the timestamped event log in lib/analyticsStore.js.
 
-import { getRecentEvents } from '../../../lib/analyticsStore';
+import { getRecentEvents, getRecentVisitors } from '../../../lib/analyticsStore';
 
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
@@ -113,8 +113,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [liveVisitors, recentEvents] = await Promise.all([getLiveVisitors(), getRecentEvents(WINDOW_MS)]);
-    return res.status(200).json({ ...liveVisitors, activity: buildActivity(recentEvents) });
+    const [liveVisitors, recentEvents, pastVisitors] = await Promise.all([
+      getLiveVisitors(), getRecentEvents(WINDOW_MS), getRecentVisitors(10),
+    ]);
+    return res.status(200).json({ ...liveVisitors, activity: buildActivity(recentEvents), pastVisitors });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

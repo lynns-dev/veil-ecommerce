@@ -90,16 +90,25 @@ function Tracking() {
   }, [router.asPath, isAdmin]);
 
   React.useEffect(() => {
+    if (isAdmin) return;
+    // source/campaign ride along on this first pageview of the session the
+    // same way heartbeat.js sends them on every 10s ping — this is what
+    // populates the admin's "past traffic" (last N visitors) list with
+    // where each one actually came from, not just that they showed up.
+    const { source, campaign } = describeTrafficSource(getStoredAttribution(), document.referrer);
     fetch('/api/track/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       // sessionId lets incrementEvent (lib/analyticsStore.js) dedupe this to
       // one count per visitor per day rather than once per page navigated
       // to — admin shows Visitors, not a raw hit counter.
-      body: JSON.stringify({ event: 'pageview', sessionId: getSessionId() }),
+      body: JSON.stringify({
+        event: 'pageview', sessionId: getSessionId(),
+        source, campaign, path: window.location.pathname,
+      }),
       keepalive: true,
     }).catch(() => {});
-  }, [router.asPath]);
+  }, [router.asPath, isAdmin]);
 
   React.useEffect(() => {
     const currentStage = () => {
