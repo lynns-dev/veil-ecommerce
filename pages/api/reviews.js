@@ -7,7 +7,7 @@
 // visible anywhere. Imported reviews (source: 'imported', added by the
 // store owner via /admin) publish immediately since they're already vetted.
 
-import { getReviews, addReview } from '../../lib/reviewsStore';
+import { getReviews, addReview, reviewDedupeKey } from '../../lib/reviewsStore';
 import { PRODUCTS } from '../../lib/products';
 
 function aggregate(reviews) {
@@ -60,6 +60,19 @@ export default async function handler(req, res) {
         source: isImported ? 'imported' : 'site',
         status: isImported ? 'approved' : 'pending',
       };
+
+      // Same author + same text (see lib/reviewsStore.js's reviewDedupeKey)
+      // is what happens when the same CSV gets imported twice, or a
+      // customer's own submission gets double-posted (a slow request
+      // retried, a form double-click) — silently skip adding another copy
+      // rather than letting the same review pile up, but still answer as
+      // if it succeeded, since it did no harm and it's already there.
+      const existing = await getReviews(productId);
+      const key = reviewDedupeKey(review);
+      const alreadyExists = existing.some((r) => reviewDedupeKey(r) === key);
+      if (alreadyExists) {
+        return res.status(200).json({ review, duplicate: true, ...aggregate(existing) });
+      }
 
       const updated = await addReview(productId, review);
       return res.status(200).json({ review, ...aggregate(updated) });

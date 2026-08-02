@@ -177,6 +177,8 @@ export default function AdminDashboard() {
   const [live, setLive] = React.useState({ count: 0, byStage: {}, byCountry: {}, visitors: [], activity: EMPTY_ACTIVITY, pastVisitors: [] });
   const [reviews, setReviews] = React.useState([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(true);
+  const [dedupeStatus, setDedupeStatus] = React.useState('idle'); // idle | working | done
+  const [dedupeMessage, setDedupeMessage] = React.useState('');
   const [importForm, setImportForm] = React.useState({ productId: PRODUCTS[0]?.id || '', rating: 5, text: '', author: '' });
   const [importMessage, setImportMessage] = React.useState('');
   const [csvProductId, setCsvProductId] = React.useState(PRODUCTS[0]?.id || '');
@@ -378,6 +380,27 @@ export default function AdminDashboard() {
 
   const pendingReviews = reviews.filter((r) => r.status !== 'approved');
   const approvedReviews = reviews.filter((r) => r.status === 'approved');
+
+  const handleDedupeReviews = async () => {
+    if (!confirm('Scan every product for duplicate reviews (same author + same text) and remove the extras, keeping one copy of each?')) return;
+    setDedupeStatus('working');
+    setDedupeMessage('');
+    try {
+      const res = await fetch('/api/admin/reviews/dedupe', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setDedupeMessage(data.error || 'Failed to remove duplicates.');
+      } else if (data.totalRemoved === 0) {
+        setDedupeMessage('No duplicates found.');
+      } else {
+        setDedupeMessage(`Removed ${data.totalRemoved} duplicate review${data.totalRemoved === 1 ? '' : 's'}.`);
+      }
+    } catch {
+      setDedupeMessage('Network error.');
+    }
+    setDedupeStatus('done');
+    loadReviews();
+  };
 
   const handleCsvFile = async (e) => {
     const file = e.target.files?.[0];
@@ -835,6 +858,12 @@ export default function AdminDashboard() {
 
         {/* PUBLISHED REVIEWS */}
         <Section title={`Published reviews (${approvedReviews.length})`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <button onClick={handleDedupeReviews} disabled={dedupeStatus === 'working'} style={S.btnOutline}>
+              {dedupeStatus === 'working' ? 'Removing duplicates…' : 'Remove duplicates'}
+            </button>
+            {dedupeMessage && <span style={{ fontSize: 13, color: T.soft }}>{dedupeMessage}</span>}
+          </div>
           {reviewsLoading ? (
             <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
           ) : approvedReviews.length === 0 ? (
