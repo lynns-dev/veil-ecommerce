@@ -1,12 +1,15 @@
-import { getReviews, deleteReview, approveReview } from '../../../lib/reviewsStore';
+import { removeDuplicateReviews, deleteReview, approveReview } from '../../../lib/reviewsStore';
 import { PRODUCTS } from '../../../lib/products';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
+      // Duplicates (same text, see lib/reviewsStore.js's reviewDedupeKey)
+      // are cleaned up automatically on every load rather than needing a
+      // separate admin action.
       const entries = await Promise.all(
         PRODUCTS.map(async (p) => {
-          const reviews = await getReviews(p.id);
+          const { reviews } = await removeDuplicateReviews(p.id);
           return reviews.map((r) => ({ ...r, productId: p.id, productName: p.name }));
         })
       );
