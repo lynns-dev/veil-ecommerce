@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { T, S } from '../lib/theme';
 import ProductVisual from './ProductVisual';
-import { getProductById } from '../lib/products';
+import { getProductById, discountedPrice, TASSEL_GIFT } from '../lib/products';
 import { computeCartTotals } from '../lib/cartTotals';
 import { createApplePayButton, tokenizeWalletWithContact } from '../lib/squareClient';
 import { isShopPayAvailable, mountShopPayButton } from '../lib/shopPayClient';
@@ -32,7 +32,6 @@ export default function CartDrawer({
   const shopPayEventIdRef = React.useRef(null);
   const puff = getProductById('puff');
   const hasPuff = cart.some((i) => i.id === 'puff');
-  const puffPrice = puff ? Math.round(puff.price * 0.9 * 100) / 100 : 0;
 
   React.useEffect(() => {
     if (appliedDiscount) setDiscountCode(appliedDiscount.code);
@@ -272,7 +271,16 @@ export default function CartDrawer({
                   {item.plan === 'subscribe' && (
                     <div style={subscribeNote}>Subscribe &amp; save · every 2 months</div>
                   )}
-                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>${item.price} · {item.size}</div>
+                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
+                    {item.id === TASSEL_GIFT.id ? (
+                      <>FREE · {item.size}</>
+                    ) : (
+                      <>
+                        <span style={{ textDecoration: 'line-through', marginRight: 4 }}>${item.price}</span>
+                        ${discountedPrice(item.price).toFixed(2)} · {item.size}
+                      </>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
                     <button onClick={() => setQty(item.id, item.quantity - 1)} style={qtyBtn}>−</button>
                     <span style={{ fontSize: 13 }}>{item.quantity}</span>
@@ -295,10 +303,10 @@ export default function CartDrawer({
                   <div style={{ fontSize: 13 }}>{puff.name}</div>
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
                     <span style={{ textDecoration: 'line-through', marginRight: 6 }}>${puff.price}</span>
-                    ${puffPrice.toFixed(2)} · 10% off
+                    ${discountedPrice(puff.price).toFixed(2)}
                   </div>
                 </div>
-                <button onClick={() => add({ ...puff, price: puffPrice, originalPrice: puff.price }, 1)} style={upsellAddBtn}>Add</button>
+                <button onClick={() => add(puff, 1)} style={upsellAddBtn}>Add</button>
               </div>
             </div>
           )}
