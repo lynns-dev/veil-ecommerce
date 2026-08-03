@@ -289,7 +289,7 @@ export default function ProductPage({ product }) {
             )}
 
             {trio && product.id !== 'scent-trio' && (
-              <div style={trioCard}>
+              <Link href={`/product/${trio.id}`} style={trioCard}>
                 <div style={trioVisual}><ProductVisual id="scent-trio" images={trio.images} alt={trio.name} width={54} /></div>
                 <div style={{ flex: 1 }}>
                   <div style={S.label}>Save with sets</div>
@@ -298,9 +298,16 @@ export default function ProductPage({ product }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontFamily: T.serif, fontSize: 17, marginBottom: 8 }}>${trio.price}</div>
-                  <button onClick={handleAddTrio} style={trioAddBtn}>Add</button>
+                  {/* Stops the surrounding Link from navigating so "Add" can
+                      still add straight to cart without leaving the page. */}
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddTrio(); }}
+                    style={trioAddBtn}
+                  >
+                    Add
+                  </button>
                 </div>
-              </div>
+              </Link>
             )}
 
             <div style={{ marginTop: 24 }}>
@@ -568,7 +575,7 @@ const puffIncludedNote = { fontSize: 13, color: T.soft, marginTop: 10 };
 
 const trioCard = {
   display: 'flex', alignItems: 'center', gap: 14, border: `1px solid ${T.line}`,
-  padding: '16px', marginTop: 24,
+  padding: '16px', marginTop: 24, textDecoration: 'none', color: 'inherit', cursor: 'pointer',
 };
 const trioVisual = { width: 54, height: 54, flexShrink: 0, overflow: 'hidden', background: T.paper };
 const trioAddBtn = {
