@@ -205,14 +205,16 @@ export default function ProductPage({ product }) {
       />
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
 
-      <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '22px 40px 0' }}>
+      <section className="pdp-breadcrumb" style={{ maxWidth: T.maxw, margin: '0 auto', padding: '22px 40px 0' }}>
         <Link href="/shop" style={{ ...S.label, display: 'inline-block', marginBottom: 30 }}>← Back to shop</Link>
       </section>
 
       {/* MAIN */}
       <section style={{ maxWidth: T.maxw, margin: '0 auto', padding: '0 40px 60px' }}>
         <div className="pdp-grid" style={grid}>
-          <div className="pdp-gallery" style={gallery}>
+          {/* Desktop/tablet: one large active image + a clickable thumbnail
+              rail. Hidden on mobile in favor of the peek carousel below. */}
+          <div className="pdp-gallery pdp-gallery-desktop" style={gallery}>
             <div style={imgSide}>
               {product.badge && <span style={imageBadge}>{product.badge}</span>}
               {activeAsset ? (
@@ -255,8 +257,25 @@ export default function ProductPage({ product }) {
             )}
           </div>
 
+          {/* Mobile: full-bleed horizontal-scroll carousel — no thumbnails,
+              each slide slightly under full width so the next one peeks in
+              at the edge. Negative side margins cancel out this section's
+              own 40px padding so it runs edge to edge. */}
+          <div className="pdp-gallery-mobile">
+            {galleryAssets.map((asset, i) => (
+              <div key={asset.src} style={mobileGalleryItem}>
+                {product.badge && i === 0 && <span style={imageBadge}>{product.badge}</span>}
+                {asset.type === 'video' ? (
+                  <video src={asset.src} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ) : (
+                  <img src={asset.src} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )}
+              </div>
+            ))}
+          </div>
+
           <div style={infoCol}>
-            <a href="#reviews" style={pdpRating}>
+            <a href="#reviews" className="pdp-rating" style={pdpRating}>
               {reviewData.count > 0 ? (
                 <>
                   <span style={{ color: T.ink, letterSpacing: '2px' }}>{'★'.repeat(Math.round(reviewData.average))}{'☆'.repeat(5 - Math.round(reviewData.average))}</span>
@@ -266,11 +285,11 @@ export default function ProductPage({ product }) {
                 'Be the first to review'
               )}
             </a>
-            <h1 style={pdpTitle}>{product.name}</h1>
-            <div style={pdpTagline}>{product.tagline}</div>
-            <p style={pdpDesc}>{product.description}</p>
+            <h1 className="pdp-title" style={pdpTitle}>{product.name}</h1>
+            <div className="pdp-tagline" style={pdpTagline}>{product.tagline}</div>
+            <p className="pdp-desc" style={pdpDesc}>{product.description}</p>
 
-            <div style={pdpPrice}>
+            <div className="pdp-price" style={pdpPrice}>
               <span style={{ textDecoration: 'line-through', color: T.soft, fontSize: '0.7em', marginRight: 8 }}>${unitPrice}</span>
               ${discountedPrice(unitPrice).toFixed(2)} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span>
             </div>
@@ -533,18 +552,38 @@ export default function ProductPage({ product }) {
         .reel-item { scroll-snap-align: start; flex: 0 0 22%; }
         .thumb-col { flex-direction: column; }
         .sticky-bar-inner { padding: 0 40px; }
+        .pdp-gallery-desktop { display: flex; }
+        .pdp-gallery-mobile { display: none; }
+        .pdp-rating { margin-bottom: 14px; }
+        .pdp-title { margin-bottom: 10px; }
+        .pdp-tagline { margin-bottom: 14px; }
+        .pdp-desc { margin-bottom: 22px; }
+        .pdp-price { margin-bottom: 22px; }
         @media (max-width: 860px) {
           .reel-item { flex: 0 0 calc((100% - 40px) / 3); }
         }
         @media (max-width: 680px) {
-          .pdp-grid { grid-template-columns: 1fr; }
-          .pdp-gallery { flex-direction: column; }
+          .pdp-breadcrumb { display: none; }
+          .pdp-grid { grid-template-columns: 1fr; gap: 24px; }
+          .pdp-gallery-desktop { display: none; }
+          .pdp-gallery-mobile {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            margin: 0 -40px;
+          }
           .thumb-col { flex-direction: row; }
           .related-grid { grid-template-columns: 1fr; }
           .related-item { border-left: none; }
           .related-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
           .sticky-bar-inner { padding: 0 16px; gap: 12px; }
           .sticky-bar-actions { gap: 10px; }
+          .pdp-rating { margin-bottom: 10px; }
+          .pdp-title { margin-bottom: 6px; }
+          .pdp-tagline { margin-bottom: 8px; }
+          .pdp-desc { margin-bottom: 14px; }
+          .pdp-price { margin-bottom: 14px; }
         }
       `}</style>
     </div>
@@ -552,13 +591,21 @@ export default function ProductPage({ product }) {
 }
 
 const grid = { display: 'grid', gap: 60, alignItems: 'start' };
-const gallery = { display: 'flex', gap: 14 };
+// display lives in the .pdp-gallery-desktop CSS class, not here — see that
+// class's comment near the mobile carousel styles above.
+const gallery = { gap: 14 };
 const imgSide = { position: 'relative', background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, overflow: 'hidden', flex: 1, minWidth: 0 };
 const imageBadge = {
   position: 'absolute', top: 14, right: 14, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase',
   color: T.ink, background: 'rgba(252,251,247,0.92)', padding: '6px 10px', zIndex: 1, fontFamily: T.sans,
 };
 const thumbCol = { display: 'flex', gap: 10, flexShrink: 0 };
+// Slightly under full width (not 100%) so the next slide's edge peeks in
+// from the right within the same full-bleed row — see .pdp-gallery-mobile.
+const mobileGalleryItem = {
+  position: 'relative', flex: '0 0 88%', scrollSnapAlign: 'start',
+  aspectRatio: '4/5', background: T.paper, overflow: 'hidden',
+};
 const thumbBtn = { width: 64, height: 64, padding: 0, border: '1px solid', cursor: 'pointer', overflow: 'hidden', background: 'none', flexShrink: 0 };
 // Overlaid on the video thumbnail since a muted <video> may render as a
 // blank/black frame before its metadata loads — the play icon makes it
@@ -568,14 +615,17 @@ const videoThumbPlayIcon = {
   fontSize: 14, color: T.white, background: 'rgba(22,20,15,0.28)', pointerEvents: 'none',
 };
 const infoCol = { position: 'sticky', top: 110 };
+// marginBottom for each of these lives in the .pdp-* CSS classes below, not
+// here — an inline style always beats a plain CSS rule regardless of media
+// query, so a mobile override couldn't shrink these if they were set inline.
 const pdpRating = {
-  display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft, marginBottom: 14,
+  display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: T.soft,
   fontFamily: T.sans, width: 'fit-content', borderBottom: `1px solid ${T.line}`, paddingBottom: 2,
 };
-const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(28px,3.6vw,42px)', lineHeight: 1.05, marginBottom: 10 };
-const pdpTagline = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, marginBottom: 14 };
-const pdpDesc = { fontSize: 15, color: '#4a453c', maxWidth: '46ch', marginBottom: 22, lineHeight: 1.6 };
-const pdpPrice = { fontFamily: T.serif, fontWeight: 300, fontSize: 28, marginBottom: 22 };
+const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(28px,3.6vw,42px)', lineHeight: 1.05 };
+const pdpTagline = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft };
+const pdpDesc = { fontSize: 15, color: '#4a453c', maxWidth: '46ch', lineHeight: 1.6 };
+const pdpPrice = { fontFamily: T.serif, fontWeight: 300, fontSize: 28 };
 const qtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.line}`, height: 48 };
 const qtyBtn = { width: 40, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: T.ink };
 const qtyValue = { width: 30, textAlign: 'center', fontSize: 13 };
