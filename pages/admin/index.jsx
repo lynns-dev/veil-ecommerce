@@ -195,6 +195,9 @@ export default function AdminDashboard() {
   const [showArchived, setShowArchived] = React.useState(false);
   const [orderActionBusy, setOrderActionBusy] = React.useState({});
   const [orderActionError, setOrderActionError] = React.useState({});
+  const [trackingForms, setTrackingForms] = React.useState({});
+  const [trackingBusy, setTrackingBusy] = React.useState({});
+  const [trackingMessage, setTrackingMessage] = React.useState({});
 
   const loadOrders = React.useCallback(() => {
     setOrdersLoading(true);
@@ -251,6 +254,48 @@ export default function AdminDashboard() {
       setOrderActionError((prev) => ({ ...prev, [order.id]: err.message }));
     } finally {
       setOrderActionBusy((prev) => ({ ...prev, [order.id]: false }));
+    }
+  };
+
+  const getTrackingForm = (order) =>
+    trackingForms[order.id] ?? {
+      carrier: order.carrier || '',
+      trackingNumber: order.trackingNumber || '',
+      trackingUrl: order.trackingUrl || '',
+    };
+
+  const setTrackingField = (orderId, field, value) => {
+    setTrackingForms((prev) => ({
+      ...prev,
+      [orderId]: { ...(prev[orderId] ?? getTrackingForm({ id: orderId })), [field]: value },
+    }));
+  };
+
+  const handleSaveTracking = async (order) => {
+    const form = getTrackingForm(order);
+    if (!form.trackingNumber.trim()) {
+      setTrackingMessage((prev) => ({ ...prev, [order.id]: 'Enter a tracking number.' }));
+      return;
+    }
+    setTrackingBusy((prev) => ({ ...prev, [order.id]: true }));
+    setTrackingMessage((prev) => ({ ...prev, [order.id]: '' }));
+    try {
+      const res = await fetch('/api/admin/orders/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save tracking.');
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
+      setTrackingMessage((prev) => ({
+        ...prev,
+        [order.id]: data.emailSent ? 'Saved — customer emailed.' : `Saved, but the email didn't send: ${data.emailError}`,
+      }));
+    } catch (err) {
+      setTrackingMessage((prev) => ({ ...prev, [order.id]: err.message }));
+    } finally {
+      setTrackingBusy((prev) => ({ ...prev, [order.id]: false }));
     }
   };
 
@@ -1005,6 +1050,9 @@ export default function AdminDashboard() {
                       <span style={{ flex: '0 0 100px', color: T.soft }}>{o.paymentMethod || 'Unknown'}</span>
                       <span style={{ flex: '0 0 90px' }}>
                         <span style={orderStatusBadge(o.status)}>{o.status || 'paid'}</span>
+                        {o.trackingNumber && (
+                          <span style={{ ...orderStatusBadge('paid'), marginLeft: 6 }}>shipped</span>
+                        )}
                       </span>
                     </div>
 
@@ -1050,6 +1098,45 @@ export default function AdminDashboard() {
                               <span>${Number((i.price ?? 0) * i.quantity).toFixed(2)}</span>
                             </div>
                           ))}
+                        </div>
+
+                        <div style={formLabel}>Tracking</div>
+                        <div style={{ marginBottom: 20 }}>
+                          {o.trackingNumber && (
+                            <div style={{ fontSize: 12, color: T.soft, marginBottom: 10 }}>
+                              Shipped {o.shippedAt ? new Date(o.shippedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''} — customer emailed when last saved.
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                            <input
+                              placeholder="Carrier (optional)"
+                              value={getTrackingForm(o).carrier}
+                              onChange={(e) => setTrackingField(o.id, 'carrier', e.target.value)}
+                              style={{ ...formInput, width: 160 }}
+                            />
+                            <input
+                              placeholder="Tracking number"
+                              value={getTrackingForm(o).trackingNumber}
+                              onChange={(e) => setTrackingField(o.id, 'trackingNumber', e.target.value)}
+                              style={{ ...formInput, width: 200 }}
+                            />
+                            <input
+                              placeholder="Tracking URL (optional)"
+                              value={getTrackingForm(o).trackingUrl}
+                              onChange={(e) => setTrackingField(o.id, 'trackingUrl', e.target.value)}
+                              style={{ ...formInput, flex: 1, minWidth: 200 }}
+                            />
+                          </div>
+                          <button
+                            disabled={Boolean(trackingBusy[o.id])}
+                            onClick={() => handleSaveTracking(o)}
+                            style={{ ...S.btnOutline, opacity: trackingBusy[o.id] ? 0.5 : 1 }}
+                          >
+                            {trackingBusy[o.id] ? 'Saving…' : o.trackingNumber ? 'Update & re-email customer' : 'Save & email customer'}
+                          </button>
+                          {trackingMessage[o.id] && (
+                            <p style={{ fontSize: 12, color: T.ink, marginTop: 8 }}>{trackingMessage[o.id]}</p>
+                          )}
                         </div>
 
                         {orderActionError[o.id] && (
