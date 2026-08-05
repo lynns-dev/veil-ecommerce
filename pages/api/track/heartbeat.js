@@ -11,6 +11,13 @@ import { isExcludedTraffic } from '../../../lib/ipFilter';
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const TTL_SECONDS = 25;
+// Separate, much longer-lived record of the last page/field a visitor
+// touched — the 25s presence key above only exists while they're actively
+// on the site, but the admin's Visitors tab (past traffic, already
+// captured for the day by lib/analyticsStore.js's logVisitor) wants this
+// to still be there once they've left. 24h matches that tab's own
+// per-day dedup window.
+const LAST_TOUCH_TTL_SECONDS = 60 * 60 * 24;
 const ALLOWED_STAGES = [
   'browsing', 'cart_open', 'checkout',
   'checkout_shipping', 'checkout_payment',
@@ -63,11 +70,23 @@ export default async function handler(req, res) {
         scrollPct: clampScrollPct(scrollPct),
         activeField: clip(activeField, 60),
       });
-      await fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${KV_TOKEN}` },
-        body: value,
+      const lastTouch = JSON.stringify({
+        path: clip(path, 200),
+        activeField: clip(activeField, 60),
+        ts: Date.now(),
       });
+      await Promise.all([
+        fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${KV_TOKEN}` },
+          body: value,
+        }),
+        fetch(`${KV_URL}/set/visitor_last:${sessionId}?EX=${LAST_TOUCH_TTL_SECONDS}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${KV_TOKEN}` },
+          body: lastTouch,
+        }),
+      ]);
     } catch (err) {
       console.error('Heartbeat failed:', err);
     }

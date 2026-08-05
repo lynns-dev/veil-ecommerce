@@ -1291,6 +1291,8 @@ export default function AdminDashboard() {
               <div className="visitor-head-row" style={visitorHeadRow}>
                 <span className="visitor-col-source">Source</span>
                 <span className="visitor-col-page">Landed on</span>
+                <span className="visitor-col-page">Last page</span>
+                <span className="visitor-col-field">Last field</span>
                 <span className="visitor-col-location">Location</span>
                 <span className="visitor-col-when">When</span>
               </div>
@@ -1301,6 +1303,12 @@ export default function AdminDashboard() {
                   </span>
                   <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
                     {pageLabel(v.path)}
+                  </span>
+                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.lastPath || undefined}>
+                    {v.lastPath ? pageLabel(v.lastPath) : '—'}
+                  </span>
+                  <span className="visitor-col-field" style={{ color: v.lastActiveField ? T.ink : T.soft, fontStyle: v.lastActiveField ? 'normal' : 'italic' }}>
+                    {v.lastActiveField || '—'}
                   </span>
                   <span className="visitor-col-location" style={{ color: T.soft }}>
                     {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
@@ -1339,7 +1347,7 @@ export default function AdminDashboard() {
           .visitor-col-page { flex: 1 1 60%; order: 4; }
           .visitor-col-field { flex: 1 1 100%; order: 5; text-align: right; white-space: normal; }
           .visitor-col-scroll { flex: 1 1 40%; order: 6; justify-content: flex-end; }
-          .visitor-col-when { flex: 1 1 40%; order: 5; }
+          .visitor-col-when { flex: 1 1 40%; order: 6; }
         }
         .live-dot {
           width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
