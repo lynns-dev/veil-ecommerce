@@ -198,6 +198,10 @@ export default function AdminDashboard() {
   const [trackingForms, setTrackingForms] = React.useState({});
   const [trackingBusy, setTrackingBusy] = React.useState({});
   const [trackingMessage, setTrackingMessage] = React.useState({});
+  const [subscriptions, setSubscriptions] = React.useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = React.useState(true);
+  const [subscriptionActionBusy, setSubscriptionActionBusy] = React.useState({});
+  const [subscriptionActionError, setSubscriptionActionError] = React.useState({});
 
   const loadOrders = React.useCallback(() => {
     setOrdersLoading(true);
@@ -211,6 +215,39 @@ export default function AdminDashboard() {
   React.useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const loadSubscriptions = React.useCallback(() => {
+    setSubscriptionsLoading(true);
+    fetch('/api/admin/subscriptions')
+      .then((r) => r.json())
+      .then((data) => setSubscriptions(data.subscriptions || []))
+      .catch(() => {})
+      .finally(() => setSubscriptionsLoading(false));
+  }, []);
+
+  React.useEffect(() => {
+    loadSubscriptions();
+  }, [loadSubscriptions]);
+
+  const handleCancelSubscription = async (sub) => {
+    if (!confirm(`Cancel the subscription for ${sub.email}? This takes effect at the end of the current billing period.`)) return;
+    setSubscriptionActionBusy((prev) => ({ ...prev, [sub.id]: true }));
+    setSubscriptionActionError((prev) => ({ ...prev, [sub.id]: '' }));
+    try {
+      const res = await fetch('/api/admin/subscriptions/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId: sub.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not cancel this subscription.');
+      setSubscriptions((prev) => prev.map((s) => (s.id === sub.id ? data.subscription : s)));
+    } catch (err) {
+      setSubscriptionActionError((prev) => ({ ...prev, [sub.id]: err.message }));
+    } finally {
+      setSubscriptionActionBusy((prev) => ({ ...prev, [sub.id]: false }));
+    }
+  };
 
   const visibleOrders = React.useMemo(
     () => (showArchived ? orders : orders.filter((o) => o.status !== 'archived')),
@@ -565,6 +602,12 @@ export default function AdminDashboard() {
             style={{ ...tabBtn, ...(activeTab === 'orders' ? tabBtnActive : {}) }}
           >
             Orders ({orders.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            style={{ ...tabBtn, ...(activeTab === 'subscriptions' ? tabBtnActive : {}) }}
+          >
+            Subscriptions ({subscriptions.filter((s) => s.status === 'ACTIVE').length})
           </button>
           <button
             onClick={() => setActiveTab('visitors')}
@@ -1169,6 +1212,57 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+        )}
+
+        {activeTab === 'subscriptions' && (
+        <Section title={`Subscriptions (${subscriptions.length})`}>
+          {subscriptionsLoading ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
+          ) : subscriptions.length === 0 ? (
+            <p style={{ color: T.soft, fontSize: 14 }}>No subscribers yet.</p>
+          ) : (
+            <div>
+              <div style={orderHeadRow}>
+                <span style={{ flex: '0 0 130px' }}>Started</span>
+                <span style={{ flex: 1 }}>Customer</span>
+                <span style={{ flex: 1 }}>Product</span>
+                <span style={{ flex: '0 0 90px' }}>Price</span>
+                <span style={{ flex: '0 0 90px' }}>Status</span>
+                <span style={{ flex: '0 0 100px' }} />
+              </div>
+              {subscriptions.map((s) => {
+                const busy = Boolean(subscriptionActionBusy[s.id]);
+                return (
+                  <div key={s.id} style={{ borderBottom: `1px solid ${T.line}` }}>
+                    <div style={orderRow}>
+                      <span style={{ flex: '0 0 130px', color: T.soft }}>
+                        {new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                      <span style={{ flex: 1 }} title={s.email}>{s.email}</span>
+                      <span style={{ flex: 1 }}>{s.productName} <span style={{ color: T.soft }}>· every {s.cadenceDays || 60}d</span></span>
+                      <span style={{ flex: '0 0 90px' }}>${Number(s.price).toFixed(2)}</span>
+                      <span style={{ flex: '0 0 90px' }}>
+                        <span style={orderStatusBadge(s.status === 'ACTIVE' ? 'paid' : s.status === 'CANCELED' ? 'cancelled' : 'archived')}>
+                          {(s.status || 'active').toLowerCase()}
+                        </span>
+                      </span>
+                      <span style={{ flex: '0 0 100px' }}>
+                        {s.status !== 'CANCELED' && (
+                          <button disabled={busy} onClick={() => handleCancelSubscription(s)} style={{ ...deleteBtn, opacity: busy ? 0.5 : 1 }}>
+                            {busy ? 'Working…' : 'Cancel'}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {subscriptionActionError[s.id] && (
+                      <p style={{ fontSize: 12, color: '#a13d2b', padding: '0 0 12px' }}>{subscriptionActionError[s.id]}</p>
                     )}
                   </div>
                 );

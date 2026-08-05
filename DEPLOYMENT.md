@@ -90,6 +90,28 @@ Vercel Cron on the free/Hobby plan is limited to once-per-day schedules — `ver
 
 ---
 
+## Step 3 (optional): Set Up Subscribe & Save (Square Subscriptions)
+
+"Subscribe & Save" — 15% off, delivered every 60 days — on the four single-jar fragrances (Original, Citron, Grand Jar, Violette; not the Scent Trio set or the Puff accessory). Reuses the same Square account/location as the live Square checkout (`SQUARE_ACCESS_TOKEN`/`SQUARE_LOCATION_ID`/`SQUARE_ENVIRONMENT`) — no separate Square credentials needed.
+
+Unlike one-time checkout (a single-use card token charged directly), Square requires a **customer + card on file** before it will create a subscription, and Square itself — not this site — bills that card automatically every 60 days after. The Catalog objects a subscription needs (a plan + one price variation per jar) are created automatically, once, the first time anyone subscribes (`lib/squareSubscriptionsServer.js`'s `ensureSubscriptionPlan`) — no manual Catalog setup required.
+
+The one manual step is the **webhook**, since that's the only way this site finds out a renewal happened (or failed) — Square never calls back into checkout code the way a one-time charge does:
+
+1. In the Square Developer Dashboard (developer.squareup.com → your app → **Webhooks**), add an endpoint: `https://<your-domain>/api/square-subscription-webhook`.
+2. Subscribe it to: `invoice.payment_made`, `invoice.scheduled_charge_failed`, `subscription.updated`.
+3. Copy the endpoint's Signature Key into `SQUARE_SUBSCRIPTION_WEBHOOK_SIGNATURE_KEY`, and set `SQUARE_SUBSCRIPTION_WEBHOOK_URL` to the exact URL from step 1 (scheme included) — signature verification checks this URL byte-for-byte against what Square signed.
+
+Without this webhook configured, subscriptions can still be *created* (a shopper can subscribe, and Square charges them), but no renewal — including the very first charge — will ever show up in admin's Orders tab or Revenue figures, since `recordOrder` is only ever called from this webhook (deliberately: it's the one path that's authoritative for every cycle, first charge and every renewal alike, rather than trying to also record something optimistically at signup time and risk double-counting).
+
+**Cancelling a subscription** is currently admin-only (`/admin` → Subscriptions tab → Cancel) — there's no customer self-serve portal. Cancelling takes effect at the end of the current paid period, matching Square's own `CancelSubscription` behavior, not immediately.
+
+### A note on verification
+
+Confirmed against the installed SDK's own TypeScript definitions (`node_modules/square/api/**/*.d.ts`), the same standard `lib/squareServer.js` already uses — not guessed. The webhook handler (signature verification, idempotent revenue recording on redelivery, failure/status tracking) was exercised end-to-end over real HTTP with a real HMAC-signed request in a scratch KV store. The Catalog-setup caching logic (`ensureSubscriptionPlan` only ever running once, rebuilding if incomplete) was verified the same way. What wasn't exercised live: an actual `Subscribe & Save` submission (customer + card-on-file + subscription creation) — that would create real Customer/Catalog/Subscription objects and attempt a real charge in whichever Square account the deployment's credentials point at, which isn't something to do without a real card and explicit intent. Test this once for real before pointing customers at it: subscribe with a real (or Square sandbox) card, confirm the subscription appears in Square's own dashboard and in `/admin`'s Subscriptions tab, then confirm the webhook fires and the charge lands in Orders/Revenue.
+
+---
+
 ## Step 3 (optional): Resolve ad set/creative names in admin
 
 Order source in admin shows which ad set and creative brought a buyer in — but only as a readable name if the ad's own URL tags were built with Meta's name-based macro (`{{adset.name}}`, `{{ad.name}}`). Some ad templates use the id-based macro instead (`{{adset.id}}`, `{{ad.id}}`), which captures a bare numeric id at click time instead. This step resolves those ids to real names for display, without changing anything about how attribution is captured.

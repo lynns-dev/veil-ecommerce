@@ -6,9 +6,13 @@ import Header from '../../components/Header';
 import CartDrawer from '../../components/CartDrawer';
 import ProductVisual from '../../components/ProductVisual';
 import PaymentMethods from '../../components/PaymentMethods';
+import SubscribeModal from '../../components/SubscribeModal';
 import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
-import { PRODUCTS, getProductById, discountedPrice } from '../../lib/products';
+import {
+  PRODUCTS, getProductById, discountedPrice,
+  SUBSCRIPTION_PRODUCT_IDS, subscriptionPrice, SUBSCRIPTION_DISCOUNT_PERCENT, SUBSCRIPTION_CADENCE_DAYS,
+} from '../../lib/products';
 import { useCart } from '../../lib/useCart';
 import { fbTrack } from '../../lib/fbPixel';
 import { T, S } from '../../lib/theme';
@@ -75,6 +79,7 @@ export default function ProductPage({ product }) {
   const c = useCart();
   const router = useRouter();
   const [quantity, setQuantity] = React.useState(1);
+  const [subscribeOpen, setSubscribeOpen] = React.useState(false);
   const [openSection, setOpenSection] = React.useState('scent-story');
   const [openFaq, setOpenFaq] = React.useState(null);
   const images = React.useMemo(() => product?.images || [], [product]);
@@ -303,6 +308,16 @@ export default function ProductPage({ product }) {
               <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
 
+            {SUBSCRIPTION_PRODUCT_IDS.includes(product.id) && (
+              <button
+                type="button"
+                onClick={() => setSubscribeOpen(true)}
+                style={{ ...S.btnOutline, width: '100%', justifyContent: 'center', marginBottom: 20 }}
+              >
+                Subscribe & save {SUBSCRIPTION_DISCOUNT_PERCENT}% — ${subscriptionPrice(unitPrice).toFixed(2)} every {SUBSCRIPTION_CADENCE_DAYS} days
+              </button>
+            )}
+
             <PaymentMethods />
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
@@ -525,6 +540,8 @@ export default function ProductPage({ product }) {
       <Footer />
 
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
+
+      {subscribeOpen && <SubscribeModal product={product} onClose={() => setSubscribeOpen(false)} />}
 
       {/* Floating add-to-cart bar */}
       <div style={stickyBar}>
