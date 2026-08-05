@@ -134,6 +134,18 @@ function Tracking() {
       return Math.min(100, Math.max(0, Math.round(pct)));
     };
 
+    // Which field (if any) they're currently focused in, e.g. for the live
+    // admin view during checkout — same "sample on the 10s tick" approach as
+    // scrollPercent() above rather than wiring up focus/blur listeners.
+    // Square's card input lives in a cross-origin iframe, so this can only
+    // ever see the plain HTML fields (name, address, email, etc.), never
+    // card number/expiry/CVC.
+    const activeFieldLabel = () => {
+      const el = document.activeElement;
+      if (!el || !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return null;
+      return el.placeholder || el.getAttribute('aria-label') || el.name || el.id || null;
+    };
+
     const sendHeartbeat = () => {
       if (!sessionIdRef.current) return;
       const { source, campaign } = describeTrafficSource(getStoredAttribution(), document.referrer);
@@ -147,6 +159,7 @@ function Tracking() {
           source,
           campaign,
           scrollPct: scrollPercent(),
+          activeField: activeFieldLabel(),
         }),
         keepalive: true,
       }).catch(() => {});

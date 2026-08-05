@@ -751,6 +751,7 @@ export default function AdminDashboard() {
                   <span className="visitor-col-stage">Stage</span>
                   <span className="visitor-col-source">Source</span>
                   <span className="visitor-col-page">Page</span>
+                  <span className="visitor-col-field">Typing in</span>
                   <span className="visitor-col-scroll">Scrolled</span>
                   <span className="visitor-col-location">Location</span>
                 </div>
@@ -770,6 +771,9 @@ export default function AdminDashboard() {
                         </span>
                         <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
                           {pageLabel(v.path)}
+                        </span>
+                        <span className="visitor-col-field" style={{ color: v.activeField ? T.ink : T.soft, fontStyle: v.activeField ? 'normal' : 'italic' }}>
+                          {v.activeField || '—'}
                         </span>
                         <span className="visitor-col-scroll" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ flex: 1, height: 6, background: T.paper, maxWidth: 60 }}>
@@ -1322,6 +1326,7 @@ export default function AdminDashboard() {
         .visitor-col-stage { flex: 0 0 110px; }
         .visitor-col-source { flex: 0 0 150px; }
         .visitor-col-page { flex: 1; }
+        .visitor-col-field { flex: 0 0 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .visitor-col-scroll { flex: 0 0 130px; }
         .visitor-col-location { flex: 0 0 120px; }
         .visitor-col-when { flex: 0 0 90px; text-align: right; }
@@ -1332,7 +1337,8 @@ export default function AdminDashboard() {
           .visitor-col-location { flex: 1 1 50%; order: 2; text-align: right; }
           .visitor-col-source { flex: 1 1 100%; order: 3; }
           .visitor-col-page { flex: 1 1 60%; order: 4; }
-          .visitor-col-scroll { flex: 1 1 40%; order: 5; justify-content: flex-end; }
+          .visitor-col-field { flex: 1 1 100%; order: 5; text-align: right; white-space: normal; }
+          .visitor-col-scroll { flex: 1 1 40%; order: 6; justify-content: flex-end; }
           .visitor-col-when { flex: 1 1 40%; order: 5; }
         }
         .live-dot {

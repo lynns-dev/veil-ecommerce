@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { sessionId, stage, path, source, campaign, scrollPct } = req.body || {};
+  const { sessionId, stage, path, source, campaign, scrollPct, activeField } = req.body || {};
   if (
     typeof sessionId === 'string' &&
     sessionId.length > 0 &&
@@ -61,6 +61,7 @@ export default async function handler(req, res) {
         source: clip(source, 80),
         campaign: clip(campaign, 80),
         scrollPct: clampScrollPct(scrollPct),
+        activeField: clip(activeField, 60),
       });
       await fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
         method: 'POST',

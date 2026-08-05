@@ -64,6 +64,7 @@ async function getLiveVisitors() {
     scrollPct: typeof v.scrollPct === 'number' ? v.scrollPct : null,
     city: v.city || null,
     country: v.country || 'XX',
+    activeField: v.activeField || null,
   }));
 
   return { count: keys.length, byStage, byCountry, visitors: detailed };
