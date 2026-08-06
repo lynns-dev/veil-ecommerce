@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { T, S } from '../lib/theme';
 import ProductVisual from './ProductVisual';
-import { getProductById, discountedPrice, TASSEL_GIFT } from '../lib/products';
+import { getProductById, TASSEL_GIFT } from '../lib/products';
 import { computeCartTotals } from '../lib/cartTotals';
 import { createApplePayButton, tokenizeWalletWithContact } from '../lib/squareClient';
 import { isShopPayAvailable, mountShopPayButton } from '../lib/shopPayClient';
@@ -275,10 +275,7 @@ export default function CartDrawer({
                     {item.id === TASSEL_GIFT.id ? (
                       <>FREE · {item.size}</>
                     ) : (
-                      <>
-                        <span style={{ textDecoration: 'line-through', marginRight: 4 }}>${item.price}</span>
-                        ${discountedPrice(item.price).toFixed(2)} · {item.size}
-                      </>
+                      <>${item.price.toFixed(2)} · {item.size}</>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
@@ -302,8 +299,7 @@ export default function CartDrawer({
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13 }}>{puff.name}</div>
                   <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>
-                    <span style={{ textDecoration: 'line-through', marginRight: 6 }}>${puff.price}</span>
-                    ${discountedPrice(puff.price).toFixed(2)}
+                    ${puff.price.toFixed(2)}
                   </div>
                 </div>
                 <button onClick={() => add(puff, 1)} style={upsellAddBtn}>Add</button>

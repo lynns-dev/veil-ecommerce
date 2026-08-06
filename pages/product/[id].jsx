@@ -10,7 +10,7 @@ import SubscribeModal from '../../components/SubscribeModal';
 import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
 import {
-  PRODUCTS, getProductById, discountedPrice,
+  PRODUCTS, getProductById,
   SUBSCRIPTION_PRODUCT_IDS, subscriptionPrice, SUBSCRIPTION_DISCOUNT_PERCENT, SUBSCRIPTION_CADENCE_DAYS,
 } from '../../lib/products';
 import { useCart } from '../../lib/useCart';
@@ -295,8 +295,7 @@ export default function ProductPage({ product }) {
             <p className="pdp-desc" style={pdpDesc}>{product.description}</p>
 
             <div className="pdp-price" style={pdpPrice}>
-              <span style={{ textDecoration: 'line-through', color: T.soft, fontSize: '0.7em', marginRight: 8 }}>${unitPrice}</span>
-              ${discountedPrice(unitPrice).toFixed(2)} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span>
+              ${unitPrice.toFixed(2)} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span>
             </div>
 
             <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -335,8 +334,7 @@ export default function ProductPage({ product }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontFamily: T.serif, fontSize: 17, marginBottom: 8 }}>
-                    <span style={{ textDecoration: 'line-through', color: T.soft, fontSize: '0.75em', marginRight: 4 }}>${trio.price}</span>
-                    ${discountedPrice(trio.price).toFixed(2)}
+                    ${trio.price.toFixed(2)}
                   </div>
                   {/* Stops the surrounding Link from navigating so "Add" can
                       still add straight to cart without leaving the page. */}
@@ -525,8 +523,7 @@ export default function ProductPage({ product }) {
                   <div style={relatedText}>
                     <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18 }}>{p.name}</div>
                     <div style={{ fontSize: 13, color: T.soft, marginTop: 4 }}>
-                      <span style={{ textDecoration: 'line-through', marginRight: 4 }}>${p.price}</span>
-                      ${discountedPrice(p.price).toFixed(2)}
+                      ${p.price.toFixed(2)}
                     </div>
                   </div>
                 </Link>

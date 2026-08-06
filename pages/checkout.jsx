@@ -542,8 +542,8 @@ export default function CheckoutPage() {
 
   const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
   // Subtotal covers the paid items only, with the free Tassel broken out
-  // as its own $0.00 "Gift" row (its $15 value struck through) and folded
-  // into the single "Savings" figure instead — see lib/cartTotals.js.
+  // as its own $0.00 "Gift" row (its $15 value struck through). Its value
+  // is deliberately NOT counted in "Savings" — see lib/cartTotals.js.
   const { subtotal, giftValue, totalSavings, hasGift, grandTotal } = computeCartTotals({
     cart, codeDiscountAmount, shippingCost, discountedTotal,
   });

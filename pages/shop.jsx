@@ -6,7 +6,7 @@ import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
 import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
-import { PRODUCTS, discountedPrice } from '../lib/products';
+import { PRODUCTS } from '../lib/products';
 import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
@@ -55,8 +55,7 @@ export default function ShopPage() {
                 )}
                 <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 10px' }}>{p.tagline}</div>
                 <div style={{ fontSize: 13, marginBottom: 14 }}>
-                  <span style={{ textDecoration: 'line-through', color: T.soft, marginRight: 6 }}>${p.price}</span>
-                  ${discountedPrice(p.price).toFixed(2)} · {p.size}
+                  ${p.price.toFixed(2)} · {p.size}
                 </div>
                 <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center' }} onClick={() => c.add(p)}>Add to cart</button>
               </div>
