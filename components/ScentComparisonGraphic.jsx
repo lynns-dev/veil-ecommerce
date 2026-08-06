@@ -120,7 +120,7 @@ export default function ScentComparisonGraphic({ compact = false }) {
 }
 
 const wrap = { border: `1px solid ${T.line}`, background: T.paper, padding: '22px 20px 24px', marginBottom: 24 };
-const wrapCompact = { border: `1px solid ${T.line}`, background: T.paper, padding: '14px 16px 16px', marginBottom: 20 };
+const wrapCompact = { border: `1px solid ${T.line}`, background: T.paper, padding: '14px 16px 16px', marginBottom: 28 };
 const heading = { fontFamily: T.serif, fontWeight: 300, fontSize: 20, margin: '6px 0 0' };
 const headingCompact = { fontFamily: T.serif, fontWeight: 300, fontSize: 15, margin: 0 };
 const hourRow = {

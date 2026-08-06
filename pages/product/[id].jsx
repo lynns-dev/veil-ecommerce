@@ -320,7 +320,11 @@ export default function ProductPage({ product }) {
 
             <PaymentMethods />
 
-            {product.category === 'fragrance' && <ScentComparisonGraphic compact />}
+            {product.category === 'fragrance' && (
+              <div style={{ marginTop: 20 }}>
+                <ScentComparisonGraphic compact />
+              </div>
+            )}
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
             {product.category === 'fragrance' && (
@@ -609,8 +613,11 @@ export default function ProductPage({ product }) {
 
 const grid = { display: 'grid', gap: 60, alignItems: 'start' };
 // display lives in the .pdp-gallery-desktop CSS class, not here — see that
-// class's comment near the mobile carousel styles above.
-const gallery = { gap: 14 };
+// class's comment near the mobile carousel styles above. Sticky so the
+// image stays in view while the info column (price, notes, accordions —
+// routinely taller than the gallery) scrolls past beside it, rather than
+// the other way around.
+const gallery = { gap: 14, position: 'sticky', top: 110 };
 const imgSide = { position: 'relative', background: T.paper, aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, overflow: 'hidden', flex: 1, minWidth: 0 };
 const imageBadge = {
   position: 'absolute', top: 14, right: 14, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase',
@@ -631,7 +638,7 @@ const videoThumbPlayIcon = {
   position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontSize: 14, color: T.white, background: 'rgba(22,20,15,0.28)', pointerEvents: 'none',
 };
-const infoCol = { position: 'sticky', top: 110 };
+const infoCol = {};
 // marginBottom for each of these lives in the .pdp-* CSS classes below, not
 // here — an inline style always beats a plain CSS rule regardless of media
 // query, so a mobile override couldn't shrink these if they were set inline.
