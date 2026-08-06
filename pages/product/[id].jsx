@@ -7,6 +7,7 @@ import CartDrawer from '../../components/CartDrawer';
 import ProductVisual from '../../components/ProductVisual';
 import PaymentMethods from '../../components/PaymentMethods';
 import SubscribeModal from '../../components/SubscribeModal';
+import ScentComparisonGraphic from '../../components/ScentComparisonGraphic';
 import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
 import {
@@ -306,6 +307,8 @@ export default function ProductPage({ product }) {
               </div>
               <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
+
+            {product.category === 'fragrance' && <ScentComparisonGraphic />}
 
             {SUBSCRIPTION_PRODUCT_IDS.includes(product.id) && (
               <button
