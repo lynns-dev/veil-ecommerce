@@ -20,7 +20,7 @@ import AnnouncementBar from '../components/AnnouncementBar';
 // /admin's Discounts tab (10%/15% off respectively) if they aren't there
 // already. They're only auto-seeded (lib/discountsStore.js) on a store
 // that's never had any codes written to it, which production likely isn't.
-const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
+const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success'];
 
 // Master off switch for the scratch popup — currently hidden sitewide.
 // Everything else (the component, its prize/discount-code wiring, the
@@ -33,7 +33,7 @@ const RESERVE_POPUP_ENABLED = false;
 // separate so the two can be turned on and off independently — and it can be
 // dropped sitewide here if the Anthropic key is ever pulled, without the
 // launcher lingering on a chat that can't answer.
-const ASSISTANT_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/success'];
+const ASSISTANT_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success'];
 // Hidden sitewide for now. Everything else (the component, its promo-code
 // wiring, /api/chat) is left intact, so flipping this back to true is the
 // only change needed to bring it back.
@@ -42,12 +42,13 @@ const ASSISTANT_ENABLED = false;
 // The promo bar rides above every storefront page, rendered here rather than
 // per-page so a new page can't quietly ship without it. Two exclusions:
 //   - /admin isn't a storefront; it's the back office.
-//   - /offer* are deliberately chrome-free advertorials (see pages/offer.jsx)
-//     with no Header or CartDrawer and a single hand-off CTA. Dropping the
-//     site's own promo bar on top of them would work against that design.
+//   - /offer* and /switch-to-veil are deliberately chrome-free advertorials
+//     (see pages/offer.jsx) with no Header or CartDrawer and a single
+//     hand-off CTA. Dropping the site's own promo bar on top of them would
+//     work against that design.
 // Checkout deliberately keeps it — the free-gift line is worth reinforcing
 // while someone is deciding whether to finish.
-const ANNOUNCEMENT_EXCLUDED_PREFIXES = ['/admin', '/offer'];
+const ANNOUNCEMENT_EXCLUDED_PREFIXES = ['/admin', '/offer', '/switch-to-veil'];
 
 const HEARTBEAT_MS = 10000;
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
