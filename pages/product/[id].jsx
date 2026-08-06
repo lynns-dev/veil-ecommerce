@@ -308,8 +308,6 @@ export default function ProductPage({ product }) {
               <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
 
-            {product.category === 'fragrance' && <ScentComparisonGraphic />}
-
             {SUBSCRIPTION_PRODUCT_IDS.includes(product.id) && (
               <button
                 type="button"
@@ -321,6 +319,8 @@ export default function ProductPage({ product }) {
             )}
 
             <PaymentMethods />
+
+            {product.category === 'fragrance' && <ScentComparisonGraphic compact />}
 
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
             {product.category === 'fragrance' && (

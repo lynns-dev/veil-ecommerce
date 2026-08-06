@@ -5,6 +5,7 @@ import Header from '../components/Header';
 import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
 import PaymentMethods from '../components/PaymentMethods';
+import ScentComparisonGraphic from '../components/ScentComparisonGraphic';
 import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
 import { getProductById } from '../lib/products';
@@ -151,6 +152,10 @@ export default function ScentOfferPage() {
             <PaymentMethods />
             <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
             <p style={puffIncludedNote}>Comes with the Veil Luxury Puff for effortless, everyday application.</p>
+
+            <div style={{ marginTop: 20 }}>
+              <ScentComparisonGraphic compact />
+            </div>
           </div>
         </div>
       </section>
