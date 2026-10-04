@@ -18,12 +18,16 @@
 // thank-you/review-nudge automation, both of which make sense once per
 // customer but not once per 60-day renewal. Renewals only need to land in
 // the revenue ledger (recordOrder) so they show up in admin's Orders tab
-// and Revenue figures.
+// and Revenue figures. The one exception is the Meta Purchase for the
+// FIRST charge (sendFirstChargePurchase below) — the conversion the ad
+// actually drove — sent once per subscription, never for a renewal.
 
 import { WebhooksHelper } from 'square';
 import { recordOrder } from '../../lib/analyticsStore';
 import { findSubscription, updateSubscription, markInvoiceProcessed, invoiceAlreadyProcessed } from '../../lib/subscriptionsStore';
 import { sendPushToAdmins } from '../../lib/webPush';
+import { sendCapiEvent, buildUserData } from '../../lib/metaCapi';
+import { lookupMetaClick } from '../../lib/metaClickStore';
 
 export const config = { api: { bodyParser: false } };
 
@@ -34,6 +38,45 @@ function readRawBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
+}
+
+// Server-side half of the subscription's Meta Purchase, paired by eventId
+// with the browser Pixel's Purchase fired by components/SubscribeModal.jsx.
+// Sent from here rather than /api/subscribe.js so it only ever reports a
+// charge Square actually collected. Everything about the shopper comes from
+// sub.meta, captured from their own request at signup (pages/api/subscribe.js)
+// — this request is Square's. Subscriptions created before that capture
+// existed have no sub.meta and are skipped.
+async function sendFirstChargePurchase(sub, invoice) {
+  const meta = sub.meta;
+  if (!meta?.eventId || sub.metaPurchaseSentAt) return;
+  // Clicked the ad in another browser — look the click up by email/phone
+  // (lib/metaClickStore.js).
+  const remembered = meta.fbc ? null : await lookupMetaClick({ email: sub.email, phone: sub.shipping?.phone });
+  await sendCapiEvent({
+    eventName: 'Purchase',
+    eventId: meta.eventId,
+    eventSourceUrl: meta.url || undefined,
+    userData: buildUserData({
+      clientIp: meta.clientIp,
+      userAgent: meta.userAgent,
+      fbc: meta.fbc || remembered?.fbc,
+      fbp: meta.fbp || remembered?.fbp,
+      email: sub.email,
+      phone: sub.shipping?.phone,
+      externalId: meta.sessionId || undefined,
+    }),
+    customData: {
+      currency: 'USD',
+      value: sub.price,
+      order_id: invoice.id,
+      content_type: 'product',
+      content_ids: [sub.productId],
+      contents: [{ id: sub.productId, quantity: 1, item_price: sub.price }],
+      num_items: 1,
+    },
+  });
+  await updateSubscription(sub.id, { metaPurchaseSentAt: new Date().toISOString() });
 }
 
 async function handleInvoicePaymentMade(invoice) {
@@ -66,6 +109,11 @@ async function handleInvoicePaymentMade(invoice) {
     status: 'paid',
   });
   await markInvoiceProcessed(subscriptionId, invoice.id);
+  try {
+    await sendFirstChargePurchase(sub, invoice);
+  } catch (err) {
+    console.error('Square subscription webhook: Meta Purchase failed:', err);
+  }
 
   sendPushToAdmins({
     title: 'Subscription renewed',

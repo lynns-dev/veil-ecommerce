@@ -3,6 +3,9 @@ import AddressFields from './AddressFields';
 import { createSquareCard, tokenizeSquareCard } from '../lib/squareClient';
 import { subscriptionPrice, SUBSCRIPTION_CADENCE_DAYS } from '../lib/products';
 import { T, S } from '../lib/theme';
+import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { getStoredAttribution } from '../lib/attribution';
+import { getSessionId } from '../lib/session';
 
 const EMPTY_ADDRESS = { name: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
@@ -66,13 +69,34 @@ export default function SubscribeModal({ product, onClose }) {
     setStep('submitting');
     try {
       const cardToken = await tokenizeSquareCard(squareCardRef.current);
+      // Shared with the server-side Purchase that Square's first-charge
+      // webhook sends (pages/api/square-subscription-webhook.js), so Meta
+      // counts the pair once.
+      const eventId = generateEventId();
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id, cardToken, email, shipping }),
+        body: JSON.stringify({
+          productId: product.id,
+          cardToken,
+          email,
+          shipping,
+          eventId,
+          url: window.location.href,
+          attribution: getStoredAttribution(),
+          sessionId: getSessionId(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start your subscription.');
+      fbTrack('Purchase', {
+        content_ids: [product.id],
+        content_type: 'product',
+        contents: [{ id: product.id, quantity: 1, item_price: price }],
+        num_items: 1,
+        value: price,
+        currency: 'USD',
+      }, eventId);
       setStep('success');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');

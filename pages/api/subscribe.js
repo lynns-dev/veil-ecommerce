@@ -18,6 +18,28 @@ import { PRODUCTS, SUBSCRIPTION_PRODUCT_IDS, subscriptionPrice } from '../../lib
 import { ensureSubscriptionPlan, createCustomerAndCard, createSquareSubscription } from '../../lib/squareSubscriptionsServer';
 import { addSubscription } from '../../lib/subscriptionsStore';
 import { sendPushToAdmins } from '../../lib/webPush';
+import { pickClientIp, resolveClickIds } from '../../lib/metaCapi';
+import { rememberMetaClick } from '../../lib/metaClickStore';
+
+// What the first-charge Meta Purchase event needs to know about the shopper.
+// That event is sent later, from Square's invoice.payment_made webhook
+// (pages/api/square-subscription-webhook.js) — only once the charge has
+// actually gone through — and that webhook's own request is Square's, so
+// the shopper's IP, browser, and ad click have to be captured here, from
+// their own request, and kept on the subscription record.
+function captureMetaContext(req, { eventId, url, attribution, sessionId }) {
+  if (!eventId) return null;
+  const { fbc, fbp } = resolveClickIds(req, { attribution });
+  return {
+    eventId,
+    url: url || null,
+    sessionId: sessionId || null,
+    clientIp: pickClientIp(req),
+    userAgent: req.headers['user-agent'] || null,
+    fbc: fbc || null,
+    fbp: fbp || null,
+  };
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,7 +47,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { productId, cardToken, email, name, shipping } = req.body || {};
+  const { productId, cardToken, email, name, shipping, eventId, url, attribution, sessionId } = req.body || {};
 
   if (!productId || !SUBSCRIPTION_PRODUCT_IDS.includes(productId)) {
     return res.status(400).json({ error: 'This product is not available as a subscription.' });
@@ -61,7 +83,9 @@ export default async function handler(req, res) {
       shipping,
       createdAt: new Date().toISOString(),
       processedInvoiceIds: [],
+      meta: captureMetaContext(req, { eventId, url, attribution, sessionId }),
     });
+    await rememberMetaClick({ email, phone: shipping.phone, ...resolveClickIds(req, { attribution }) });
 
     sendPushToAdmins({
       title: 'New subscriber',
