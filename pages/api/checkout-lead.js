@@ -8,6 +8,8 @@
 // checkout or popup experience.
 
 import { recordLead } from '../../lib/checkoutLeadsStore';
+import { resolveClickIds } from '../../lib/metaCapi';
+import { rememberMetaClick } from '../../lib/metaClickStore';
 
 const ALLOWED_STATUSES = ['abandoned', 'subscribed'];
 
@@ -31,6 +33,11 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Lead capture failed:', err);
   }
+  // The moment an email is typed is often the only point where the ad click
+  // (this browser's _fbc) and the shopper's identity are seen together —
+  // saved so a purchase made later in a different browser can still carry
+  // the ClickID (lib/metaClickStore.js).
+  await rememberMetaClick({ email, phone, ...resolveClickIds(req) });
 
   return res.status(204).end();
 }
