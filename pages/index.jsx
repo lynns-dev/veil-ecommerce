@@ -6,7 +6,7 @@ import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
 import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
-import { getFeaturedProducts, getProductById } from '../lib/products';
+import { getFeaturedProducts, PRODUCTS, INGREDIENTS } from '../lib/products';
 import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
@@ -14,7 +14,10 @@ import { T, S } from '../lib/theme';
 export default function HomePage() {
   const c = useCart();
   const featured = getFeaturedProducts();
-  const violette = getProductById('violette');
+  // One column per distinct scent — the Grand Jar is the Original in a
+  // bigger jar, so it would only repeat the Original's notes.
+  const scentGuide = featured.filter((p) => p.id !== 'grand-jar' && p.notes);
+  const shopList = PRODUCTS;
   const reviewsByProduct = useAllReviews();
   const siteReviews = React.useMemo(() => {
     const all = Object.values(reviewsByProduct).flatMap((r) => r.reviews || []);
@@ -59,7 +62,7 @@ export default function HomePage() {
   return (
     <div>
       <Seo
-        description="A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close. Vegan, cruelty-free, talc-free."
+        description="Veil is perfume in powder form. Sweep it onto skin with a puff. Three scents: warm jasmine and vanilla, bright citrus, or pear and violet. Talc-free, vegan, cruelty-free."
         path="/"
       />
       <script
@@ -74,15 +77,18 @@ export default function HomePage() {
       />
       {/* The promo bar that used to sit here is now rendered sitewide from
           pages/_app.jsx (components/AnnouncementBar.jsx). */}
-      {/* HERO */}
+      {/* HERO — the headline carries the feeling; the line beneath it must
+          always say plainly what the product is (see the site brief). */}
       <section style={heroWrap}>
         <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} overlay scrolled={scrolled} />
         <div style={heroBg}>
           <div style={heroScrim} />
           <div style={heroContent}>
-            <span style={{ ...S.label, display: 'block', marginBottom: 26, color: 'rgba(252,251,247,0.85)' }}>Poudre de corps parfumée</span>
-            <h1 style={heroH1}>Wear it <span style={S.it}>for yourself</span> first.</h1>
-            <p style={heroSub}>A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.</p>
+            <span style={{ ...S.label, display: 'block', marginBottom: 26, color: 'rgba(252,251,247,0.85)' }}>Perfume, in powder form</span>
+            <h1 style={heroH1}>The last thing <span style={S.it}>you put on.</span></h1>
+            <p style={heroSub}>
+              Veil is perfume made as a fine powder. Press the puff into the jar, sweep it over your skin, and the scent stays close to you.
+            </p>
             {siteReviews.count > 0 && (
               <div style={hrate}>
                 <span style={{ letterSpacing: '2px', color: T.white }}>{'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}</span>
@@ -90,8 +96,8 @@ export default function HomePage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={heroBtn} onClick={() => c.add(featured[0])}>Shop — $45</button>
-              <a href="#notes" style={heroLink}>The scent</a>
+              <button style={heroBtn} onClick={() => c.add(featured[0])}>Add the Original — ${featured[0].price}</button>
+              <a href="#scents" style={heroLink}>Choose a scent</a>
             </div>
           </div>
           <div style={heroHint}>
@@ -101,11 +107,30 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* COLLECTION */}
-      <section id="shop" style={band}>
+      {/* WHAT IT IS — the three plain facts, before anything else. */}
+      <section style={{ ...band, borderBottom: `1px solid ${T.line}` }}>
+        <div className="facts-grid" style={factsGrid}>
+          {[
+            ['What it is', 'Perfume, made as a fine scented powder instead of a liquid. Talc-free.'],
+            ['How it goes on', 'With a soft puff. Press it into the powder, then sweep it over your skin.'],
+            ['How it wears', 'Close to the skin — noticed by the people near you, not the whole room.'],
+          ].map(([h, p]) => (
+            <div key={h} className="facts-item" style={factCell}>
+              <p style={S.label}>{h}</p>
+              <p style={factText}>{p}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* SCENTS — the collection, organized around choosing. */}
+      <section id="scents" style={band}>
         <div style={{ ...S.wrap, textAlign: 'center' }}>
-          <p style={S.label}>The collection</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>A scent wardrobe, <span style={S.it}>softly told.</span></h2>
+          <p style={S.label}>The scents</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Three scents. <span style={S.it}>Here’s how they differ.</span></h2>
+          <p style={sectionIntro}>
+            Each scent comes in a 4 oz jar. The Original also comes in an 8 oz Grand Jar. Start with the one whose notes you already love.
+          </p>
           <div className="col-grid" style={colGrid}>
             {featured.map((p) => (
               <div key={p.id} className="col-item" style={pcard}>
@@ -116,70 +141,132 @@ export default function HomePage() {
                 <div style={pcardText}>
                   <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19 }}>{p.name}</Link>
                   <div style={pnotes}>{p.tagline}</div>
+                  <p style={psmell}>{p.smellsLike}</p>
+                  <p style={pchoose}><span style={{ color: T.ink }}>Choose it if</span> {p.chooseIf.charAt(0).toLowerCase() + p.chooseIf.slice(1)}</p>
                   <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
                   <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => c.add(p)}>Add to cart</button>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 40 }}><Link href="/shop" style={S.link}>View all</Link></div>
+          <div style={{ marginTop: 40 }}><Link href="/shop" style={S.link}>Shop everything, including sets</Link></div>
         </div>
       </section>
 
-      {/* NEW SCENT — VIOLETTE AMBRÉE */}
-      {violette && (
-        <section style={{ ...band, borderTop: `1px solid ${T.line}` }}>
-          <div className="new-scent-grid" style={newScentGrid}>
-            <div style={newScentImg}>
-              <img
-                src="/images/violette-scent.png"
-                alt="Violette Ambrée — pear, plum, lily of the valley, violet, amber, warm woods"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            </div>
-            <div>
-              <p style={S.label}>New scent</p>
-              <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Violette Ambrée<span style={S.it}>, just arrived.</span></h2>
-              <p style={{ color: T.soft, fontSize: 15, margin: '18px 0 26px', maxWidth: '42ch' }}>{violette.description}</p>
-              <Link href={`/product/${violette.id}`} style={S.btnFill}>Shop Violette Ambrée</Link>
-            </div>
+      {/* NOTES SIDE BY SIDE — every note comes from that scent's own
+          `notes` in lib/products.js; nothing is shared between columns. */}
+      <section id="notes" style={{ ...band, background: T.ink, color: T.white, textAlign: 'center' }}>
+        <div style={S.wrap}>
+          <p style={{ ...S.label, color: 'rgba(252,251,247,0.6)' }}>The notes</p>
+          <h2 style={{ ...S.h2, color: T.white, marginTop: 12 }}>What each one <span style={S.it}>smells like.</span></h2>
+          <p style={{ ...sectionIntro, color: 'rgba(252,251,247,0.72)' }}>
+            Top notes are what you smell first. The heart comes through next. The base is what stays on your skin.
+          </p>
+          <div className="notes-grid" style={ncols}>
+            {scentGuide.map((p) => (
+              <div key={p.id} className="notes-item" style={ncol}>
+                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 22, marginBottom: 18 }}>{p.name}</div>
+                {[['Top', p.notes.top], ['Heart', p.notes.middle], ['Base', p.notes.base]].map(([k, v]) => (
+                  <div key={k} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(252,251,247,0.55)', marginBottom: 4 }}>{k}</div>
+                    <div style={{ fontSize: 15, lineHeight: 1.5 }}>{v}</div>
+                  </div>
+                ))}
+                <Link href={`/product/${p.id}`} style={{ ...S.link, color: T.white, borderBottom: '1px solid rgba(252,251,247,0.5)', marginTop: 8, display: 'inline-block' }}>Shop {p.name}</Link>
+              </div>
+            ))}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* HONEST MATH */}
+      {/* HOW TO WEAR IT */}
+      <section style={band}>
+        <div className="how-grid" style={splitGrid}>
+          <div style={splitImg}>
+            <img
+              src="/images/veil-model-7.9.png"
+              alt="A woman sweeping a powder puff over her shoulder, a jar of Veil beside her"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
+          <div>
+            <p style={S.label}>How to wear it</p>
+            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Press, sweep, <span style={S.it}>done.</span></h2>
+            <ol style={stepsList}>
+              {HOW_TO_WEAR.map(([h, p], i) => (
+                <li key={h} style={{ ...stepRow, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>
+                  <span style={stepNum}>{i + 1}</span>
+                  <div>
+                    <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 19, marginBottom: 4 }}>{h}</div>
+                    <p style={{ fontSize: 14, color: T.soft, margin: 0 }}>{p}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* WHY IT MATTERS — the only passage that leans on memory. Keep the
+          nostalgia here and nowhere else on the page. */}
       <section style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
-        <div style={{ ...S.wrap, textAlign: 'center' }}>
-          <p style={S.label}>The honest math</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>Same scent. <span style={S.it}>Less the markup.</span></h2>
-          <div className="hm-grid" style={{ display: 'grid', marginTop: 46, border: `1px solid ${T.line}`, textAlign: 'left' }}>
-            <div className="hm-cell" style={vcell}>
-              <div style={vtag}>Luxury perfume</div>
-              <div style={vbig}>$150–300</div>
-              <ul style={vlist}>
-                {['One bottle', 'Scents you and the whole room', 'Fades by afternoon', 'Sits on top of the skin'].map((x, i) => (
-                  <li key={i} style={{ ...vli, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>{x}</li>
-                ))}
-              </ul>
+        <div className="why-grid" style={splitGrid}>
+          <div>
+            <p style={S.label}>Getting ready, with care</p>
+            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Some women <span style={S.it}>you never forget.</span></h2>
+            <div style={storyText}>
+              <p>Many of you have told us about a mother or grandmother who wore body powder. What stayed with you wasn’t the powder. It was her — the time she took to get ready, the way she chose her scent, how she walked into a room.</p>
+              <p>Veil is perfume in powder form, swept on with a puff — our way of carrying that grace forward. Not a copy of anyone: your own scent, your own pace, five unhurried minutes before the day begins.</p>
+              <p>It won’t change who you are. It’s simply how you like to be ready.</p>
             </div>
-            <div className="hm-cell" style={{ ...vcell, background: T.ink, color: T.white }}>
-              <div style={{ ...vtag, color: 'rgba(252,251,247,0.6)' }}>One jar of VEIL</div>
-              <div style={{ ...vbig, color: T.white }}>$45</div>
-              <ul style={vlist}>
-                {['The wear of a full bottle', 'Intimate, close-to-skin', 'Pressed in — holds all day', 'Melts in, soft-focus finish'].map((x, i) => (
-                  <li key={i} style={{ ...vli, color: 'rgba(252,251,247,0.78)', borderTop: i === 0 ? 'none' : `1px solid ${T.dline}` }}>{x}</li>
-                ))}
-              </ul>
+          </div>
+          <div style={splitImg}>
+            <img
+              src="/images/veil-puff-shoulder-hoop.webp"
+              alt="A woman with her hair pinned up, pressing a powder puff to her shoulder"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* THE FACTS — prices and sizes come straight from lib/products.js;
+          shipping and returns mirror pages/shipping.jsx and
+          pages/returns.jsx. */}
+      <section style={band}>
+        <div style={{ ...S.wrap, textAlign: 'center' }}>
+          <p style={S.label}>The details</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Sizes, prices, <span style={S.it}>and what’s inside.</span></h2>
+          <div className="facts-table" style={factsTable}>
+            <div style={factsCol}>
+              <p style={{ ...S.label, marginBottom: 14 }}>Sizes &amp; prices</p>
+              {shopList.map((p) => (
+                <div key={p.id} style={priceRow}>
+                  <Link href={`/product/${p.id}`} style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 17 }}>{p.name}</Link>
+                  <span style={{ fontSize: 14, color: T.soft, whiteSpace: 'nowrap' }}>{p.size} · ${p.price}</span>
+                </div>
+              ))}
+            </div>
+            <div style={factsCol}>
+              <p style={{ ...S.label, marginBottom: 14 }}>Ingredients</p>
+              <p style={{ fontSize: 14, color: T.ink, margin: '0 0 22px' }}>{INGREDIENTS}</p>
+              <p style={{ fontSize: 14, color: T.soft, margin: '0 0 22px' }}>Talc-free. Vegan and cruelty-free.</p>
+              <p style={{ ...S.label, marginBottom: 14 }}>Shipping &amp; returns</p>
+              <p style={{ fontSize: 14, color: T.soft, margin: 0 }}>
+                US shipping is a flat $5, free on orders of $50 or more. Orders ship within 1 business day. Unopened, unused products can be returned within 30 days of delivery.{' '}
+                <Link href="/shipping" style={{ textDecoration: 'underline' }}>Shipping</Link> · <Link href="/returns" style={{ textDecoration: 'underline' }}>Returns</Link>
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* REVIEWS */}
+      {/* REVIEWS — only what customers have submitted and admin approved
+          (lib/useReviews.js). Never seed or invent entries here. */}
       <section id="reviews" style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
         <div style={{ ...S.wrap, textAlign: 'center' }}>
-          <p style={S.label}>The verdict</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>Worn close, <span style={S.it}>adored quietly.</span></h2>
+          <p style={S.label}>Reviews</p>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>In customers’ <span style={S.it}>own words.</span></h2>
           {siteReviews.count === 0 ? (
             <p style={{ color: T.soft, fontSize: 14, marginTop: 42 }}>No reviews yet — be the first to share yours on any product page.</p>
           ) : (
@@ -187,7 +274,7 @@ export default function HomePage() {
               <div style={{ marginTop: 42 }}>
                 <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>{siteReviews.average.toFixed(1)}</div>
                 <div style={{ color: T.ink, letterSpacing: '3px', fontSize: 14, margin: '6px 0 4px' }}>{'★'.repeat(Math.round(siteReviews.average))}{'☆'.repeat(5 - Math.round(siteReviews.average))}</div>
-                <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{siteReviews.count} review{siteReviews.count === 1 ? '' : 's'} · {siteReviews.recommendPct}% recommend</div>
+                <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.soft }}>{siteReviews.count} review{siteReviews.count === 1 ? '' : 's'} · {siteReviews.recommendPct}% rated 4 stars or more</div>
               </div>
               <div className="rev-grid" style={revGrid}>
                 {siteReviews.all.slice().reverse().slice(0, 3).map((r) => (
@@ -203,45 +290,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* NOTES */}
-      <section id="notes" style={{ ...band, background: T.ink, color: T.white, textAlign: 'center' }}>
-        <div style={S.wrap}>
-          <p style={{ ...S.label, color: 'rgba(252,251,247,0.6)' }}>The composition</p>
-          <h2 style={{ ...S.h2, color: T.white, marginTop: 12 }}>Built in layers, <span style={S.it}>unfolding slowly.</span></h2>
-          <div className="notes-grid" style={ncols}>
-            {[['Top', 'Bergamot', 'Citrus zest'], ['Heart', 'Jasmine', 'Soft floral petals'], ['Base', 'Hinoki · Santal', 'Warm vanilla']].map(([k, a, b], i) => (
-              <div key={i} className="notes-item" style={ncol}>
-                <div style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(252,251,247,0.55)', marginBottom: 14 }}>{k}</div>
-                <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, lineHeight: 1.5 }}>{a}<br />{b}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* RITUAL */}
-      <section style={band}>
-        <div style={{ ...S.wrap, textAlign: 'center' }}>
-          <p style={S.label}>The ritual</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>Three soft motions.</h2>
-          <div className="rit-grid" style={ritGrid}>
-            {[['i', 'After the bath', 'Press the puff into the powder. Scent lives best on warm, clean skin.'],
-              ['ii', 'Sweep where you’re noticed', 'Collarbones, shoulders, the backs of the knees. A veil, not a coat.'],
-              ['iii', 'Carry it through the day', 'Wear alone, or layer over perfume to extend it.']].map(([n, h, p], i) => (
-              <div key={i}>
-                <div style={{ fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 26 }}>{n}</div>
-                <h4 style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, margin: '12px 0 6px' }}>{h}</h4>
-                <p style={{ fontSize: 13, color: T.soft, maxWidth: '30ch', margin: '0 auto' }}>{p}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* NEWSLETTER */}
-      <section style={{ ...band, textAlign: 'center', borderTop: `1px solid ${T.line}` }}>
+      <section style={{ ...band, textAlign: 'center' }}>
         <p style={S.label}>The list</p>
-        <h2 style={{ ...S.h2, marginTop: 12 }}>A language of scent, <span style={S.it}>told softly.</span></h2>
+        <h2 style={{ ...S.h2, marginTop: 12 }}>New scents, <span style={S.it}>first.</span></h2>
         <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 15% off your first order.</p>
         <form style={newsForm} onSubmit={(e) => e.preventDefault()}>
           <input type="email" placeholder="Email address" aria-label="email" style={newsInput} />
@@ -255,33 +307,45 @@ export default function HomePage() {
       <CartDrawer {...c} onClose={() => c.setOpen(false)} />
 
       <style jsx>{`
-        .hm-grid { grid-template-columns: 1fr 1fr; }
-        .hm-cell + .hm-cell { border-left: 1px solid ${T.line}; }
+        .facts-grid { grid-template-columns: repeat(3, 1fr); }
+        .facts-item + .facts-item { border-left: 1px solid ${T.line}; }
         .col-grid { grid-template-columns: repeat(4, 1fr); }
-        .new-scent-grid { grid-template-columns: 1fr 1fr; }
-        .rev-grid { grid-template-columns: repeat(3, 1fr); }
-        .rev-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
         .notes-grid { grid-template-columns: repeat(3, 1fr); }
         .notes-item:nth-child(n + 2) { border-left: 1px solid ${T.dline}; }
-        .rit-grid { grid-template-columns: repeat(3, 1fr); }
+        .how-grid, .why-grid { grid-template-columns: 1fr 1fr; }
+        .facts-table { grid-template-columns: 1fr 1fr; }
+        .rev-grid { grid-template-columns: repeat(3, 1fr); }
+        .rev-item:nth-child(n + 2) { border-left: 1px solid ${T.line}; }
 
+        @media (max-width: 960px) {
+          .col-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 680px) {
-          .hm-grid { grid-template-columns: 1fr; }
-          .hm-cell + .hm-cell { border-left: none; border-top: 1px solid ${T.line}; }
+          .facts-grid { grid-template-columns: 1fr; }
+          .facts-item + .facts-item { border-left: none; border-top: 1px solid ${T.line}; }
           .col-grid { grid-template-columns: 1fr; }
-          .new-scent-grid { grid-template-columns: 1fr; gap: 34px; }
-          .rev-grid { grid-template-columns: 1fr; }
-          .rev-item { border-left: none; }
-          .rev-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
           .notes-grid { grid-template-columns: 1fr; }
           .notes-item { border-left: none; }
           .notes-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.dline}; }
-          .rit-grid { grid-template-columns: 1fr; gap: 34px; }
+          .how-grid, .why-grid { grid-template-columns: 1fr; gap: 34px; }
+          .why-grid > div:last-child { order: -1; }
+          .facts-table { grid-template-columns: 1fr; }
+          .rev-grid { grid-template-columns: 1fr; }
+          .rev-item { border-left: none; }
+          .rev-item:nth-child(n + 2) { border-left: none; border-top: 1px solid ${T.line}; }
         }
       `}</style>
     </div>
   );
 }
+
+// The application steps, in the order they happen. Mirrors HOW_TO_USE on
+// the product page — same instructions, same words.
+const HOW_TO_WEAR = [
+  ['Press the puff into the powder', 'Press gently — you only need a light layer.'],
+  ['Sweep it over your skin', 'Collarbones, shoulders, the backs of the knees — wherever you’d wear perfume. A light layer, not a coat.'],
+  ['Wear it on warm, clean skin', 'Just after a bath or shower is ideal. Wear it alone, or over your usual perfume.'],
+];
 
 const heroWrap = { position: 'relative' };
 const heroBg = {
@@ -302,23 +366,30 @@ const heroLink = { ...S.link, color: T.white, borderBottom: '1px solid rgba(252,
 const heroHint = { position: 'absolute', left: '50%', bottom: 28, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 };
 const heroHintLine = { width: 1, height: 34, background: 'rgba(252,251,247,0.6)' };
 const band = { padding: '64px 0' };
-const vcell = { padding: '46px 44px' };
-const vtag = { fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.soft, marginBottom: 18 };
-const vbig = { fontFamily: T.serif, fontWeight: 300, fontSize: 46, lineHeight: 1, marginBottom: 18 };
-const vlist = { listStyle: 'none', fontSize: 14, color: T.soft };
-const vli = { padding: '8px 0' };
 const colGrid = { display: 'grid', marginTop: 50, gap: 40 };
-const newScentGrid = { ...S.wrap, display: 'grid', gap: 60, alignItems: 'center' };
-const newScentImg = { aspectRatio: '4/5', overflow: 'hidden', border: `1px solid ${T.line}` };
 const pcard = { textAlign: 'center' };
 const badge = { position: 'absolute', top: 14, left: 14, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft, background: 'rgba(252,251,247,0.9)', padding: '4px 8px', zIndex: 1 };
 const pimg = { position: 'relative', aspectRatio: '1/1', display: 'block', overflow: 'hidden', width: '100%' };
-const pcardText = { padding: '20px 30px 40px' };
+const pcardText = { padding: '20px 14px 40px' };
 const pnotes = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 6px' };
 const revGrid = { display: 'grid', border: `1px solid ${T.line}`, marginTop: 48 };
 const rev = { padding: '34px 30px', textAlign: 'left' };
-const ncols = { display: 'grid', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };
-const ncol = { padding: '38px 14px' };
-const ritGrid = { display: 'grid', gap: 44, marginTop: 54 };
+const ncols = { display: 'grid', maxWidth: 980, margin: '44px auto 0', border: `1px solid ${T.dline}` };
+const ncol = { padding: '38px 24px' };
+const sectionIntro = { color: T.soft, fontSize: 15, maxWidth: '52ch', margin: '16px auto 0' };
+const factsGrid = { ...S.wrap, display: 'grid' };
+const factCell = { padding: '6px 32px', textAlign: 'center' };
+const factText = { fontFamily: T.serif, fontWeight: 300, fontSize: 19, lineHeight: 1.45, marginTop: 10, maxWidth: '26ch', marginLeft: 'auto', marginRight: 'auto' };
+const psmell = { fontSize: 14, color: T.ink, margin: '10px 0 6px', lineHeight: 1.5 };
+const pchoose = { fontSize: 13, color: T.soft, margin: '0 0 12px', lineHeight: 1.5 };
+const splitGrid = { ...S.wrap, display: 'grid', gap: 60, alignItems: 'center' };
+const splitImg = { aspectRatio: '4/5', overflow: 'hidden', border: `1px solid ${T.line}` };
+const stepsList = { listStyle: 'none', padding: 0, margin: '30px 0 0' };
+const stepRow = { display: 'flex', gap: 20, padding: '18px 0' };
+const stepNum = { fontFamily: T.serif, fontStyle: 'italic', fontWeight: 300, fontSize: 24, lineHeight: 1, minWidth: 18 };
+const storyText = { fontSize: 16, lineHeight: 1.75, color: T.ink, marginTop: 22, maxWidth: '46ch', display: 'grid', gap: 14 };
+const factsTable = { display: 'grid', gap: 48, marginTop: 44, textAlign: 'left', borderTop: `1px solid ${T.line}`, paddingTop: 34 };
+const factsCol = {};
+const priceRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, padding: '10px 0', borderBottom: `1px solid ${T.line}` };
 const newsForm = { display: 'flex', maxWidth: 420, margin: '0 auto', borderBottom: `1px solid ${T.ink}` };
 const newsInput = { flex: 1, height: 48, border: 'none', background: 'transparent', color: T.ink, padding: '0 4px', fontSize: 14, fontFamily: T.sans, outline: 'none' };

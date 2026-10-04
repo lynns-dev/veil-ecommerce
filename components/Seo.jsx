@@ -7,7 +7,7 @@ import Head from 'next/head';
 // defaults below rather than duplicating this boilerplate on every page.
 export const SITE_URL = 'https://veilpuff.com';
 export const SITE_NAME = 'VEIL';
-const DEFAULT_DESCRIPTION = 'A featherlight perfume powder that melts into skin and lingers all day — noticed only by those who lean in close.';
+const DEFAULT_DESCRIPTION = 'Veil is perfume in powder form, swept onto skin with a puff. Warm jasmine and vanilla, bright citrus, or pear and violet — worn close.';
 const DEFAULT_IMAGE = '/images/veil-model-powder-puff.png';
 
 export default function Seo({ title, description = DEFAULT_DESCRIPTION, image = DEFAULT_IMAGE, path = '/', noindex = false }) {

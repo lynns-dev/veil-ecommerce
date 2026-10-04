@@ -150,7 +150,7 @@ export default function ScentOfferPage() {
             </div>
 
             <PaymentMethods />
-            <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
+            <div style={badgeRow}>Ships within 1 business day · Vegan · Cruelty-free</div>
             <p style={puffIncludedNote}>Comes with the Veil Luxury Puff for effortless, everyday application.</p>
 
             <div style={{ marginTop: 20 }}>

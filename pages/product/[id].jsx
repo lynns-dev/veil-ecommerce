@@ -11,28 +11,29 @@ import ScentComparisonGraphic from '../../components/ScentComparisonGraphic';
 import Marquee from '../../components/Marquee';
 import Footer from '../../components/Footer';
 import {
-  PRODUCTS, getProductById,
+  PRODUCTS, getProductById, INGREDIENTS,
   SUBSCRIPTION_PRODUCT_IDS, subscriptionPrice, SUBSCRIPTION_DISCOUNT_PERCENT, SUBSCRIPTION_CADENCE_DAYS,
 } from '../../lib/products';
 import { useCart } from '../../lib/useCart';
 import { fbTrack } from '../../lib/fbPixel';
 import { T, S } from '../../lib/theme';
 
-const INGREDIENTS = 'Arrowroot powder, kaolin clay, rice bran powder, skin-safe mica, clean fragrance.';
-
+// Same three steps, in the same words, as HOW_TO_WEAR on the homepage.
 const HOW_TO_USE = [
-  ['After the bath', 'Press the puff into the powder. Scent lives best on warm, clean skin.'],
-  ['Sweep where you’re noticed', 'Collarbones, shoulders, the backs of the knees. A veil, not a coat.'],
-  ['Carry it through the day', 'Wear alone, or layer over perfume to extend it.'],
+  ['Press the puff into the powder', 'Press gently — you only need a light layer.'],
+  ['Sweep it over your skin', 'Collarbones, shoulders, the backs of the knees — wherever you’d wear perfume. A light layer, not a coat.'],
+  ['Wear it on warm, clean skin', 'Just after a bath or shower is ideal. Wear it alone, or over your usual perfume.'],
 ];
 
+// Facts only. Longevity ("all day"), "a full bottle's wear", and
+// skin-safety claims were removed until they can be substantiated — see
+// docs/site-copy-open-claims.md before adding any back.
 const BENEFITS = [
-  ['Featherlight, all-day wear', 'Pressed into skin rather than sprayed — it holds all day without fading.'],
-  ['Intimate, close-to-skin', 'Noticed only by those who lean in close, never the whole room.'],
-  ['One jar, a full bottle’s wear', 'Each jar carries the wear of a full perfume bottle, for a fraction of the cost.'],
-  ['Clean, simple ingredients', 'Arrowroot, kaolin clay, rice bran and mica — nothing else.'],
-  ['A tactile ritual', 'Applied with a satin-ribbon puff, not a spray — slower, softer, more deliberate.'],
-  ['Vegan-friendly formula', 'Cruelty-free, made without animal-derived ingredients.'],
+  ['Perfume, in powder form', 'The same idea as a fragrance you spray — a scent you wear on your skin — made as a fine powder instead of a liquid.'],
+  ['Worn close', 'Swept onto skin rather than sprayed into the air, so the scent sits near you, for the people near you.'],
+  ['Applied with a puff', 'You choose exactly where it goes: collarbones, shoulders, the backs of the knees.'],
+  ['Short ingredient list', 'Arrowroot, kaolin clay, rice bran, mica, and fragrance. Talc-free.'],
+  ['Vegan and cruelty-free', 'Made without animal-derived ingredients, and never tested on animals.'],
 ];
 
 // Drop video files into public/videos and add entries here (or per-product,
@@ -46,13 +47,18 @@ const REEL_VIDEOS = [
   { src: '/videos/VEIL_ADS_In_a_direct-to-consumer_style_a_woman_with_dark_b2adepH-.mp4' },
 ];
 
+// Shipping and returns answers mirror pages/shipping.jsx and
+// pages/returns.jsx — update all three together.
 const FAQS = [
-  ['Will it stain clothing?', 'No — the featherlight powder presses into skin and brushes off fabric easily.'],
-  ['How long does one jar last?', 'Most wearers get 150–200 uses per jar with daily application.'],
-  ['Can I wear it with perfume?', 'Yes. Many wear it alone; others layer it over perfume to extend the scent.'],
-  ['Is it safe for sensitive skin?', 'Yes. The formula is fragrance-forward but gentle enough for daily use.'],
-  ['Is it vegan and cruelty-free?', 'Yes — every VEIL formula is vegan-friendly and never tested on animals.'],
-  ['How do I apply it?', 'Press the puff into the powder, then sweep over collarbones, shoulders and the backs of knees.'],
+  ['What is Veil?', 'Perfume in powder form. Instead of spraying a liquid, you sweep a fine scented powder onto your skin with a puff.'],
+  ['How do I apply it?', 'Press the puff gently into the powder, then sweep it over your collarbones, shoulders, or the backs of your knees. It wears best on warm, clean skin — just after a bath or shower.'],
+  ['Which scent should I choose?', 'Original is warm and softly floral: jasmine over hinoki, santal, and vanilla. Citron Lumineaux is bright and fresh: bergamot, grapefruit, and neroli over cedar. Violette Ambrée is fruity and floral: pear, plum, and violet over amber. If you can’t decide, the Scent Trio has one jar of each.'],
+  ['Can I wear it with perfume?', 'Yes. Wear it on its own, or over your usual perfume.'],
+  ['Will it get on my clothes?', 'It’s a fine powder, so let it settle into your skin for a moment before you dress.'],
+  ['How long does a jar last?', 'It depends on how much you use and how often. The 8 oz Grand Jar holds twice as much as a 4 oz jar.'],
+  ['I have sensitive skin. Can I use it?', `The full ingredient list is: ${INGREDIENTS} If your skin is sensitive, try it on a small patch first.`],
+  ['Is it vegan and cruelty-free?', 'Yes. Every Veil formula is made without animal-derived ingredients and never tested on animals.'],
+  ['How much is shipping, and can I return it?', 'We ship within the US. Shipping is a flat $5, and free on orders of $50 or more. Orders ship within 1 business day. Unopened, unused products can be returned within 30 days of delivery.'],
 ];
 
 export async function getStaticPaths() {
@@ -294,6 +300,12 @@ export default function ProductPage({ product }) {
             <h1 className="pdp-title" style={pdpTitle}>{product.name}</h1>
             <div className="pdp-tagline" style={pdpTagline}>{product.tagline}</div>
             <p className="pdp-desc" style={pdpDesc}>{product.description}</p>
+            {product.smellsLike && (
+              <div style={scentGuideBox}>
+                <p style={scentGuideLine}><span style={scentGuideKey}>Smells like</span>{product.smellsLike}</p>
+                <p style={{ ...scentGuideLine, marginBottom: 0 }}><span style={scentGuideKey}>Choose it if</span>{product.chooseIf}</p>
+              </div>
+            )}
 
             <div className="pdp-price" style={pdpPrice}>
               ${unitPrice.toFixed(2)} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span>
@@ -326,7 +338,7 @@ export default function ProductPage({ product }) {
               </div>
             )}
 
-            <div style={badgeRow}>Ships in 2–4 days · Vegan-friendly · Cruelty-free</div>
+            <div style={badgeRow}>Ships within 1 business day · Vegan · Cruelty-free</div>
             {product.category === 'fragrance' && (
               <p style={puffIncludedNote}>Comes with the Veil Luxury Puff for effortless, everyday application.</p>
             )}
@@ -357,7 +369,7 @@ export default function ProductPage({ product }) {
 
             <div style={{ marginTop: 24 }}>
               {product.notes && (
-                <AccordionRow title="Scent story" open={openSection === 'scent-story'} onToggle={() => toggleSection('scent-story')}>
+                <AccordionRow title="Notes" open={openSection === 'scent-story'} onToggle={() => toggleSection('scent-story')}>
                   {Object.entries(product.notes).map(([k, v]) => (
                     <div key={k} style={noteRow}>
                       <span style={noteKey}>{k}</span>
@@ -398,8 +410,8 @@ export default function ProductPage({ product }) {
       {REEL_VIDEOS.length > 0 && (
         <section style={{ ...band, borderTop: `1px solid ${T.line}` }}>
           <div style={{ ...S.wrap, textAlign: 'center' }}>
-            <p style={S.label}>As worn</p>
-            <h2 style={{ ...S.h2, marginTop: 12 }}>Real women, <span style={S.it}>smelling incredible.</span></h2>
+            <p style={S.label}>How it’s worn</p>
+            <h2 style={{ ...S.h2, marginTop: 12 }}>Press, sweep, <span style={S.it}>done.</span></h2>
             <div className="reel-track" style={reelTrack}>
               {REEL_VIDEOS.map((v, i) => (
                 <video
@@ -423,7 +435,7 @@ export default function ProductPage({ product }) {
       {/* BENEFITS */}
       <section style={{ ...narrowBand, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
         <div style={narrowWrap}>
-          <p style={S.label}>Why you’ll love it</p>
+          <p style={S.label}>What to know</p>
           {BENEFITS.map(([h, p], i) => (
             <div key={i} style={benefitRow}>
               <span style={benefitNum}>{String(i + 1).padStart(2, '0')}</span>
@@ -439,8 +451,8 @@ export default function ProductPage({ product }) {
       {/* REVIEWS */}
       <section id="reviews" style={narrowBand}>
         <div style={{ ...narrowWrap, textAlign: 'center' }}>
-          <p style={S.label}>The verdict</p>
-          <h2 style={{ ...S.h2, marginTop: 12, fontSize: 'clamp(26px,3vw,36px)' }}>Worn close, <span style={S.it}>adored quietly.</span></h2>
+          <p style={S.label}>Reviews</p>
+          <h2 style={{ ...S.h2, marginTop: 12, fontSize: 'clamp(26px,3vw,36px)' }}>In customers’ <span style={S.it}>own words.</span></h2>
           {reviewData.count > 0 && (
             <div style={{ marginTop: 20, fontSize: 12, color: T.soft, letterSpacing: '0.04em' }}>
               <span style={{ color: T.ink, letterSpacing: '1.5px' }}>{'★'.repeat(Math.round(reviewData.average))}{'☆'.repeat(5 - Math.round(reviewData.average))}</span>
@@ -650,6 +662,9 @@ const pdpTitle = { fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(28px,3
 const pdpTagline = { fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft };
 const pdpDesc = { fontSize: 15, color: '#4a453c', maxWidth: '46ch', lineHeight: 1.6 };
 const pdpPrice = { fontFamily: T.serif, fontWeight: 300, fontSize: 28 };
+const scentGuideBox = { borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`, padding: '14px 0', margin: '0 0 22px' };
+const scentGuideLine = { fontSize: 14, lineHeight: 1.55, color: T.ink, margin: '0 0 8px', display: 'flex', gap: 14 };
+const scentGuideKey = { flex: '0 0 92px', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.soft, paddingTop: 3 };
 const qtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.line}`, height: 48 };
 const qtyBtn = { width: 40, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: T.ink };
 const qtyValue = { width: 30, textAlign: 'center', fontSize: 13 };

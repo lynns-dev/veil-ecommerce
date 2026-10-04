@@ -18,7 +18,7 @@ export default function ShopPage() {
     <div>
       <Seo
         title="Shop"
-        description="Shop the full VEIL collection — featherlight perfume powders in Original, Citron Lumineaux, Violette Ambrée, and the Grand Jar."
+        description="Shop Veil — perfume in powder form, swept onto skin with a puff. Original (jasmine, vanilla), Citron Lumineaux (bright citrus), Violette Ambrée (pear, violet, amber), and the 8 oz Grand Jar."
         path="/shop"
       />
       <Header cartCount={c.count} onCartClick={() => c.setOpen(true)} />
@@ -29,10 +29,10 @@ export default function ShopPage() {
         <div style={{ ...S.wrap, position: 'relative', textAlign: 'center' }}>
           <p style={{ ...S.label, color: 'rgba(252,251,247,0.75)' }}>The collection</p>
           <h1 style={{ ...S.h2, color: T.white, fontSize: 'clamp(38px,5.6vw,64px)', marginTop: 14 }}>
-            Shop <span style={S.it}>VEIL.</span>
+            Perfume, <span style={S.it}>in powder form.</span>
           </h1>
-          <p style={{ color: 'rgba(252,251,247,0.82)', fontSize: 15, marginTop: 14, maxWidth: '46ch', marginLeft: 'auto', marginRight: 'auto' }}>
-            A small, considered wardrobe of scent — featherlight powders, pressed into skin instead of sprayed into the air.
+          <p style={{ color: 'rgba(252,251,247,0.82)', fontSize: 15, marginTop: 14, maxWidth: '50ch', marginLeft: 'auto', marginRight: 'auto' }}>
+            Three scents, each swept onto skin with a puff. The Original is warm jasmine and vanilla. Citron Lumineaux is bright citrus. Violette Ambrée is pear, violet, and amber.
           </p>
         </div>
       </section>
@@ -54,6 +54,7 @@ export default function ShopPage() {
                   </div>
                 )}
                 <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, margin: '8px 0 10px' }}>{p.tagline}</div>
+                {p.smellsLike && <p style={{ fontSize: 13, color: T.ink, lineHeight: 1.5, margin: '0 0 12px' }}>{p.smellsLike}</p>}
                 <div style={{ fontSize: 13, marginBottom: 14 }}>
                   ${p.price.toFixed(2)} · {p.size}
                 </div>
