@@ -11,6 +11,7 @@ export default function Footer() {
           <Link href="/shop">Shop</Link>
           <Link href="/#notes">Scent</Link>
           <Link href="/#reviews">Reviews</Link>
+          <Link href="/about">Our story</Link>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, width: '100%', paddingTop: 20, borderTop: `1px solid ${T.line}`, marginTop: 4 }}>
           <Link href="/terms">Terms & Conditions</Link>
@@ -19,7 +20,7 @@ export default function Footer() {
           <Link href="/shipping">Shipping Policy</Link>
         </div>
         <small style={{ width: '100%', color: T.soft, fontSize: 11 }}>
-          Poudre de corps parfumée · Concept build — product visuals are illustrative.
+          Inspired by the women we grew up admiring · Poudre de corps parfumée · Concept build — product visuals are illustrative.
         </small>
       </div>
     </footer>

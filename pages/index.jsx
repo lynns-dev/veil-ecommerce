@@ -62,7 +62,7 @@ export default function HomePage() {
   return (
     <div>
       <Seo
-        description="Veil is perfume in powder form. Sweep it onto skin with a puff. Three scents: warm jasmine and vanilla, bright citrus, or pear and violet. Talc-free, vegan, cruelty-free."
+        description="Veil is perfume in powder form, swept onto skin with a puff — inspired by the women we grew up admiring. Warm jasmine and vanilla, bright citrus, or pear and violet."
         path="/"
       />
       <script
@@ -85,9 +85,9 @@ export default function HomePage() {
           <div style={heroScrim} />
           <div style={heroContent}>
             <span style={{ ...S.label, display: 'block', marginBottom: 26, color: 'rgba(252,251,247,0.85)' }}>Perfume, in powder form</span>
-            <h1 style={heroH1}>The last thing <span style={S.it}>you put on.</span></h1>
+            <h1 style={heroH1}>The woman you always <span style={S.it}>pictured becoming.</span></h1>
             <p style={heroSub}>
-              Veil is perfume made as a fine powder. Press the puff into the jar, sweep it over your skin, and the scent stays close to you.
+              Veil is perfume made as a fine powder. Press the puff into the jar, sweep it over your skin, and the scent stays close to you — the finishing touch of a woman who takes her time.
             </p>
             {siteReviews.count > 0 && (
               <div style={hrate}>
@@ -97,7 +97,7 @@ export default function HomePage() {
             )}
             <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
               <button style={heroBtn} onClick={() => c.add(featured[0])}>Add the Original — ${featured[0].price}</button>
-              <a href="#scents" style={heroLink}>Choose a scent</a>
+              <Link href="/about" style={heroLink}>Our story</Link>
             </div>
           </div>
           <div style={heroHint}>
@@ -127,9 +127,9 @@ export default function HomePage() {
       <section id="scents" style={band}>
         <div style={{ ...S.wrap, textAlign: 'center' }}>
           <p style={S.label}>The scents</p>
-          <h2 style={{ ...S.h2, marginTop: 12 }}>Three scents. <span style={S.it}>Here’s how they differ.</span></h2>
+          <h2 style={{ ...S.h2, marginTop: 12 }}>Every woman has her scent. <span style={S.it}>Find yours.</span></h2>
           <p style={sectionIntro}>
-            Each scent comes in a 4 oz jar. The Original also comes in an 8 oz Grand Jar. Start with the one whose notes you already love.
+            Three scents, each in a 4 oz jar — the Original also comes in an 8 oz Grand Jar. Start with the notes you already love.
           </p>
           <div className="col-grid" style={colGrid}>
             {featured.map((p) => (
@@ -144,7 +144,7 @@ export default function HomePage() {
                   <p style={psmell}>{p.smellsLike}</p>
                   <p style={pchoose}><span style={{ color: T.ink }}>Choose it if</span> {p.chooseIf.charAt(0).toLowerCase() + p.chooseIf.slice(1)}</p>
                   <div style={{ fontSize: 13 }}>${p.price} · {p.size}</div>
-                  <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => c.add(p)}>Add to cart</button>
+                  <button style={{ ...S.btnFill, width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => c.add(p)}>Add to bag</button>
                 </div>
               </div>
             ))}
@@ -191,7 +191,7 @@ export default function HomePage() {
           </div>
           <div>
             <p style={S.label}>How to wear it</p>
-            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Press, sweep, <span style={S.it}>done.</span></h2>
+            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>The last touch <span style={S.it}>before you leave.</span></h2>
             <ol style={stepsList}>
               {HOW_TO_WEAR.map(([h, p], i) => (
                 <li key={h} style={{ ...stepRow, borderTop: i === 0 ? 'none' : `1px solid ${T.line}` }}>
@@ -207,18 +207,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* WHY IT MATTERS — the only passage that leans on memory. Keep the
-          nostalgia here and nowhere else on the page. */}
+      {/* THE STORY, IN SHORT — the full telling lives on /about. Here it
+          only frames the product as who she has become; no retelling. */}
       <section style={{ ...band, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
         <div className="why-grid" style={splitGrid}>
           <div>
-            <p style={S.label}>Getting ready, with care</p>
-            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Some women <span style={S.it}>you never forget.</span></h2>
+            <p style={S.label}>Why we made Veil</p>
+            <h2 style={{ ...S.h2, marginTop: 12, textAlign: 'left' }}>Inspired by the women <span style={S.it}>we grew up admiring.</span></h2>
             <div style={storyText}>
-              <p>Many of you have told us about a mother or grandmother who wore body powder. What stayed with you wasn’t the powder. It was her — the time she took to get ready, the way she chose her scent, how she walked into a room.</p>
-              <p>Veil is perfume in powder form, swept on with a puff — our way of carrying that grace forward. Not a copy of anyone: your own scent, your own pace, five unhurried minutes before the day begins.</p>
-              <p>It won’t change who you are. It’s simply how you like to be ready.</p>
+              <p>As girls, we watched them get ready — unhurried, sure of their taste, finishing with a scent that was entirely theirs. We pictured the woman we’d one day become.</p>
+              <p>Veil is that finishing touch, made for now: perfume in powder form, swept on with a puff. Not to become anyone else. To become her — your way.</p>
             </div>
+            <Link href="/about" style={{ ...S.link, display: 'inline-block', marginTop: 26 }}>Read our story</Link>
           </div>
           <div style={splitImg}>
             <img

@@ -58,7 +58,7 @@ export default function Header({ cartCount = 0, onCartClick, overlay = false, sc
           />
         </Link>
         <div style={{ ...styles.side, justifyContent: 'flex-end' }}>
-          <a href="/#reviews" className="reviews-link" style={{ ...styles.navLink, color: linkColor }}>Reviews</a>
+          <a href="/about" className="reviews-link" style={{ ...styles.navLink, color: linkColor, opacity: active('/about') ? 1 : 0.7 }}>Our story</a>
           <button onClick={onCartClick} style={{ ...styles.cartBtn, color: linkColor }} aria-label="Open cart">
             Cart{cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
@@ -70,6 +70,7 @@ export default function Header({ cartCount = 0, onCartClick, overlay = false, sc
           <Link href="/shop" onClick={closeMenu} style={styles.mobileMenuLink}>Shop</Link>
           <Link href={BUNDLES_HREF} onClick={closeMenu} style={styles.mobileMenuLink}>Bundles</Link>
           <a href="/#notes" onClick={closeMenu} style={styles.mobileMenuLink}>Scent</a>
+          <Link href="/about" onClick={closeMenu} style={styles.mobileMenuLink}>Our story</Link>
           <a href="/#reviews" onClick={closeMenu} style={styles.mobileMenuLink}>Reviews</a>
         </div>
       )}

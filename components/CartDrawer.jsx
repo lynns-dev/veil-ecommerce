@@ -245,7 +245,7 @@ export default function CartDrawer({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexShrink: 0 }}>
-          <span style={S.label}>Your cart</span>
+          <span style={S.label}>Your bag</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: T.ink }}>×</button>
         </div>
 
@@ -259,7 +259,12 @@ export default function CartDrawer({
         )}
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-          {cart.length === 0 && <p style={{ color: T.soft, fontSize: 14 }}>Your cart is empty.</p>}
+          {cart.length === 0 && (
+            <div style={{ padding: '10px 0' }}>
+              <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 21, lineHeight: 1.4, margin: '0 0 10px' }}>Every woman has her scent.</p>
+              <Link href="/#scents" onClick={onClose} style={S.link}>Find yours</Link>
+            </div>
+          )}
           {cart.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '18px 0', borderBottom: `1px solid ${T.line}` }}>
               <div style={{ display: 'flex', gap: 14 }}>

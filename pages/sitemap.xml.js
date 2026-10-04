@@ -6,7 +6,7 @@ import { SITE_URL } from '../components/Seo';
 // single-purpose ad destinations that would read as duplicate content next
 // to the real product pages, or not meant to be publicly indexed at all
 // (also blocked in public/robots.txt).
-const STATIC_PATHS = ['/', '/shop', '/terms', '/privacy', '/returns', '/shipping'];
+const STATIC_PATHS = ['/', '/shop', '/about', '/terms', '/privacy', '/returns', '/shipping'];
 
 // priority is a relative signal within this one sitemap, not a promise —
 // Google's own guidance is explicit that it doesn't affect ranking or

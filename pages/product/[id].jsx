@@ -319,6 +319,7 @@ export default function ProductPage({ product }) {
               </div>
               <button style={{ ...S.btnFill, flex: 1, justifyContent: 'center' }} onClick={handleAdd}>Add to bag</button>
             </div>
+            <p style={{ fontSize: 12, color: T.soft, margin: '-8px 0 18px', letterSpacing: '0.02em' }}>The last touch before you leave. Ships within 1 business day.</p>
 
             {SUBSCRIPTION_PRODUCT_IDS.includes(product.id) && (
               <button
@@ -411,7 +412,7 @@ export default function ProductPage({ product }) {
         <section style={{ ...band, borderTop: `1px solid ${T.line}` }}>
           <div style={{ ...S.wrap, textAlign: 'center' }}>
             <p style={S.label}>How it’s worn</p>
-            <h2 style={{ ...S.h2, marginTop: 12 }}>Press, sweep, <span style={S.it}>done.</span></h2>
+            <h2 style={{ ...S.h2, marginTop: 12 }}>The last touch <span style={S.it}>before you leave.</span></h2>
             <div className="reel-track" style={reelTrack}>
               {REEL_VIDEOS.map((v, i) => (
                 <video
@@ -431,6 +432,17 @@ export default function ProductPage({ product }) {
           </div>
         </section>
       )}
+
+      {/* THE STORY, IN ONE LINE — full telling on /about. */}
+      <section style={{ ...narrowBand, textAlign: 'center', borderTop: `1px solid ${T.line}` }}>
+        <div style={narrowWrap}>
+          <p style={S.label}>Why we made Veil</p>
+          <p style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 'clamp(22px,2.6vw,28px)', lineHeight: 1.4, margin: '14px auto 18px', maxWidth: '30ch' }}>
+            Inspired by the women we grew up admiring — and the woman you always pictured becoming.
+          </p>
+          <Link href="/about" style={S.link}>Read our story</Link>
+        </div>
+      </section>
 
       {/* BENEFITS */}
       <section style={{ ...narrowBand, background: T.paper, borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
@@ -492,7 +504,7 @@ export default function ProductPage({ product }) {
                   ))}
                 </div>
                 <textarea
-                  placeholder="Share your experience with this scent…"
+                  placeholder="Where do you wear it — and who does it remind you of?"
                   value={reviewForm.text}
                   onChange={(e) => setReviewForm({ ...reviewForm, text: e.target.value })}
                   style={reviewTextarea}
