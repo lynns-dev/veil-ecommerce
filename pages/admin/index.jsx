@@ -1312,6 +1312,11 @@ export default function AdminDashboard() {
                   </span>
                   <span className="visitor-col-location" style={{ color: T.soft }}>
                     {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
+                    {v.outsideServiceArea && (
+                      <span title="Outside the US — left out of funnel numbers, live count, and Meta events" style={{ display: 'block', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#a13d2b' }}>
+                        Outside US · not counted
+                      </span>
+                    )}
                   </span>
                   <span className="visitor-col-when" style={{ color: T.soft, fontSize: 13 }}>{timeAgo(v.ts)}</span>
                 </div>

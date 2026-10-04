@@ -6,7 +6,7 @@
 // City/country come from Vercel's edge network, which sets these headers
 // on every request automatically — no third-party geolocation API needed.
 
-import { isExcludedTraffic } from '../../../lib/ipFilter';
+import { isExcludedTraffic, isOutsideServiceArea } from '../../../lib/ipFilter';
 
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
@@ -75,8 +75,12 @@ export default async function handler(req, res) {
         activeField: clip(activeField, 60),
         ts: Date.now(),
       });
+      // Visitors outside the US (lib/ipFilter.js) are left out of the live
+      // count and map, but their last page/field is still recorded so the
+      // Visitors tab shows what they actually did.
+      const outside = isOutsideServiceArea(req);
       await Promise.all([
-        fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
+        !outside && fetch(`${KV_URL}/set/visitor:${sessionId}?EX=${TTL_SECONDS}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${KV_TOKEN}` },
           body: value,

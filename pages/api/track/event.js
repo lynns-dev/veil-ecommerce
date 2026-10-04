@@ -4,7 +4,7 @@
 
 import { incrementEvent, logEvent, logVisitor } from '../../../lib/analyticsStore';
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
-import { isExcludedTraffic } from '../../../lib/ipFilter';
+import { isExcludedTraffic, isOutsideServiceArea } from '../../../lib/ipFilter';
 
 const ALLOWED = ['pageview', 'addtocart', 'checkout_start', 'checkout_payment'];
 // Logged to the timestamped recent-events feed for the live-activity view.
@@ -34,9 +34,13 @@ export default async function handler(req, res) {
 
   const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path } = req.body || {};
   if (ALLOWED.includes(event) && !isExcludedTraffic(req)) {
+    // Outside the US (lib/ipFilter.js): still listed in admin's Visitors tab,
+    // flagged, so unusual traffic stays visible — but kept out of the funnel
+    // counters, the activity feed, and Meta's server-side events.
+    const outside = isOutsideServiceArea(req);
     try {
-      await incrementEvent(event, sessionId);
-      if (LOGGED.includes(event)) {
+      if (!outside) await incrementEvent(event, sessionId);
+      if (!outside && LOGGED.includes(event)) {
         await logEvent(event, {
           ...(productName ? { productName } : {}),
           ...(sessionId ? { sessionId } : {}),
@@ -56,11 +60,12 @@ export default async function handler(req, res) {
           path: clip(path, 200),
           city: city ? decodeURIComponent(city) : null,
           country,
+          ...(outside ? { outsideServiceArea: true } : {}),
         });
       }
 
       const capiEventName = CAPI_EVENT_NAMES[event];
-      if (capiEventName && eventId) {
+      if (capiEventName && eventId && !outside) {
         await sendCapiEvent({
           eventName: capiEventName,
           eventId,

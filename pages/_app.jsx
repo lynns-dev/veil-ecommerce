@@ -75,9 +75,13 @@ function Tracking() {
     lastActiveFieldRef.current = null;
   }, [router.pathname]);
 
-  // Meta Pixel — never on /admin, that traffic isn't customer activity.
+  // Meta Pixel — never on /admin, that traffic isn't customer activity, and
+  // never for visitors outside the US (middleware.js tags them), who can't
+  // order and would only pollute ad audiences. With the Pixel not loaded,
+  // every fbTrack() call below is a no-op.
   React.useEffect(() => {
     if (isAdmin || !PIXEL_ID) return;
+    if (/(?:^|; )veil_geo=outside(?:;|$)/.test(document.cookie)) return;
     loadPixel(PIXEL_ID);
   }, [isAdmin]);
 
