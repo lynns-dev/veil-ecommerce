@@ -47,11 +47,11 @@ export default function HomePage() {
       if (!res.ok || !data.ok) throw new Error(data.error || 'Please try again.');
       setNewsletterMessage(data.alreadySubscribed
         ? 'You are already on the list.'
-        : 'Check your inbox to confirm your email and join the list.');
+        : 'You are on the list. Your welcome email is on its way.');
       setNewsletterEmail('');
     } catch (err) {
       setNewsletterError(true);
-      setNewsletterMessage(err.message || 'We could not send your confirmation email. Please try again.');
+      setNewsletterMessage(err.message || 'We could not send your welcome email. Please try again.');
     } finally {
       newsletterSubmitting.current = false;
       setNewsletterBusy(false);
