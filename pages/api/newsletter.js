@@ -24,12 +24,12 @@ export default async function handler(req, res) {
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok || data.ok !== true) {
       console.error('Newsletter signup failed', { status: upstream.status });
-      return res.status(502).json({ error: 'We could not send your confirmation email. Please try again.' });
+      return res.status(502).json({ error: 'We could not send your welcome email. Please try again.' });
     }
     return res.status(200).json({ ok: true, alreadySubscribed: data.alreadySubscribed === true });
   } catch (err) {
     console.error('Newsletter signup unavailable', { name: err.name });
-    return res.status(502).json({ error: 'We could not send your confirmation email. Please try again.' });
+    return res.status(502).json({ error: 'We could not send your welcome email. Please try again.' });
   } finally {
     clearTimeout(timeout);
   }
