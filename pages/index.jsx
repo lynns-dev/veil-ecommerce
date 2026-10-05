@@ -24,6 +24,39 @@ export default function HomePage() {
     return { all, count, average, recommendPct };
   }, [reviewsByProduct]);
   const [scrolled, setScrolled] = React.useState(false);
+  const [newsletterEmail, setNewsletterEmail] = React.useState('');
+  const [newsletterBusy, setNewsletterBusy] = React.useState(false);
+  const [newsletterMessage, setNewsletterMessage] = React.useState('');
+  const [newsletterError, setNewsletterError] = React.useState(false);
+  const newsletterSubmitting = React.useRef(false);
+
+  const subscribeToNewsletter = async (e) => {
+    e.preventDefault();
+    if (newsletterSubmitting.current) return;
+    newsletterSubmitting.current = true;
+    setNewsletterBusy(true);
+    setNewsletterMessage('');
+    setNewsletterError(false);
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Please try again.');
+      setNewsletterMessage(data.alreadySubscribed
+        ? 'You are already on the list.'
+        : 'Check your inbox to confirm your email and join the list.');
+      setNewsletterEmail('');
+    } catch (err) {
+      setNewsletterError(true);
+      setNewsletterMessage(err.message || 'We could not send your confirmation email. Please try again.');
+    } finally {
+      newsletterSubmitting.current = false;
+      setNewsletterBusy(false);
+    }
+  };
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -243,10 +276,11 @@ export default function HomePage() {
         <p style={S.label}>The list</p>
         <h2 style={{ ...S.h2, marginTop: 12 }}>A language of scent, <span style={S.it}>told softly.</span></h2>
         <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 15% off your first order.</p>
-        <form style={newsForm} onSubmit={(e) => e.preventDefault()}>
-          <input type="email" placeholder="Email address" aria-label="email" style={newsInput} />
-          <button type="submit" style={{ background: 'none', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: T.sans }}>Subscribe</button>
+        <form style={newsForm} onSubmit={subscribeToNewsletter} aria-busy={newsletterBusy}>
+          <input type="email" placeholder="Email address" aria-label="email" style={newsInput} value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} autoComplete="email" required maxLength={254} disabled={newsletterBusy} />
+          <button type="submit" disabled={newsletterBusy} style={{ background: 'none', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: newsletterBusy ? 'wait' : 'pointer', fontFamily: T.sans }}>{newsletterBusy ? 'Sending…' : 'Subscribe'}</button>
         </form>
+        <p role={newsletterError ? 'alert' : 'status'} aria-live="polite" style={{ color: newsletterError ? '#a13d2b' : T.soft, fontSize: 13, margin: '14px auto 0', maxWidth: '40ch' }}>{newsletterMessage}</p>
       </section>
 
       <Marquee />
