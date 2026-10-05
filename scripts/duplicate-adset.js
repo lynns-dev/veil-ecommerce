@@ -66,7 +66,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
-const GRAPH_VERSION = 'v21.0';
+const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || 'v25.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v']);

@@ -619,6 +619,10 @@ export default function AdminDashboard() {
 
         {activeTab === 'dashboard' && (
         <>
+        {/* META SERVER EVENTS — whether Meta is actually accepting the
+            Conversions API sends (lib/metaCapi.js). */}
+        {dashboard?.capi && <CapiStatus capi={dashboard.capi} />}
+
         {/* NOTIFICATIONS */}
         <Section title="Order notifications">
           {notifStatus === 'unsupported' && (
@@ -1386,6 +1390,43 @@ function FunnelStep({ label, value, rate }) {
       <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
       {rate && <div style={{ fontSize: 12, color: T.ink, marginTop: 2 }}>{rate}</div>}
     </div>
+  );
+}
+
+function sinceIso(iso) {
+  if (!iso) return null;
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return `${hrs} hr ago`;
+  return `${Math.round(hrs / 24)} days ago`;
+}
+
+function CapiStatus({ capi }) {
+  const okAt = capi.lastOk?.at ? new Date(capi.lastOk.at).getTime() : 0;
+  const errAt = capi.lastError?.at ? new Date(capi.lastError.at).getTime() : 0;
+  const failing = !capi.configured || errAt > okAt;
+  const color = failing ? '#a13d2b' : '#1a7a3c';
+  return (
+    <Section title="Meta server events (Conversions API)">
+      <p style={{ fontSize: 14, margin: '0 0 6px', color, fontWeight: 600 }}>
+        {!capi.configured
+          ? 'Not configured — set META_CAPI_ACCESS_TOKEN and NEXT_PUBLIC_META_PIXEL_ID in Vercel.'
+          : failing
+            ? 'Meta rejected the most recent event.'
+            : capi.lastOk
+              ? 'Meta is receiving server events.'
+              : 'No server events sent yet since this check was added.'}
+      </p>
+      <div style={{ fontSize: 13, color: T.soft, lineHeight: 1.7 }}>
+        {capi.lastOk && <div>Last accepted: {capi.lastOk.eventName} · {sinceIso(capi.lastOk.at)}</div>}
+        {capi.lastError && (
+          <div>Last error: {capi.lastError.eventName || 'event'} · {sinceIso(capi.lastError.at)} — {capi.lastError.error}</div>
+        )}
+        <div>API version {capi.graphVersion}{capi.testMode ? ' · test mode on (META_CAPI_TEST_EVENT_CODE is set — events only show in Test Events)' : ''}</div>
+      </div>
+    </Section>
   );
 }
 
