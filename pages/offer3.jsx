@@ -5,10 +5,7 @@ import { useRouter } from 'next/router';
 import ProductVisual from '../components/ProductVisual';
 import AddressFields from '../components/AddressFields';
 import { useCart } from '../lib/useCart';
-import {
-  createSquareCard, tokenizeSquareCard,
-  createApplePayButton, createGooglePayButton, createAfterpayButton, tokenizeWallet,
-} from '../lib/squareClient';
+import { tokenizeCard } from '../lib/qbPayments';
 import { PRODUCTS, getProductById } from '../lib/products';
 import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
 import { rememberIdentity } from '../lib/identity';
@@ -20,12 +17,15 @@ import { T, S } from '../lib/theme';
 // Third and final step of the ad funnel — a single-page "order form" style
 // checkout (product + quantity, shipping, payment all on one page), the
 // structural pattern the funnel reference used. It reuses the exact same
-// secure payment path as /checkout — Square's Web Payments SDK tokenizes
-// the card client-side, then /api/square-checkout charges it server-side —
-// a deliberate choice not to rebuild or duplicate that logic with a raw,
-// untokenized card form. This page keeps its own local order state (one
-// product + quantity) rather than depending on the shared cart, since it's
-// meant to work as a standalone "buy this now" destination from an ad.
+// secure payment path as /checkout — QuickBooks Payments tokenizes the
+// card from the browser straight against Intuit's API (lib/qbPayments.js),
+// then /api/qb-checkout charges it server-side, so the raw card number
+// never reaches this site's own server. Card only: QuickBooks' API has no
+// Apple Pay / Google Pay / Afterpay support (the Square version of this
+// page, with those wallets, is in git history). This page keeps its own
+// local order state (one product + quantity) rather than depending on the
+// shared cart, since it's meant to work as a standalone "buy this now"
+// destination from an ad.
 //
 // Same honesty rule as /offer and /offer2: badges are pulled from real
 // product data (lib/products.js), the guarantee is VEIL's real 30-day
@@ -53,6 +53,21 @@ const ctaBtn = {
 const SCENT_IDS = ['original', 'citron', 'violette', 'grand-jar'];
 
 const EMPTY_ADDRESS = { name: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
+const EMPTY_CARD = { number: '', expiry: '', cvc: '' };
+
+// Same helpers as /checkout (pages/checkout.jsx): "MM / YY" while typing,
+// split back into the { expMonth, expYear } shape lib/qbPayments.js expects.
+function formatExpiry(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
+}
+
+function parseExpiry(raw) {
+  const [month, year] = raw.split('/').map((s) => s.trim());
+  if (!month || !year || year.length !== 2) return null;
+  return { expMonth: month, expYear: `20${year}` };
+}
 
 function LockIcon(props) {
   return (
@@ -89,7 +104,13 @@ function InfoIcon(props) {
 
 
 
-export default function Offer3Page() {
+// Read server-side, same as /checkout, so client-side tokenization always
+// targets the same Intuit environment the server charges against.
+export async function getServerSideProps() {
+  return { props: { qbEnvironment: process.env.QB_ENVIRONMENT === 'production' ? 'production' : 'sandbox' } };
+}
+
+export default function Offer3Page({ qbEnvironment }) {
   const router = useRouter();
   const { clear, applyDiscount, appliedDiscount } = useCart();
 
@@ -99,23 +120,9 @@ export default function Offer3Page() {
   const [shipping, setShipping] = React.useState(EMPTY_ADDRESS);
   const [shippingProtection, setShippingProtection] = React.useState(false);
 
-  // Payment — Square's Card element renders its own number/expiry/CVC/
-  // postal-code fields into squareCardContainerRef; the returned Card
-  // instance (not raw field values) lives in squareCardRef for tokenize()
-  // at submit time. squareReady disables submit until it's actually mounted.
-  const squareCardContainerRef = React.useRef(null);
-  const squareCardRef = React.useRef(null);
-  const [squareReady, setSquareReady] = React.useState(false);
-  const [squareError, setSquareError] = React.useState('');
-
-  // Apple Pay / Google Pay / Afterpay tokenize on click against the method
-  // instance Square attaches into each container below.
-  const appleMethodRef = React.useRef(null);
-  const googleMethodRef = React.useRef(null);
-  const afterpayMethodRef = React.useRef(null);
-  const [appleAvailable, setAppleAvailable] = React.useState(null);
-  const [googleAvailable, setGoogleAvailable] = React.useState(null);
-  const [afterpayAvailable, setAfterpayAvailable] = React.useState(null);
+  // Payment — plain card fields, tokenized against Intuit's API at submit
+  // time (lib/qbPayments.js); nothing to mount or wait on.
+  const [card, setCard] = React.useState(EMPTY_CARD);
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -123,12 +130,8 @@ export default function Offer3Page() {
   const [discountApplied, setDiscountApplied] = React.useState(false);
 
   // The error message renders once, near the "Place order" button at the
-  // bottom of the form — fine for card errors (the shopper is already right
-  // there), but Apple Pay/Google Pay/Afterpay live mid-page in the Payment
-  // section. A validation failure from one of those buttons (e.g. missing
-  // shipping address) used to set this same error with no visible reaction
-  // near the button that was actually clicked. Scrolling it into view on
-  // every change fixes that regardless of where on the page it originated.
+  // bottom of the form — scrolled into view on every change so it's never
+  // missed on a long single-page form.
   React.useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [error]);
@@ -148,32 +151,6 @@ export default function Offer3Page() {
     }
     applyDiscount(DISCOUNT_CODE).then((r) => setDiscountApplied(!!r?.valid));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Mounts Square's own card-entry form into squareCardContainerRef once on
-  // load — same pattern as /checkout. There's no raw number/expiry/CVC
-  // state to manage here; Square's element owns those fields directly and
-  // only ever hands back a token via tokenize().
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const card = await createSquareCard('square-card-container');
-        if (cancelled) {
-          await card.destroy();
-          return;
-        }
-        squareCardRef.current = card;
-        setSquareReady(true);
-      } catch (err) {
-        console.error('Square card setup failed:', err);
-        setSquareError('Payment form failed to load — please refresh and try again.');
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (squareCardRef.current) squareCardRef.current.destroy().catch(() => {});
-    };
   }, []);
 
   // This page IS the checkout step of the funnel, so it fires the same
@@ -211,98 +188,8 @@ export default function Offer3Page() {
   const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
   const grandTotal = discountedSubtotal + shippingCost + shippingProtectionCost;
 
-  // Apple Pay/Google Pay's button click handler is attached once (see the
-  // wallet mount effect below) and can fire long after that — reading
-  // email/shipping/product/quantity/grandTotal through this ref instead of
-  // closing over them directly means it always sees what's currently on
-  // the page, not what was there at mount.
   const latestRef = React.useRef({});
   latestRef.current = { email, shipping, product, quantity, grandTotal, shippingProtectionCost };
-
-  // Mounts Apple Pay / Google Pay / Afterpay as soon as the Square SDK is
-  // ready — same moment the card element becomes usable, not gated on
-  // shipping being filled in, so a shopper who wants to pay with a wallet
-  // never has to type an address first just to see the button (the section
-  // itself is still positioned after Shipping Protection in the JSX below,
-  // so by the time it's visible shipping is already filled in). Safe to
-  // mount this early either way because handleWalletPay (below) still
-  // validates email/shipping are filled in before it lets a click actually
-  // proceed to tokenize() — the button existing isn't the same as the
-  // button working. Each pre-declares a total when created (whatever
-  // grandTotal is at that moment, which won't yet include shipping if the
-  // address isn't entered yet); known limitation: that displayed total
-  // doesn't live-update as scent/quantity/discount changes afterward
-  // (recreating the buttons on every total change would flicker them) —
-  // the amount actually charged is always read fresh from latestRef at
-  // tokenize time, so this is a display lag, not a billing bug. Afterpay
-  // additionally has its own order-amount eligibility range — outside it,
-  // createAfterpayButton fails the same way an unsupported browser/device
-  // does for Apple/Google Pay, and the button just doesn't appear.
-  React.useEffect(() => {
-    if (!squareReady) return;
-    let cancelled = false;
-    const cleanupFns = [];
-
-    (async () => {
-      const amount = latestRef.current.grandTotal;
-
-      const apple = await createApplePayButton(amount);
-      if (!cancelled) {
-        if (apple) {
-          appleMethodRef.current = apple;
-          setAppleAvailable(true);
-        } else {
-          setAppleAvailable(false);
-        }
-      }
-
-      const google = await createGooglePayButton(amount, 'google-pay-button');
-      if (cancelled) {
-        google?.destroy?.().catch(() => {});
-      } else if (google) {
-        googleMethodRef.current = google;
-        setGoogleAvailable(true);
-        const btn = document.getElementById('google-pay-button');
-        const onClick = (event) => { event.preventDefault(); handleWalletPay(googleMethodRef, 'Google Pay'); };
-        btn?.addEventListener('click', onClick);
-        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
-      } else {
-        setGoogleAvailable(false);
-      }
-
-      const afterpay = await createAfterpayButton(amount, 'afterpay-button');
-      if (cancelled) {
-        afterpay?.destroy?.().catch(() => {});
-      } else if (afterpay) {
-        afterpayMethodRef.current = afterpay;
-        setAfterpayAvailable(true);
-        const btn = document.getElementById('afterpay-button');
-        const onClick = (event) => { event.preventDefault(); handleWalletPay(afterpayMethodRef, 'Afterpay'); };
-        btn?.addEventListener('click', onClick);
-        cleanupFns.push(() => btn?.removeEventListener('click', onClick));
-      } else {
-        setAfterpayAvailable(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      cleanupFns.forEach((fn) => fn());
-      appleMethodRef.current?.destroy?.().catch(() => {});
-      googleMethodRef.current?.destroy?.().catch(() => {});
-      afterpayMethodRef.current?.destroy?.().catch(() => {});
-      appleMethodRef.current = null;
-      googleMethodRef.current = null;
-      afterpayMethodRef.current = null;
-      setAppleAvailable(false);
-      setGoogleAvailable(false);
-      setAfterpayAvailable(false);
-    };
-    // handleWalletPay only ever reads fresh state via latestRef and stable
-    // setters — safe to omit here so this doesn't re-attach on every
-    // keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [squareReady]);
 
   // Same abandoned-checkout capture as /checkout — fires once the shopper
   // leaves the email field, so someone who lands here from an ad and
@@ -334,14 +221,7 @@ export default function Offer3Page() {
     captureCheckoutEmail({ email, consent: true, cartValue: product.price * quantity, items: cartSnapshot });
   };
 
-  // Shared by the card submit handler below and the Apple Pay/Google Pay
-  // click handler — every Square payment method resolves to the same
-  // single-use token shape, so charging and fulfilling it is identical
-  // regardless of which method produced it. Reads email/shipping/product/
-  // quantity/grandTotal from latestRef rather than closed-over state since
-  // the wallet path can fire long after the render that created its
-  // handler.
-  const completeSquareOrder = async (token, paymentMethodLabel) => {
+  const completeOrder = async (token) => {
     const { email, shipping, product, quantity, grandTotal, shippingProtectionCost } = latestRef.current;
     const purchaseEventId = generateEventId();
     const items = [{ ...product, quantity }];
@@ -349,7 +229,7 @@ export default function Offer3Page() {
     // so record both again here — /success's browser Purchase reads them.
     rememberIdentity({ email, phone: shipping.phone });
 
-    const res = await fetch('/api/square-checkout', {
+    const res = await fetch('/api/qb-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -360,7 +240,7 @@ export default function Offer3Page() {
         shipping,
         eventId: purchaseEventId,
         url: window.location.href,
-        paymentMethod: paymentMethodLabel,
+        paymentMethod: 'QuickBooks',
         attribution: getStoredAttribution(),
         shippingProtection: shippingProtectionCost || 0,
         sessionId: getSessionId(),
@@ -380,33 +260,6 @@ export default function Offer3Page() {
     clear();
   };
 
-  // Apple Pay / Google Pay only render their own button — there's no
-  // "Complete Order" click to hang the usual form-level required-field
-  // validation off of, so this checks email/shipping directly before
-  // approving.
-  const handleWalletPay = async (methodRef, label) => {
-    setError('');
-    const { email, shipping } = latestRef.current;
-    const addrOk = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
-    if (!email.trim() || !addrOk) {
-      setError(`Enter your email and shipping address before paying with ${label}.`);
-      return;
-    }
-    if (!methodRef.current) return;
-    setSubmitting(true);
-    try {
-      const token = await tokenizeWallet(methodRef.current);
-      await completeSquareOrder(token, `Square (${label})`);
-    } catch (err) {
-      if (!err.cancelled) {
-        setError(err.message || 'Something went wrong. Please try again.');
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -415,32 +268,36 @@ export default function Offer3Page() {
       setError('Enter your email to place your order.');
       return;
     }
-    if (!squareReady || !squareCardRef.current) {
-      setError('Payment form is still loading — please wait a moment and try again.');
+    const expiry = parseExpiry(card.expiry);
+    if (!card.number.trim() || !expiry || !card.cvc.trim()) {
+      setError('Fill in your card details to place your order.');
       return;
     }
 
     setSubmitting(true);
     try {
-      // Step 1: tokenize the card via Square's Web Payments SDK
-      // (lib/squareClient.js) — the raw card number never reaches our own
-      // server, only Square's. The token is single-use.
-      //
-      // verificationDetails deliberately omitted entirely (not just
-      // billingContact): passing ANY verificationDetails object still routes
-      // tokenize() through Square's separate buyer-verification call to
-      // pci-connect.squareup.com/v2/analytics/verifications, which — live,
-      // confirmed via the real Square error response body — rejects this
-      // account's location ("Invalid location id") even though that same
-      // location processes real charges fine. The wallet buttons call
-      // tokenize() with no arguments at all and always succeeded — mirroring
-      // that here avoids the broken verification call.
-      const token = await tokenizeSquareCard(squareCardRef.current);
+      // Step 1: tokenize the card directly against Intuit's Payments Tokens
+      // API from the browser (lib/qbPayments.js) — the raw card number never
+      // reaches our own server. Billing address is the shipping address.
+      const token = await tokenizeCard(
+        {
+          number: card.number,
+          expMonth: expiry.expMonth,
+          expYear: expiry.expYear,
+          cvc: card.cvc,
+          name: shipping.name.trim(),
+          street: shipping.address,
+          city: shipping.city,
+          region: shipping.state,
+          postalCode: shipping.zip,
+          country: 'US',
+        },
+        qbEnvironment
+      );
 
-      // Step 2: charge that token server-side (/api/square-checkout). Like
-      // QuickBooks, a Square charge has no redirect step and no webhook — it
-      // either succeeds or fails in this same request.
-      await completeSquareOrder(token, 'Square');
+      // Step 2: charge that token server-side (/api/qb-checkout), which
+      // authorizes and captures synchronously — no redirect, no webhook.
+      await completeOrder(token);
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -553,86 +410,58 @@ export default function Offer3Page() {
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>3. Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
 
-            {/* Apple Pay / Google Pay, positioned after shipping is
-                collected — both need email/shipping already filled in before
-                handleWalletPay lets a click through to tokenize() (this
-                doesn't collect shipping the way a native Apple Pay sheet
-                can), so putting the buttons here instead of higher up means
-                they're usable the moment they're visible instead of erroring
-                on click. Google Pay's container always exists in the DOM
-                (hidden via display:none, not conditional rendering) since
-                Square's attach() needs to find it by id before we know
-                whether that wallet is actually available on this browser/
-                device; visible while still pending (available === null),
-                not just once confirmed true, only collapsing once confirmed
-                unavailable (=== false). Apple Pay has no attach()/container
-                at all — it's our own native <button> below, styled with
-                Safari's -apple-pay-button appearance, shown/hidden by the
-                same tri-state rule via a plain conditional class instead.
-                Sits above Afterpay per request, so shoppers see Apple/
-                Google Pay first. */}
-            <div style={{ display: (appleAvailable !== false || googleAvailable !== false) ? 'block' : 'none', marginBottom: 10 }}>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div style={{ display: appleAvailable !== false ? 'block' : 'none' }}>
-                  <button
-                    type="button"
-                    className="apple-pay-button"
-                    aria-label="Apple Pay"
-                    onClick={() => handleWalletPay(appleMethodRef, 'Apple Pay')}
-                  />
-                </div>
-                <div style={{ display: googleAvailable !== false ? 'block' : 'none' }}>
-                  <div id="google-pay-button" style={walletButtonContainer} />
-                </div>
-              </div>
-            </div>
-
-            {/* Afterpay sits right above the card box — same
-                email/shipping validation via handleWalletPay, just
-                presented as an alternative to the card form specifically
-                instead of grouped with the other wallets. Only one "OR"
-                divider total, after Afterpay and before Credit card — not
-                also between the wallet buttons and Afterpay. */}
-            <div style={{ display: afterpayAvailable !== false ? 'block' : 'none', marginBottom: 14 }}>
-              <div id="afterpay-button" style={walletButtonContainer} />
-              <div style={orDivider}>
-                <span style={orDividerLine} />
-                <span style={orDividerText}>OR</span>
-                <span style={orDividerLine} />
-              </div>
-            </div>
-
             <div style={paymentList}>
               <div style={accordionRow}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>Credit card</span>
               </div>
               <div style={accordionBody}>
-                {/* Square's Web Payments SDK renders its own iframe-based
-                    card number/expiry/CVC/postal fields into this container,
-                    including its own network-brand logo as you type — see
-                    the mount effect above. Nothing here reads or holds the
-                    raw card data. */}
-                <div id="square-card-container" style={squareCardContainer} />
-                {!squareReady && !squareError && (
-                  <p style={{ fontSize: 12, color: T.soft, marginTop: 8 }}>Loading payment form…</p>
-                )}
-                {squareError && (
-                  <p style={{ fontSize: 12, color: '#a13d2b', marginTop: 8 }}>{squareError}</p>
-                )}
+                <div style={cardFieldGroup}>
+                  <input
+                    placeholder="Card number"
+                    value={card.number}
+                    onChange={(e) => setCard({ ...card, number: e.target.value })}
+                    style={cardSubInput}
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    required
+                  />
+                  <div style={{ height: 1, background: T.line }} />
+                  <div style={{ display: 'flex' }}>
+                    <input
+                      placeholder="MM / YY"
+                      value={card.expiry}
+                      onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })}
+                      style={{ ...cardSubInput, flex: 1 }}
+                      inputMode="numeric"
+                      autoComplete="cc-exp"
+                      required
+                    />
+                    <div style={{ width: 1, background: T.line }} />
+                    <input
+                      placeholder="Security code"
+                      value={card.cvc}
+                      onChange={(e) => setCard({ ...card, cvc: e.target.value })}
+                      style={{ ...cardSubInput, flex: 1 }}
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </section>
 
           {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
-          <button className="cta-3d" type="submit" disabled={submitting || !squareReady} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting || !squareReady ? 0.6 : 1 }}>
+          <button className="cta-3d" type="submit" disabled={submitting} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
           </button>
           <div style={secureNote}>
             <LockIcon />
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
-          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>Payments securely processed by Square</p>
+          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>Payments securely processed by QuickBooks</p>
         </form>
 
         <aside style={summaryCol}>
@@ -716,18 +545,6 @@ export default function Offer3Page() {
           transform: translateY(4px);
           box-shadow: 0 1px 0 #C98200, 0 3px 8px rgba(201,130,0,0.3);
         }
-        .apple-pay-button {
-          display: inline-block;
-          width: 100%;
-          min-height: 44px;
-          border-radius: 6px;
-          -webkit-appearance: -apple-pay-button;
-          -apple-pay-button-type: buy;
-          -apple-pay-button-style: black;
-        }
-        @supports not (-webkit-appearance: -apple-pay-button) {
-          .apple-pay-button { display: none; }
-        }
       `}</style>
     </div>
   );
@@ -755,18 +572,13 @@ const qtyBtn = { width: 32, height: 32, border: 'none', background: 'none', curs
 const paymentList = { border: `1.5px solid ${T.ink}`, borderRadius: 10, background: T.white, overflow: 'hidden' };
 const accordionRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: `1px solid ${T.line}`, background: T.white };
 const accordionBody = { padding: '14px 14px 18px', background: T.white };
-// Square's Web Payments SDK renders its own iframe-based fields into this
-// container (card.attach), already inside its own bordered/rounded box —
-// no border/padding here, or the card ends up boxed twice; min-height only,
-// to keep the layout from jumping while the SDK script loads and mounts.
-const squareCardContainer = { minHeight: 48 };
-const walletDivider = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, textAlign: 'center', margin: 0 };
-const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 0' };
-const orDividerLine = { flex: 1, height: 1, background: T.line };
-const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
-// No background/border here — Apple Pay and Google Pay each style their
-// own attached button (their own colors, logo, corner radius).
-const walletButtonContainer = { width: '100%', minHeight: 44 };
+// Card number/expiry/CVC as one outlined box with thin internal dividers,
+// same look as /checkout's card field.
+const cardFieldGroup = { border: `1px solid ${T.line}`, borderRadius: 4, background: T.white, overflow: 'hidden' };
+const cardSubInput = {
+  width: '100%', height: 44, padding: '0 14px', border: 'none', background: 'transparent',
+  fontFamily: T.sans, fontSize: 16, fontWeight: 400, color: T.ink, outline: 'none', boxSizing: 'border-box',
+};
 const protectionCard = {
   display: 'flex', alignItems: 'center', gap: 14, padding: 14,
   border: `1px solid ${T.line}`, borderRadius: 8, background: T.white,
