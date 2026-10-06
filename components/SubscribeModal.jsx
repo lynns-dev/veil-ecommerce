@@ -3,6 +3,8 @@ import AddressFields from './AddressFields';
 import { createSquareCard, tokenizeSquareCard } from '../lib/squareClient';
 import { subscriptionPrice, SUBSCRIPTION_CADENCE_DAYS } from '../lib/products';
 import { T, S } from '../lib/theme';
+import { rememberIdentity } from '../lib/identity';
+import { refreshPixelIdentity } from '../lib/fbPixel';
 
 const EMPTY_ADDRESS = { name: '', address: '', apt: '', city: '', state: '', zip: '', phone: '' };
 
@@ -63,6 +65,10 @@ export default function SubscribeModal({ product, onClose }) {
       setError('Payment form is still loading — please wait a moment and try again.');
       return;
     }
+    // Remember them for ad matching on this visitor's later events
+    // (lib/identity.js).
+    rememberIdentity({ email, phone: shipping.phone });
+    refreshPixelIdentity(process.env.NEXT_PUBLIC_META_PIXEL_ID);
     setStep('submitting');
     try {
       const cardToken = await tokenizeSquareCard(squareCardRef.current);

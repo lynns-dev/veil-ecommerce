@@ -1133,6 +1133,19 @@ export default function AdminDashboard() {
                             {adset && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Ad set: {adset}</div>}
                             {ad && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Creative: {ad}</div>}
                           </div>
+                          {/* Whether Meta accepted this order's server-side Purchase
+                              (lib/metaPurchase.js); unsent ones are retried hourly
+                              by /api/meta/resend-purchases for 7 days. */}
+                          {o.meta && (
+                            <div>
+                              <div style={formLabel}>Meta Purchase</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: o.meta.sent ? T.ink : '#a13d2b' }}>
+                                {o.meta.sent ? 'Sent' : `Not sent yet (${o.meta.attempts || 0} attempt${o.meta.attempts === 1 ? '' : 's'})`}
+                              </div>
+                              {!o.meta.sent && o.meta.lastError && <div style={{ fontSize: 12, color: '#a13d2b', marginTop: 2 }}>{o.meta.lastError}</div>}
+                              <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>Event ID {o.meta.eventId}</div>
+                            </div>
+                          )}
                           {o.shippingProtection > 0 && (
                             <div>
                               <div style={formLabel}>Shipping protection</div>
