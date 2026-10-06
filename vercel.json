@@ -3,7 +3,10 @@
     {
       "path": "/api/shop-pay/reconcile",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/meta/resend-purchases",
+      "schedule": "0 * * * *"
     }
   ]
 }
-
