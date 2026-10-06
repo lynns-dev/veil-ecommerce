@@ -10,7 +10,8 @@ import {
   createApplePayButton, createGooglePayButton, createAfterpayButton, tokenizeWallet,
 } from '../lib/squareClient';
 import { PRODUCTS, getProductById } from '../lib/products';
-import { fbTrack, generateEventId } from '../lib/fbPixel';
+import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
+import { rememberIdentity } from '../lib/identity';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
@@ -313,6 +314,10 @@ export default function Offer3Page() {
   // that sitewide default ever changes.
   const handleEmailBlur = () => {
     if (!email.trim()) return;
+    // Same as /checkout: remember it for ad matching and re-init the Pixel
+    // so the rest of this visit's events carry it (lib/identity.js).
+    rememberIdentity({ email, phone: shipping.phone });
+    refreshPixelIdentity(process.env.NEXT_PUBLIC_META_PIXEL_ID);
     const cartSnapshot = [{ id: product.id, name: product.name, quantity, price: product.price, images: product.images }];
     fetch('/api/checkout-lead', {
       method: 'POST',
@@ -340,6 +345,9 @@ export default function Offer3Page() {
     const { email, shipping, product, quantity, grandTotal, shippingProtectionCost } = latestRef.current;
     const purchaseEventId = generateEventId();
     const items = [{ ...product, quantity }];
+    // The phone is often typed after the email field's blur already fired,
+    // so record both again here — /success's browser Purchase reads them.
+    rememberIdentity({ email, phone: shipping.phone });
 
     const res = await fetch('/api/square-checkout', {
       method: 'POST',

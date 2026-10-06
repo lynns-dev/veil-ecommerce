@@ -1,5 +1,7 @@
 import React from 'react';
 import { getSessionId } from '../lib/session';
+import { rememberIdentity } from '../lib/identity';
+import { refreshPixelIdentity } from '../lib/fbPixel';
 
 // "Reveal Your Reserve" — a quiet, three-panel scratch-off card, not a
 // gamified wheel. Self-contained: the prizes (and everything else
@@ -253,6 +255,10 @@ export default function ReserveScratchPopup({
       setFormError('Enter a phone number to unlock your reserve.');
       return;
     }
+    // Remember them for ad matching so this visitor's later AddToCart/
+    // InitiateCheckout/Purchase events carry them (lib/identity.js).
+    rememberIdentity({ email, phone });
+    refreshPixelIdentity(process.env.NEXT_PUBLIC_META_PIXEL_ID);
     setSubmitting(true);
     try {
       await fetch('/api/checkout-lead', {
