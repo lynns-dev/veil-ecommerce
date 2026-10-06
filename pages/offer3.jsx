@@ -13,6 +13,7 @@ import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
+import { renderAmazonPayButton } from '../lib/amazonPayClient';
 
 // Third and final step of the ad funnel — a single-page "order form" style
 // checkout (product + quantity, shipping, payment all on one page), the
@@ -190,6 +191,32 @@ export default function Offer3Page({ qbEnvironment }) {
 
   const latestRef = React.useRef({});
   latestRef.current = { email, shipping, product, quantity, grandTotal, shippingProtectionCost };
+
+  // Amazon Pay (lib/amazonPayClient.js) — an alternative to the card form,
+  // shown only once Amazon's button has rendered (hidden unless the
+  // AMAZON_PAY_* env vars are set). Reads the order through latestRef at
+  // click time, and checks email/address are filled in first since this
+  // page collects them on the same screen.
+  const [amazonPayReady, setAmazonPayReady] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    renderAmazonPayButton('amazon-pay-button', {
+      getOrder: () => {
+        const { email, shipping, product, quantity, grandTotal, shippingProtectionCost } = latestRef.current;
+        const addrOk = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
+        if (!email.trim() || !addrOk) return { error: 'Enter your email and shipping address before paying with Amazon Pay.' };
+        rememberIdentity({ email, phone: shipping.phone });
+        return {
+          amount: grandTotal, items: [{ ...product, quantity }], email, shipping,
+          eventId: generateEventId(), url: window.location.href,
+          attribution: getStoredAttribution(), sessionId: getSessionId(),
+          shippingProtection: shippingProtectionCost || 0, storeName: 'VEIL',
+        };
+      },
+      onError: setError,
+    }).then((ok) => { if (!cancelled) setAmazonPayReady(ok); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Same abandoned-checkout capture as /checkout — fires once the shopper
   // leaves the email field, so someone who lands here from an ad and
@@ -409,6 +436,13 @@ export default function Offer3Page({ qbEnvironment }) {
           <section style={{ marginTop: 32 }}>
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>3. Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
+
+            {/* Amazon renders its own button here once configured; empty
+                and spaceless until then. */}
+            <div style={{ marginBottom: amazonPayReady ? 14 : 0 }}>
+              <div id="amazon-pay-button" />
+              {amazonPayReady && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
+            </div>
 
             <div style={paymentList}>
               <div style={accordionRow}>
