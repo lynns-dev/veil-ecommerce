@@ -1,5 +1,5 @@
 // Saves a tracking number for an order and emails the customer, in one
-// admin action. The email send (lib/emailPlatform.js's notifyOrderShipped)
+// admin action. The email send (lib/email/orderHooks.js's notifyOrderShipped)
 // is best-effort from this route's point of view — a failure there
 // doesn't roll back the tracking info, which is real and worth keeping
 // regardless, but it IS reported back to admin (emailSent/emailError) so
@@ -7,7 +7,7 @@
 // silent-by-design notifyOrderReceived call in orderFulfillment.js.
 
 import { updateOrderStatus } from '../../../../lib/analyticsStore';
-import { notifyOrderShipped } from '../../../../lib/emailPlatform';
+import { notifyOrderShipped } from '../../../../lib/email/orderHooks';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

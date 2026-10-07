@@ -569,6 +569,10 @@ export default function AdminDashboard() {
           >
             Visitors
           </button>
+          {/* Email marketing lives on its own page (pages/admin/email.jsx). */}
+          <a href="/admin/email" style={{ ...tabBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            Email
+          </a>
         </div>
 
         {activeTab === 'dashboard' && (
