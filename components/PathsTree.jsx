@@ -63,7 +63,7 @@ function Row({ node, parentVisitors, rootVisitors, depth, trail, open, toggle })
         <div className="path-num">{node.bought}<span className="path-soft"> · {pct(node.bought, node.visitors)}%</span></div>
         <div className="path-num">
           {dropAlert ? (
-            <span className="path-drop">▼ {node.leftHere} left ({Math.round(leftShare * 100)}%)</span>
+            <span className="path-drop" style={{ whiteSpace: 'nowrap' }}>▼ {node.leftHere} left ({Math.round(leftShare * 100)}%)</span>
           ) : (
             <span className="path-soft">{node.leftHere || '—'}</span>
           )}
