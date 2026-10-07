@@ -5,6 +5,7 @@
 import { incrementEvent, logEvent, logVisitor } from '../../../lib/analyticsStore';
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
 import { isExcludedTraffic } from '../../../lib/ipFilter';
+import { recordJourneyStep, pageLabel, EVENT_LABELS } from '../../../lib/journeys';
 
 const ALLOWED = ['pageview', 'addtocart', 'checkout_start', 'checkout_payment'];
 // Logged to the timestamped recent-events feed for the live-activity view.
@@ -32,10 +33,16 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path, visitSource } = req.body || {};
   if (ALLOWED.includes(event) && !isExcludedTraffic(req)) {
     try {
       await incrementEvent(event, sessionId);
+      // Admin's Paths tab (lib/journeys.js): one step per page or funnel event.
+      await recordJourneyStep(req, {
+        sessionId,
+        label: event === 'pageview' ? pageLabel(path) : EVENT_LABELS[event],
+        source: event === 'pageview' ? clip(visitSource, 60) : null,
+      });
       if (LOGGED.includes(event)) {
         await logEvent(event, {
           ...(productName ? { productName } : {}),
