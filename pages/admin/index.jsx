@@ -7,13 +7,6 @@ import WorldMap from '../../components/WorldMap';
 import { describeAdPlacement } from '../../lib/attribution';
 import { T, S } from '../../lib/theme';
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-}
-
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
 // No "product" entry: which product a CSV belongs to is now chosen once in
@@ -185,8 +178,6 @@ export default function AdminDashboard() {
   const [discounts, setDiscounts] = React.useState([]);
   const [discountForm, setDiscountForm] = React.useState({ code: '', type: 'percent', value: 10 });
   const [discountFormMessage, setDiscountFormMessage] = React.useState('');
-  const [notifStatus, setNotifStatus] = React.useState('unsupported'); // unsupported | denied | off | on | busy
-  const [notifMessage, setNotifMessage] = React.useState('');
   const [hoveredCountry, setHoveredCountry] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
@@ -253,6 +244,27 @@ export default function AdminDashboard() {
     () => (showArchived ? orders : orders.filter((o) => o.status !== 'archived')),
     [orders, showArchived]
   );
+
+  // Per-order "Send to Meta" (pages/api/admin/orders/meta.js).
+  const handleSendToMeta = async (order) => {
+    const key = `meta:${order.id}`;
+    setOrderActionBusy((prev) => ({ ...prev, [key]: true }));
+    setOrderActionError((prev) => ({ ...prev, [key]: '' }));
+    try {
+      const res = await fetch('/api/admin/orders/meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const data = await res.json();
+      if (data.order) setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
+      if (!res.ok) throw new Error(data.error || 'Meta did not accept it.');
+    } catch (err) {
+      setOrderActionError((prev) => ({ ...prev, [key]: err.message }));
+    } finally {
+      setOrderActionBusy((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   const handleRefundOrder = async (order) => {
     if (!confirm(`Refund $${Number(order.amount).toFixed(2)} for this order? This can't be undone.`)) return;
@@ -340,64 +352,6 @@ export default function AdminDashboard() {
     () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
     [live.byCountry]
   );
-
-  React.useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    navigator.serviceWorker.register('/sw.js').then(async (registration) => {
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) setNotifStatus('on');
-      else if (Notification.permission === 'denied') setNotifStatus('denied');
-      else setNotifStatus('off');
-    }).catch(() => setNotifStatus('unsupported'));
-  }, []);
-
-  const handleEnableNotifications = async () => {
-    setNotifMessage('');
-    setNotifStatus('busy');
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setNotifStatus(permission === 'denied' ? 'denied' : 'off');
-        return;
-      }
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
-      });
-      await fetch('/api/admin/push-subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription),
-      });
-      setNotifStatus('on');
-      setNotifMessage('Notifications enabled on this device.');
-    } catch (err) {
-      setNotifStatus('off');
-      setNotifMessage(err.message || 'Could not enable notifications.');
-    }
-  };
-
-  const handleDisableNotifications = async () => {
-    setNotifStatus('busy');
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await fetch('/api/admin/push-unsubscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
-        await subscription.unsubscribe();
-      }
-      setNotifStatus('off');
-      setNotifMessage('Notifications turned off on this device.');
-    } catch (err) {
-      setNotifStatus('on');
-      setNotifMessage(err.message || 'Could not disable notifications.');
-    }
-  };
 
   const loadDashboard = React.useCallback((range, date) => {
     fetch(`/api/admin/dashboard?range=${range}&date=${date}`).then((r) => r.json()).then(setDashboard).catch(() => {});
@@ -622,30 +576,6 @@ export default function AdminDashboard() {
         {/* META SERVER EVENTS — whether Meta is actually accepting the
             Conversions API sends (lib/metaCapi.js). */}
         {dashboard?.capi && <CapiStatus capi={dashboard.capi} />}
-        <MetaBackfill />
-        <OfflineSales />
-
-        {/* NOTIFICATIONS */}
-        <Section title="Order notifications">
-          {notifStatus === 'unsupported' && (
-            <p style={{ color: T.soft, fontSize: 14 }}>Push notifications aren't supported in this browser. On iPhone, add this page to your Home Screen first (Share → Add to Home Screen), then open it from there — iOS only allows push notifications for installed home-screen apps.</p>
-          )}
-          {notifStatus === 'denied' && (
-            <p style={{ color: T.soft, fontSize: 14 }}>Notifications are blocked for this site — enable them in your browser/device settings, then reload this page.</p>
-          )}
-          {(notifStatus === 'off' || notifStatus === 'busy') && (
-            <button onClick={handleEnableNotifications} disabled={notifStatus === 'busy'} style={{ ...S.btnFill, opacity: notifStatus === 'busy' ? 0.6 : 1 }}>
-              {notifStatus === 'busy' ? 'Working…' : 'Enable notifications on this device'}
-            </button>
-          )}
-          {notifStatus === 'on' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <span style={{ fontSize: 14 }}>Notifications are on for this device.</span>
-              <button onClick={handleDisableNotifications} style={S.btnOutline}>Turn off</button>
-            </div>
-          )}
-          {notifMessage && <p style={{ fontSize: 12, color: T.soft, marginTop: 12 }}>{notifMessage}</p>}
-        </Section>
 
         {/* TOP STATS */}
         <div style={revenueDateRow}>
@@ -1135,19 +1065,27 @@ export default function AdminDashboard() {
                             {adset && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Ad set: {adset}</div>}
                             {ad && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Creative: {ad}</div>}
                           </div>
-                          {/* Whether Meta accepted this order's server-side Purchase
-                              (lib/metaPurchase.js); unsent ones are retried hourly
-                              by /api/meta/resend-purchases for 7 days. */}
-                          {o.meta && (
-                            <div>
-                              <div style={formLabel}>Meta Purchase</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: o.meta.sent ? T.ink : '#a13d2b' }}>
-                                {o.meta.sent ? 'Sent' : `Not sent yet (${o.meta.attempts || 0} attempt${o.meta.attempts === 1 ? '' : 's'})`}
-                              </div>
-                              {!o.meta.sent && o.meta.lastError && <div style={{ fontSize: 12, color: '#a13d2b', marginTop: 2 }}>{o.meta.lastError}</div>}
-                              <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>Event ID {o.meta.eventId}</div>
-                            </div>
-                          )}
+                          {/* Whether Meta has this order's Purchase (lib/metaPurchase.js),
+                              with a button to send it now if not. New orders are sent
+                              automatically at checkout and retried hourly. */}
+                          <div>
+                            <div style={formLabel}>Meta</div>
+                            {o.meta?.sent ? (
+                              <div style={{ fontSize: 13, fontWeight: 700 }}>Sent</div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={Boolean(orderActionBusy[`meta:${o.id}`])}
+                                onClick={() => handleSendToMeta(o)}
+                                style={{ ...S.btnOutline, height: 34, padding: '0 14px', opacity: orderActionBusy[`meta:${o.id}`] ? 0.5 : 1 }}
+                              >
+                                {orderActionBusy[`meta:${o.id}`] ? 'Sending…' : 'Send to Meta'}
+                              </button>
+                            )}
+                            {!o.meta?.sent && (orderActionError[`meta:${o.id}`] || o.meta?.lastError) && (
+                              <div style={{ fontSize: 12, color: '#a13d2b', marginTop: 4 }}>{orderActionError[`meta:${o.id}`] || o.meta.lastError}</div>
+                            )}
+                          </div>
                           {o.shippingProtection > 0 && (
                             <div>
                               <div style={formLabel}>Shipping protection</div>
@@ -1441,227 +1379,6 @@ function CapiStatus({ capi }) {
         )}
         <div>API version {capi.graphVersion}{capi.testMode ? ' · test mode on (META_CAPI_TEST_EVENT_CODE is set — events only show in Test Events)' : ''}</div>
       </div>
-    </Section>
-  );
-}
-
-// Admin backfill for orders placed before each order carried its own Meta
-// Purchase record (pages/api/admin/meta-backfill.js). Everything starts
-// ticked; untick any order Meta already shows, since a second send of the
-// same purchase would be counted twice.
-function MetaBackfill() {
-  const [orders, setOrders] = React.useState(null);
-  const [selected, setSelected] = React.useState({});
-  const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState('');
-
-  const load = async () => {
-    setMessage('');
-    try {
-      const res = await fetch('/api/admin/meta-backfill');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load orders');
-      setOrders(data.orders);
-      setSelected(Object.fromEntries(data.orders.map((o) => [o.id, true])));
-    } catch (err) {
-      setMessage(err.message);
-    }
-  };
-
-  const send = async () => {
-    const orderIds = Object.keys(selected).filter((id) => selected[id]);
-    if (orderIds.length === 0) return;
-    setBusy(true);
-    setMessage('');
-    try {
-      const res = await fetch('/api/admin/meta-backfill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Send failed');
-      const ok = data.results.filter((r) => r.sent).length;
-      const failed = data.results.filter((r) => !r.sent);
-      setMessage(`Sent ${ok} of ${data.results.length} to Meta.${failed.length ? ` Failed: ${failed.map((r) => `${r.id} (${r.error})`).join(', ')} — retried hourly.` : ''}`);
-      await load();
-    } catch (err) {
-      setMessage(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const count = Object.values(selected).filter(Boolean).length;
-  return (
-    <Section title="Send past orders to Meta">
-      <p style={{ fontSize: 13, color: T.soft, margin: '0 0 10px', lineHeight: 1.6 }}>
-        Paid orders from the last 7 days that were placed before every order was tracked individually. Untick any order Meta already shows as a Purchase (Events Manager), so it isn&rsquo;t counted twice. Meta only accepts orders up to 7 days old.
-      </p>
-      {orders === null ? (
-        <button type="button" onClick={load} style={S.btnOutline}>Find orders</button>
-      ) : orders.length === 0 ? (
-        <p style={{ fontSize: 14 }}>Nothing to send — every order from the last 7 days is already tracked.</p>
-      ) : (
-        <>
-          <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${T.line}`, marginBottom: 12 }}>
-            {orders.map((o) => (
-              <label key={o.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderBottom: `1px solid ${T.line}`, fontSize: 13 }}>
-                <input type="checkbox" checked={Boolean(selected[o.id])} onChange={(e) => setSelected({ ...selected, [o.id]: e.target.checked })} />
-                <span style={{ flex: '0 0 150px' }}>{new Date(o.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
-                <span style={{ flex: '0 0 70px' }}>${Number(o.amount).toFixed(2)}</span>
-                <span style={{ flex: 1, color: T.soft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.email || 'no email'}{o.fromAd ? ' · from Meta ad' : ''}</span>
-              </label>
-            ))}
-          </div>
-          <button type="button" disabled={busy || count === 0} onClick={send} style={{ ...S.btnFill, opacity: busy || count === 0 ? 0.5 : 1 }}>
-            {busy ? 'Sending…' : `Send ${count} order${count === 1 ? '' : 's'} to Meta`}
-          </button>
-        </>
-      )}
-      {message && <p style={{ fontSize: 13, marginTop: 10 }}>{message}</p>}
-    </Section>
-  );
-}
-
-// Admin entry for sales that happened off the website (lib/offlineConversions.js):
-// one at a time, or a CSV with columns email, phone, amount, date and
-// optionally first_name, last_name, zip, channel. Website orders are
-// already sent automatically and must not be entered here.
-const OFFLINE_CHANNELS = [
-  ['physical_store', 'In person / in store (up to 62 days back)'],
-  ['phone_call', 'Phone call (up to 7 days back)'],
-  ['chat', 'DM / chat (up to 7 days back)'],
-  ['email', 'Email (up to 7 days back)'],
-  ['other', 'Other (up to 7 days back)'],
-];
-const EMPTY_OFFLINE_SALE = { email: '', phone: '', firstName: '', lastName: '', zip: '', amount: '', date: '', channel: 'physical_store' };
-
-function csvValue(row, ...names) {
-  for (const n of names) if (row[n] != null && String(row[n]).trim() !== '') return String(row[n]).trim();
-  return '';
-}
-
-function OfflineSales() {
-  const [sale, setSale] = React.useState(EMPTY_OFFLINE_SALE);
-  const [csvChannel, setCsvChannel] = React.useState('physical_store');
-  const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState('');
-  const [recent, setRecent] = React.useState([]);
-
-  const loadRecent = React.useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/offline-conversions');
-      const data = await res.json();
-      if (res.ok) setRecent(data.recent || []);
-    } catch { /* list is informational only */ }
-  }, []);
-  React.useEffect(() => { loadRecent(); }, [loadRecent]);
-
-  const send = async (sales) => {
-    setBusy(true);
-    setMessage('');
-    try {
-      const res = await fetch('/api/admin/offline-conversions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sales }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Send failed');
-      const sent = data.results.filter((r) => r.ok && !r.skipped).length;
-      const skipped = data.results.filter((r) => r.skipped).length;
-      const failed = data.results.map((r, i) => (r.ok ? null : `row ${i + 1}: ${r.error}`)).filter(Boolean);
-      setMessage([
-        `Sent ${sent} to Meta.`,
-        skipped ? `${skipped} already sent before — skipped.` : '',
-        failed.length ? `Not sent — ${failed.slice(0, 10).join('; ')}${failed.length > 10 ? `; and ${failed.length - 10} more` : ''}.` : '',
-      ].filter(Boolean).join(' '));
-      await loadRecent();
-      return failed.length === 0;
-    } catch (err) {
-      setMessage(err.message);
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitOne = async (e) => {
-    e.preventDefault();
-    const ok = await send([{ ...sale, date: sale.date ? new Date(sale.date).toISOString() : '' }]);
-    if (ok) setSale(EMPTY_OFFLINE_SALE);
-  };
-
-  const uploadCsv = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    const rows = parseCsv(await file.text());
-    const sales = rows.map((r) => ({
-      email: csvValue(r, 'email', 'e-mail', 'customer email'),
-      phone: csvValue(r, 'phone', 'phone number', 'mobile'),
-      firstName: csvValue(r, 'first_name', 'first name', 'firstname'),
-      lastName: csvValue(r, 'last_name', 'last name', 'lastname'),
-      zip: csvValue(r, 'zip', 'zip code', 'postal code', 'postcode'),
-      amount: csvValue(r, 'amount', 'value', 'total', 'order total'),
-      date: csvValue(r, 'date', 'order date', 'created at', 'purchase date'),
-      channel: csvValue(r, 'channel') || csvChannel,
-    })).filter((s) => s.email || s.phone || s.amount);
-    if (sales.length === 0) { setMessage('No rows found — the CSV needs a header row with email or phone, amount and date.'); return; }
-    await send(sales);
-  };
-
-  const field = (key, label, props = {}) => (
-    <div>
-      <label style={formLabel}>{label}</label>
-      <input value={sale[key]} onChange={(e) => setSale({ ...sale, [key]: e.target.value })} style={formInput} {...props} />
-    </div>
-  );
-
-  return (
-    <Section title="Send offline sales to Meta">
-      <p style={{ fontSize: 13, color: T.soft, margin: '0 0 14px', lineHeight: 1.6 }}>
-        Sales that happened off the website — in person, by phone, over DMs or email — so Meta learns who your buyers are. Website orders are sent automatically; don&rsquo;t enter them here or they&rsquo;ll count twice. The same sale is never sent twice.
-      </p>
-      <form onSubmit={submitOne} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12 }}>
-        {field('email', 'Email', { type: 'email' })}
-        {field('phone', 'Phone', { inputMode: 'tel' })}
-        {field('firstName', 'First name')}
-        {field('lastName', 'Last name')}
-        {field('zip', 'ZIP', { inputMode: 'numeric' })}
-        {field('amount', 'Amount ($)', { inputMode: 'decimal', required: true })}
-        {field('date', 'Date & time of sale', { type: 'datetime-local' })}
-        <div>
-          <label style={formLabel}>Where it happened</label>
-          <select value={sale.channel} onChange={(e) => setSale({ ...sale, channel: e.target.value })} style={formInput}>
-            {OFFLINE_CHANNELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
-        <div style={{ alignSelf: 'end' }}>
-          <button type="submit" disabled={busy} style={{ ...S.btnFill, width: '100%', opacity: busy ? 0.5 : 1 }}>{busy ? 'Sending…' : 'Send sale'}</button>
-        </div>
-      </form>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', fontSize: 13 }}>
-        <span>Or upload a CSV (email, phone, amount, date; optional first_name, last_name, zip, channel) — default channel:</span>
-        <select value={csvChannel} onChange={(e) => setCsvChannel(e.target.value)} style={{ ...formInput, width: 'auto', height: 36 }}>
-          {OFFLINE_CHANNELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <input type="file" accept=".csv,text/csv" onChange={uploadCsv} disabled={busy} />
-      </div>
-      {message && <p style={{ fontSize: 13, marginTop: 12 }}>{message}</p>}
-      {recent.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={formLabel}>Recently sent</div>
-          {recent.slice(0, 10).map((r) => (
-            <div key={r.eventId} style={{ display: 'flex', gap: 12, fontSize: 13, padding: '6px 0', borderBottom: `1px solid ${T.line}` }}>
-              <span style={{ flex: '0 0 130px' }}>{new Date(r.occurredAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
-              <span style={{ flex: '0 0 70px' }}>${Number(r.amount).toFixed(2)}</span>
-              <span style={{ flex: 1, color: T.soft }}>{r.who} · {(OFFLINE_CHANNELS.find(([v]) => v === r.channel) || [, r.channel])[1].split(' (')[0]}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </Section>
   );
 }
