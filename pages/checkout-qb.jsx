@@ -17,6 +17,7 @@ import { loadCheckoutProgress, saveCheckoutProgress, clearCheckoutProgress } fro
 import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 import { renderAmazonPayButton } from '../lib/amazonPayClient';
+import AfterpayButton from '../components/AfterpayButton';
 
 // QuickBooks Payments checkout at a stable URL — identical twin of the live
 // /checkout (pages/checkout.jsx, on QuickBooks now; the Square version is
@@ -476,6 +477,9 @@ export default function CheckoutPage({ qbEnvironment }) {
   const amazonOrderRef = React.useRef(null);
   amazonOrderRef.current = { email, shipping, cart, grandTotal };
   const [amazonPayReady, setAmazonPayReady] = React.useState(false);
+  // Afterpay (components/AfterpayButton.jsx, lib/afterpay.js) — same idea,
+  // shown only when configured and the total is in Afterpay's range.
+  const [afterpayReady, setAfterpayReady] = React.useState(false);
   React.useEffect(() => {
     if (step !== 2) return undefined;
     let cancelled = false;
@@ -809,7 +813,23 @@ export default function CheckoutPage({ qbEnvironment }) {
                     space, and the "or" line only shows alongside it. */}
                 <div style={{ marginTop: 20 }}>
                   <div id="amazon-pay-button" />
-                  {amazonPayReady && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
+                  {step === 2 && (
+                    <AfterpayButton
+                      total={grandTotal}
+                      onError={setError}
+                      onReady={setAfterpayReady}
+                      getOrder={() => {
+                        const { email, shipping, cart, grandTotal } = amazonOrderRef.current;
+                        rememberIdentity({ email, phone: shipping.phone });
+                        return {
+                          amount: grandTotal, items: cart, email, shipping,
+                          eventId: generateEventId(), url: window.location.href,
+                          attribution: getStoredAttribution(), sessionId: getSessionId(),
+                        };
+                      }}
+                    />
+                  )}
+                  {(amazonPayReady || afterpayReady) && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
                 </div>
 
                 <div style={{ ...paymentList, marginTop: 20 }}>
