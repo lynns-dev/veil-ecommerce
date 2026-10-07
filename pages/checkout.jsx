@@ -18,6 +18,7 @@ import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 import { renderAmazonPayButton } from '../lib/amazonPayClient';
 import AfterpayButton from '../components/AfterpayButton';
+import CashAppPayButton from '../components/CashAppPayButton';
 
 // Live checkout — charges through QuickBooks Payments. Identical twin of
 // pages/checkout-qb.jsx (the stable QuickBooks URL); the Square version is
@@ -479,6 +480,10 @@ export default function CheckoutPage({ qbEnvironment }) {
   // Afterpay (components/AfterpayButton.jsx, lib/afterpay.js) — same idea,
   // shown only when configured and the total is in Afterpay's range.
   const [afterpayReady, setAfterpayReady] = React.useState(false);
+  // Cash App Pay (components/CashAppPayButton.jsx), through the same
+  // Afterpay account; its checkout is created once Step 2 is reached.
+  const [cashAppReady, setCashAppReady] = React.useState(false);
+  const cashAppEventId = React.useMemo(() => generateEventId(), []);
   React.useEffect(() => {
     if (step !== 2) return undefined;
     let cancelled = false;
@@ -828,7 +833,19 @@ export default function CheckoutPage({ qbEnvironment }) {
                       }}
                     />
                   )}
-                  {(amazonPayReady || afterpayReady) && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
+                  {step === 2 && (
+                    <CashAppPayButton
+                      purchaseKey="veil-purchase"
+                      onError={setError}
+                      onReady={setCashAppReady}
+                      order={{
+                        amount: grandTotal, items: cart, email, shipping,
+                        eventId: cashAppEventId, url: typeof window !== 'undefined' ? window.location.href : null,
+                        attribution: getStoredAttribution(), sessionId: getSessionId(),
+                      }}
+                    />
+                  )}
+                  {(amazonPayReady || afterpayReady || cashAppReady) && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
                 </div>
 
                 <div style={{ ...paymentList, marginTop: 20 }}>

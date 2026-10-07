@@ -16,6 +16,7 @@ import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
 import { renderAmazonPayButton } from '../lib/amazonPayClient';
 import AfterpayButton from '../components/AfterpayButton';
+import CashAppPayButton from '../components/CashAppPayButton';
 
 // Third and final step of the ad funnel — a single-page "order form" style
 // checkout (product + quantity, shipping, payment all on one page), the
@@ -223,6 +224,11 @@ export default function Offer3Page({ qbEnvironment }) {
   // page collects them on the same screen.
   const [amazonPayReady, setAmazonPayReady] = React.useState(false);
   const [afterpayReady, setAfterpayReady] = React.useState(false);
+  // Cash App Pay (components/CashAppPayButton.jsx): its checkout can only
+  // be created once email and address are in, so the button appears then.
+  const [cashAppReady, setCashAppReady] = React.useState(false);
+  const cashAppEventId = React.useMemo(() => generateEventId(), []);
+  const cashAppAddrOk = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   React.useEffect(() => {
     let cancelled = false;
     renderAmazonPayButton('amazon-pay-button', {
@@ -464,7 +470,7 @@ export default function Offer3Page({ qbEnvironment }) {
 
             {/* Amazon renders its own button here once configured; empty
                 and spaceless until then. */}
-            <div style={{ marginBottom: amazonPayReady || afterpayReady ? 14 : 0 }}>
+            <div style={{ marginBottom: amazonPayReady || afterpayReady || cashAppReady ? 14 : 0 }}>
               <div id="amazon-pay-button" />
               {/* Afterpay (components/AfterpayButton.jsx) — shown only when
                   configured and the total is in Afterpay's range. */}
@@ -485,7 +491,18 @@ export default function Offer3Page({ qbEnvironment }) {
                   };
                 }}
               />
-              {(amazonPayReady || afterpayReady) && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
+              <CashAppPayButton
+                purchaseKey="veil-purchase"
+                onError={setError}
+                onReady={setCashAppReady}
+                order={email.trim() && /@/.test(email) && cashAppAddrOk ? {
+                  amount: grandTotal, items: [{ ...product, quantity }], email, shipping,
+                  eventId: cashAppEventId, url: typeof window !== 'undefined' ? window.location.href : null,
+                  attribution: getStoredAttribution(), sessionId: getSessionId(),
+                  shippingProtection: shippingProtectionCost || 0,
+                } : null}
+              />
+              {(amazonPayReady || afterpayReady || cashAppReady) && <p style={{ fontSize: 12, color: T.soft, textAlign: 'center', margin: '12px 0 0' }}>or pay by card</p>}
             </div>
 
             <div style={paymentList}>

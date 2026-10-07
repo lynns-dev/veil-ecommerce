@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       eventId: pending.eventId,
       url: pending.url,
       req,
-      paymentMethod: 'Afterpay',
+      paymentMethod: pending.cashAppPay ? 'Cash App Pay' : 'Afterpay',
       attribution: pending.attribution,
       email: pending.email,
       shipping: normalizeShipping(pending.shipping),
