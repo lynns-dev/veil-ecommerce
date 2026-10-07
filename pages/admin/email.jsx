@@ -658,6 +658,7 @@ export default function EmailAdmin() {
 
         {activeTab === 'subscribers' && (
         <>
+        <SmsSubscribers />
         <Section
           title={`Subscribers (${visibleSubscribers.length}${visibleSubscribers.length !== subscribers.length ? ` of ${subscribers.length}` : ''})`}
           action={<a href="/api/admin/email/subscribers?format=csv" style={S.btnOutline}>Export CSV</a>}
@@ -1182,3 +1183,34 @@ function ImportFromEmailApp({ onImported }) {
 }
 
 const importInput = { height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14, boxSizing: 'border-box', width: '100%' };
+
+// Text-alert opt-ins from the signup popup (lib/email/smsStore.js). Nothing
+// here sends texts — export the CSV into an SMS provider to message them.
+function SmsSubscribers() {
+  const [list, setList] = React.useState(null);
+  React.useEffect(() => {
+    fetch('/api/admin/email/sms').then((r) => r.json()).then((d) => setList(d.subscribers || [])).catch(() => setList([]));
+  }, []);
+  if (!list || list.length === 0) return null;
+  return (
+    <Section
+      title={`Text alerts (${list.length})`}
+      action={<a href="/api/admin/email/sms?format=csv" style={S.btnOutline}>Export CSV</a>}
+    >
+      <p style={{ color: T.soft, fontSize: 13, margin: '0 0 12px' }}>
+        Mobile numbers opted in to text alerts, with the consent each person agreed to. This store doesn&rsquo;t send texts — export these into an SMS provider.
+      </p>
+      <div className="table-scroll">
+        <div style={{ minWidth: 520 }}>
+          {list.slice().reverse().slice(0, 50).map((s) => (
+            <div key={s.phone} style={{ display: 'flex', gap: 12, fontSize: 13, padding: '8px 0', borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ flex: '0 0 140px' }}>{s.phone}</div>
+              <div style={{ flex: 1, color: T.soft }}>{s.email || '—'}</div>
+              <div style={{ flex: '0 0 110px', color: T.soft }}>{new Date(s.consentAt).toLocaleDateString()}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}

@@ -10,7 +10,7 @@ import { prepareStepTemplate, sendStepToSubscriber } from '../../../lib/email/au
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function subscribeEmail(rawEmail) {
+export async function subscribeEmail(rawEmail, source = 'newsletter') {
   const email = String(rawEmail || '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 254) return { status: 400, body: { error: 'Enter a valid email address.' } };
 
@@ -24,14 +24,14 @@ export async function subscribeEmail(rawEmail) {
 
     const flow = await getAutomation('welcome_series');
     if (!flow?.enabled || !flow.steps?.[0]?.subject) {
-      await addSubscriberManually(email, 'newsletter');
+      await addSubscriberManually(email, source);
       return { status: 200, body: { ok: true, welcomeSent: false } };
     }
     const settings = await getSettings();
     const step = flow.steps[0];
     const template = await prepareStepTemplate(flow.id, step, 0, settings);
     // Reserve step zero at creation, keeping it out of the scheduled sender.
-    subscriber = await addSubscriberManually(email, 'newsletter', { reserveWelcome: true });
+    subscriber = await addSubscriberManually(email, source, { reserveWelcome: true });
     await sendStepToSubscriber(flow.id, 0, template, step.subject, subscriber);
     return { status: 200, body: { ok: true, welcomeSent: true } };
   } catch (err) {

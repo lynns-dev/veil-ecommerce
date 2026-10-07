@@ -6,30 +6,20 @@ import { loadClarity } from '../lib/clarity';
 import { captureAttribution, getStoredAttribution, describeTrafficSource } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { getCheckoutStage } from '../lib/checkoutStage';
-import ReserveScratchPopup from '../components/ReserveScratchPopup';
+import SignupPopup from '../components/SignupPopup';
 import ShopAssistant from '../components/ShopAssistant';
 import AnnouncementBar from '../components/AnnouncementBar';
 
-// Kept off checkout/admin/the ad-funnel pages — those already have their
-// own single-minded call to action (place the order, review analytics),
-// and a popup mid-checkout or mid-funnel would just compete with it.
-//
-// NOTE: the default prize codes (WELCOME10, RESERVED15 — the third panel
-// is a deliberate non-winner, "Sorry") need to exist in the live discount
-// store before this ships to real traffic — add any missing ones from
-// /admin's Discounts tab (10%/15% off respectively) if they aren't there
-// already. They're only auto-seeded (lib/discountsStore.js) on a store
-// that's never had any codes written to it, which production likely isn't.
-const RESERVE_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success'];
-
-// Master off switch for the scratch popup — currently hidden sitewide.
-// Everything else (the component, its prize/discount-code wiring, the
-// per-page exclusions above) is left intact, so flipping this back to true
-// is the only change needed to bring it back.
-const RESERVE_POPUP_ENABLED = false;
+// The email/SMS signup popup (components/SignupPopup.jsx) is kept off
+// checkout/admin/the ad-funnel pages — those already have their own
+// single-minded call to action (place the order, review analytics), and a
+// popup mid-checkout or mid-funnel would just compete with it. Its 10% off
+// arrives as WELCOME10 in the welcome email, so that code needs to exist in
+// /admin's Discounts tab.
+const SIGNUP_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success', '/amazon-pay', '/unsubscribe'];
 
 // The browsing assistant (components/ShopAssistant.jsx) is kept off the same
-// pages as the popup above, for the same reason. Its own off switch is
+// kinds of pages as the popup above, for the same reason. Its own off switch is
 // separate so the two can be turned on and off independently — and it can be
 // dropped sitewide here if the Anthropic key is ever pulled, without the
 // launcher lingering on a chat that can't answer.
@@ -190,8 +180,7 @@ function Tracking() {
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
-  const reservePopupEnabled = RESERVE_POPUP_ENABLED
-    && !RESERVE_POPUP_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
+  const signupPopupEnabled = !SIGNUP_POPUP_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
   const assistantEnabled = ASSISTANT_ENABLED
     && !ASSISTANT_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
   const showAnnouncement = !ANNOUNCEMENT_EXCLUDED_PREFIXES.some((p) => router.pathname.startsWith(p));
@@ -203,7 +192,7 @@ export default function App({ Component, pageProps }) {
       <div key={router.asPath} className="page-fade">
         <Component {...pageProps} />
       </div>
-      <ReserveScratchPopup enabled={reservePopupEnabled} />
+      <SignupPopup enabled={signupPopupEnabled} />
       <ShopAssistant enabled={assistantEnabled} />
       <style jsx global>{`
         .page-fade {
