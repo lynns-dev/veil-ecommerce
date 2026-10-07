@@ -6,6 +6,7 @@ import { parseCsv } from '../../lib/csv';
 import WorldMap from '../../components/WorldMap';
 import { describeAdPlacement } from '../../lib/attribution';
 import { T, S } from '../../lib/theme';
+import PathsTree from '../../components/PathsTree';
 
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
@@ -568,6 +569,12 @@ export default function AdminDashboard() {
             style={{ ...tabBtn, ...(activeTab === 'visitors' ? tabBtnActive : {}) }}
           >
             Visitors
+          </button>
+          <button
+            onClick={() => setActiveTab('paths')}
+            style={{ ...tabBtn, ...(activeTab === 'paths' ? tabBtnActive : {}) }}
+          >
+            Paths
           </button>
           {/* Email marketing lives on its own page (pages/admin/email.jsx). */}
           <a href="/admin/email" style={{ ...tabBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
@@ -1235,6 +1242,13 @@ export default function AdminDashboard() {
             </div>
           )}
         </Section>
+        )}
+
+        {/* Paths to purchase (components/PathsTree.jsx, lib/journeys.js). */}
+        {activeTab === 'paths' && (
+          <Section title="Paths to purchase">
+            <PathsTree />
+          </Section>
         )}
 
         {activeTab === 'visitors' && (
