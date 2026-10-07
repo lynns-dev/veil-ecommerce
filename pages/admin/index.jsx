@@ -623,6 +623,7 @@ export default function AdminDashboard() {
             Conversions API sends (lib/metaCapi.js). */}
         {dashboard?.capi && <CapiStatus capi={dashboard.capi} />}
         <MetaBackfill />
+        <OfflineSales />
 
         {/* NOTIFICATIONS */}
         <Section title="Order notifications">
@@ -1519,6 +1520,148 @@ function MetaBackfill() {
         </>
       )}
       {message && <p style={{ fontSize: 13, marginTop: 10 }}>{message}</p>}
+    </Section>
+  );
+}
+
+// Admin entry for sales that happened off the website (lib/offlineConversions.js):
+// one at a time, or a CSV with columns email, phone, amount, date and
+// optionally first_name, last_name, zip, channel. Website orders are
+// already sent automatically and must not be entered here.
+const OFFLINE_CHANNELS = [
+  ['physical_store', 'In person / in store (up to 62 days back)'],
+  ['phone_call', 'Phone call (up to 7 days back)'],
+  ['chat', 'DM / chat (up to 7 days back)'],
+  ['email', 'Email (up to 7 days back)'],
+  ['other', 'Other (up to 7 days back)'],
+];
+const EMPTY_OFFLINE_SALE = { email: '', phone: '', firstName: '', lastName: '', zip: '', amount: '', date: '', channel: 'physical_store' };
+
+function csvValue(row, ...names) {
+  for (const n of names) if (row[n] != null && String(row[n]).trim() !== '') return String(row[n]).trim();
+  return '';
+}
+
+function OfflineSales() {
+  const [sale, setSale] = React.useState(EMPTY_OFFLINE_SALE);
+  const [csvChannel, setCsvChannel] = React.useState('physical_store');
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+  const [recent, setRecent] = React.useState([]);
+
+  const loadRecent = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/offline-conversions');
+      const data = await res.json();
+      if (res.ok) setRecent(data.recent || []);
+    } catch { /* list is informational only */ }
+  }, []);
+  React.useEffect(() => { loadRecent(); }, [loadRecent]);
+
+  const send = async (sales) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/admin/offline-conversions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      const sent = data.results.filter((r) => r.ok && !r.skipped).length;
+      const skipped = data.results.filter((r) => r.skipped).length;
+      const failed = data.results.map((r, i) => (r.ok ? null : `row ${i + 1}: ${r.error}`)).filter(Boolean);
+      setMessage([
+        `Sent ${sent} to Meta.`,
+        skipped ? `${skipped} already sent before — skipped.` : '',
+        failed.length ? `Not sent — ${failed.slice(0, 10).join('; ')}${failed.length > 10 ? `; and ${failed.length - 10} more` : ''}.` : '',
+      ].filter(Boolean).join(' '));
+      await loadRecent();
+      return failed.length === 0;
+    } catch (err) {
+      setMessage(err.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitOne = async (e) => {
+    e.preventDefault();
+    const ok = await send([{ ...sale, date: sale.date ? new Date(sale.date).toISOString() : '' }]);
+    if (ok) setSale(EMPTY_OFFLINE_SALE);
+  };
+
+  const uploadCsv = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const rows = parseCsv(await file.text());
+    const sales = rows.map((r) => ({
+      email: csvValue(r, 'email', 'e-mail', 'customer email'),
+      phone: csvValue(r, 'phone', 'phone number', 'mobile'),
+      firstName: csvValue(r, 'first_name', 'first name', 'firstname'),
+      lastName: csvValue(r, 'last_name', 'last name', 'lastname'),
+      zip: csvValue(r, 'zip', 'zip code', 'postal code', 'postcode'),
+      amount: csvValue(r, 'amount', 'value', 'total', 'order total'),
+      date: csvValue(r, 'date', 'order date', 'created at', 'purchase date'),
+      channel: csvValue(r, 'channel') || csvChannel,
+    })).filter((s) => s.email || s.phone || s.amount);
+    if (sales.length === 0) { setMessage('No rows found — the CSV needs a header row with email or phone, amount and date.'); return; }
+    await send(sales);
+  };
+
+  const field = (key, label, props = {}) => (
+    <div>
+      <label style={formLabel}>{label}</label>
+      <input value={sale[key]} onChange={(e) => setSale({ ...sale, [key]: e.target.value })} style={formInput} {...props} />
+    </div>
+  );
+
+  return (
+    <Section title="Send offline sales to Meta">
+      <p style={{ fontSize: 13, color: T.soft, margin: '0 0 14px', lineHeight: 1.6 }}>
+        Sales that happened off the website — in person, by phone, over DMs or email — so Meta learns who your buyers are. Website orders are sent automatically; don&rsquo;t enter them here or they&rsquo;ll count twice. The same sale is never sent twice.
+      </p>
+      <form onSubmit={submitOne} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12 }}>
+        {field('email', 'Email', { type: 'email' })}
+        {field('phone', 'Phone', { inputMode: 'tel' })}
+        {field('firstName', 'First name')}
+        {field('lastName', 'Last name')}
+        {field('zip', 'ZIP', { inputMode: 'numeric' })}
+        {field('amount', 'Amount ($)', { inputMode: 'decimal', required: true })}
+        {field('date', 'Date & time of sale', { type: 'datetime-local' })}
+        <div>
+          <label style={formLabel}>Where it happened</label>
+          <select value={sale.channel} onChange={(e) => setSale({ ...sale, channel: e.target.value })} style={formInput}>
+            {OFFLINE_CHANNELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div style={{ alignSelf: 'end' }}>
+          <button type="submit" disabled={busy} style={{ ...S.btnFill, width: '100%', opacity: busy ? 0.5 : 1 }}>{busy ? 'Sending…' : 'Send sale'}</button>
+        </div>
+      </form>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', fontSize: 13 }}>
+        <span>Or upload a CSV (email, phone, amount, date; optional first_name, last_name, zip, channel) — default channel:</span>
+        <select value={csvChannel} onChange={(e) => setCsvChannel(e.target.value)} style={{ ...formInput, width: 'auto', height: 36 }}>
+          {OFFLINE_CHANNELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <input type="file" accept=".csv,text/csv" onChange={uploadCsv} disabled={busy} />
+      </div>
+      {message && <p style={{ fontSize: 13, marginTop: 12 }}>{message}</p>}
+      {recent.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={formLabel}>Recently sent</div>
+          {recent.slice(0, 10).map((r) => (
+            <div key={r.eventId} style={{ display: 'flex', gap: 12, fontSize: 13, padding: '6px 0', borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ flex: '0 0 130px' }}>{new Date(r.occurredAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+              <span style={{ flex: '0 0 70px' }}>${Number(r.amount).toFixed(2)}</span>
+              <span style={{ flex: 1, color: T.soft }}>{r.who} · {(OFFLINE_CHANNELS.find(([v]) => v === r.channel) || [, r.channel])[1].split(' (')[0]}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </Section>
   );
 }
