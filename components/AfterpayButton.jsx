@@ -5,6 +5,16 @@ import React from 'react';
 // the range Afterpay finances. getOrder() runs at click time and returns
 // the order, or { error } if the shopper still has something to fill in.
 
+// Afterpay's own "Checkout with Afterpay" button artwork, served from
+// Afterpay's asset host. Tried in order; if none loads (blocked, moved),
+// the button falls back to a plain mint text button so checkout never
+// shows a broken image.
+const BUTTON_IMAGES = [
+  'https://static.afterpay.com/en-US/integration/button/checkout-with-afterpay/black-on-mint.svg',
+  'https://static.afterpay.com/button/checkout-with-afterpay/black-on-mint.svg',
+  'https://static.afterpay.com/button/checkout-with-afterpay/white-on-black.svg',
+];
+
 let configPromise = null;
 function loadConfig() {
   if (!configPromise) {
@@ -18,6 +28,7 @@ function loadConfig() {
 export default function AfterpayButton({ total, getOrder, onError, onReady }) {
   const [config, setConfig] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  const [imageIndex, setImageIndex] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -51,20 +62,38 @@ export default function AfterpayButton({ total, getOrder, onError, onReady }) {
   };
 
   const installment = (Math.ceil((amount / 4) * 100) / 100).toFixed(2);
+  const image = BUTTON_IMAGES[imageIndex];
+  const label = `Checkout with Afterpay — 4 interest-free payments of $${installment}`;
   return (
-    <button
-      type="button"
-      onClick={click}
-      disabled={busy}
-      aria-label={`Pay with Afterpay — 4 interest-free payments of $${installment}`}
-      style={{
-        width: '100%', minHeight: 50, marginTop: 10, border: 'none', borderRadius: 6, cursor: busy ? 'default' : 'pointer',
-        background: '#B2FCE4', color: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '8px 12px', opacity: busy ? 0.6 : 1, fontFamily: 'inherit',
-      }}
-    >
-      <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{busy ? 'Opening Afterpay…' : 'Pay with afterpay'}</span>
-      <span style={{ fontSize: 12, marginTop: 2 }}>4 interest-free payments of ${installment}</span>
-    </button>
+    <div style={{ marginTop: 10 }}>
+      <button
+        type="button"
+        onClick={click}
+        disabled={busy}
+        aria-label={label}
+        style={image ? {
+          display: 'block', width: '100%', height: 50, padding: 0, border: 'none', borderRadius: 6, overflow: 'hidden',
+          background: '#B2FCE4', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+        } : {
+          width: '100%', minHeight: 50, border: 'none', borderRadius: 6, cursor: busy ? 'default' : 'pointer',
+          background: '#B2FCE4', color: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '8px 12px', opacity: busy ? 0.6 : 1, fontFamily: 'inherit',
+        }}
+      >
+        {image ? (
+          <img
+            src={image}
+            alt="Checkout with Afterpay"
+            onError={() => setImageIndex((i) => i + 1)}
+            style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{busy ? 'Opening Afterpay…' : 'Checkout with afterpay'}</span>
+        )}
+      </button>
+      <p style={{ fontSize: 12, textAlign: 'center', margin: '6px 0 0', opacity: 0.75 }}>
+        {busy ? 'Opening Afterpay…' : `4 interest-free payments of $${installment}`}
+      </p>
+    </div>
   );
 }
