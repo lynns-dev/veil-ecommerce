@@ -1,4 +1,5 @@
 import React from 'react';
+import { loadAfterpayConfig as loadConfig } from '../lib/afterpayClient';
 
 // Afterpay button for the checkout pages (lib/afterpay.js has the flow).
 // Renders nothing unless Afterpay is configured and the order total is in
@@ -15,15 +16,6 @@ const BUTTON_IMAGES = [
   'https://static.afterpay.com/button/checkout-with-afterpay/white-on-black.svg',
 ];
 
-let configPromise = null;
-function loadConfig() {
-  if (!configPromise) {
-    configPromise = fetch('/api/afterpay/config')
-      .then((r) => (r.ok ? r.json() : { enabled: false }))
-      .catch(() => ({ enabled: false }));
-  }
-  return configPromise;
-}
 
 export default function AfterpayButton({ total, getOrder, onError, onReady }) {
   const [config, setConfig] = React.useState(null);
@@ -53,7 +45,7 @@ export default function AfterpayButton({ total, getOrder, onError, onReady }) {
         body: JSON.stringify(order),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Afterpay is unavailable right now.');
+      if (!res.ok || !data.redirectCheckoutUrl) throw new Error(data.error || 'Afterpay is unavailable right now.');
       window.location.assign(data.redirectCheckoutUrl);
     } catch (err) {
       onError(err.message || 'Afterpay is unavailable right now.');

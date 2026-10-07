@@ -2,12 +2,17 @@
 // (lib/afterpay.js). Captures the payment, then hands off to /success the
 // same way the card checkout does — including the browser Pixel Purchase,
 // which shares its event id with the server-side one.
+//
+// Cash App Pay on a phone also lands here (?cashapppay=1) after the
+// Cash App app: afterpay.js is started again for the same checkout so it
+// can report the result, then the order is finished the same way.
 
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCart } from '../../lib/useCart';
 import { clearCheckoutProgress } from '../../lib/checkoutProgress';
+import { loadAfterpayConfig, loadAfterpayScript, finishAfterpayOrder } from '../../lib/afterpayClient';
 import { T, S } from '../../lib/theme';
 
 const PURCHASE_KEY = 'veil-purchase';
@@ -17,34 +22,36 @@ export default function AfterpayReturn() {
   const { clear } = useCart();
   const [error, setError] = React.useState('');
   const started = React.useRef(false);
+  const cashApp = router.query.cashapppay === '1';
 
   React.useEffect(() => {
     if (!router.isReady || started.current) return;
     started.current = true;
     const { ref, orderToken, status } = router.query;
-    if (status !== 'SUCCESS') {
-      setError('Afterpay checkout was cancelled.');
-      return;
-    }
+    const finish = (token) => finishAfterpayOrder({
+      ref, orderToken: token, purchaseKey: PURCHASE_KEY, router, clearCart: clear, clearProgress: clearCheckoutProgress,
+    });
+
     (async () => {
       try {
-        const res = await fetch('/api/afterpay/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ref, orderToken }),
+        if (orderToken && status === 'SUCCESS') { await finish(orderToken); return; }
+        if (router.query.cashapppay !== '1') { setError('Afterpay checkout was cancelled.'); return; }
+        // Cash App Pay mobile return: ask afterpay.js for the result.
+        const [config, tokenRes] = await Promise.all([loadAfterpayConfig(), fetch(`/api/afterpay/token?ref=${encodeURIComponent(ref || '')}`)]);
+        const tokenData = await tokenRes.json();
+        if (!tokenRes.ok) throw new Error(tokenData.error || 'This checkout has expired. Please start again.');
+        const AfterPay = await loadAfterpayScript(config.script);
+        AfterPay.initializeForCashAppPay({
+          countryCode: 'US',
+          token: tokenData.token,
+          cashAppPayOptions: {
+            onComplete: (event) => {
+              const result = event?.data || {};
+              if (result.status !== 'SUCCESS') { setError('Cash App Pay was not completed.'); return; }
+              finish(result.orderToken || tokenData.token).catch((err) => setError(err.message || 'Something went wrong with Cash App Pay.'));
+            },
+          },
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Payment failed');
-        sessionStorage.setItem(PURCHASE_KEY, JSON.stringify({
-          eventId: data.eventId,
-          orderId: data.orderId,
-          amount: data.amount,
-          contentIds: (data.items || []).map((i) => i.id),
-          contents: (data.items || []).map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
-        }));
-        clearCheckoutProgress();
-        await router.replace('/success');
-        clear();
       } catch (err) {
         setError(err.message || 'Something went wrong with Afterpay.');
       }
@@ -56,11 +63,11 @@ export default function AfterpayReturn() {
       {error ? (
         <>
           <p style={{ fontSize: 16, color: '#a13d2b', marginBottom: 24 }}>{error}</p>
-          <p style={{ fontSize: 14, color: T.soft, marginBottom: 24 }}>You have not been charged unless Afterpay emails you a confirmation.</p>
+          <p style={{ fontSize: 14, color: T.soft, marginBottom: 24 }}>{cashApp ? 'You have not been charged unless Cash App shows a payment.' : 'You have not been charged unless Afterpay emails you a confirmation.'}</p>
           <Link href="/checkout" style={S.btnOutline}>Back to checkout</Link>
         </>
       ) : (
-        <p style={{ fontSize: 16, color: T.soft }}>Confirming your Afterpay payment…</p>
+        <p style={{ fontSize: 16, color: T.soft }}>{cashApp ? 'Confirming your Cash App payment…' : 'Confirming your Afterpay payment…'}</p>
       )}
     </div>
   );
