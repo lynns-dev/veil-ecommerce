@@ -5,7 +5,6 @@ import Seo, { SITE_URL } from '../../components/Seo';
 import Header from '../../components/Header';
 import CartDrawer from '../../components/CartDrawer';
 import ProductVisual from '../../components/ProductVisual';
-import PaymentMethods from '../../components/PaymentMethods';
 import SubscribeModal from '../../components/SubscribeModal';
 import ScentComparisonGraphic from '../../components/ScentComparisonGraphic';
 import Marquee from '../../components/Marquee';
@@ -317,8 +316,6 @@ export default function ProductPage({ product }) {
                 Subscribe & save {SUBSCRIPTION_DISCOUNT_PERCENT}% — ${subscriptionPrice(unitPrice).toFixed(2)} every {SUBSCRIPTION_CADENCE_DAYS} days
               </button>
             )}
-
-            <PaymentMethods />
 
             {product.category === 'fragrance' && (
               <div style={{ marginTop: 20 }}>
