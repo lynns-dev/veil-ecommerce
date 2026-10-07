@@ -7,13 +7,6 @@ import WorldMap from '../../components/WorldMap';
 import { describeAdPlacement } from '../../lib/attribution';
 import { T, S } from '../../lib/theme';
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-}
-
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
 // No "product" entry: which product a CSV belongs to is now chosen once in
@@ -185,8 +178,6 @@ export default function AdminDashboard() {
   const [discounts, setDiscounts] = React.useState([]);
   const [discountForm, setDiscountForm] = React.useState({ code: '', type: 'percent', value: 10 });
   const [discountFormMessage, setDiscountFormMessage] = React.useState('');
-  const [notifStatus, setNotifStatus] = React.useState('unsupported'); // unsupported | denied | off | on | busy
-  const [notifMessage, setNotifMessage] = React.useState('');
   const [hoveredCountry, setHoveredCountry] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
@@ -361,64 +352,6 @@ export default function AdminDashboard() {
     () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
     [live.byCountry]
   );
-
-  React.useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    navigator.serviceWorker.register('/sw.js').then(async (registration) => {
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) setNotifStatus('on');
-      else if (Notification.permission === 'denied') setNotifStatus('denied');
-      else setNotifStatus('off');
-    }).catch(() => setNotifStatus('unsupported'));
-  }, []);
-
-  const handleEnableNotifications = async () => {
-    setNotifMessage('');
-    setNotifStatus('busy');
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setNotifStatus(permission === 'denied' ? 'denied' : 'off');
-        return;
-      }
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
-      });
-      await fetch('/api/admin/push-subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription),
-      });
-      setNotifStatus('on');
-      setNotifMessage('Notifications enabled on this device.');
-    } catch (err) {
-      setNotifStatus('off');
-      setNotifMessage(err.message || 'Could not enable notifications.');
-    }
-  };
-
-  const handleDisableNotifications = async () => {
-    setNotifStatus('busy');
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await fetch('/api/admin/push-unsubscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
-        await subscription.unsubscribe();
-      }
-      setNotifStatus('off');
-      setNotifMessage('Notifications turned off on this device.');
-    } catch (err) {
-      setNotifStatus('on');
-      setNotifMessage(err.message || 'Could not disable notifications.');
-    }
-  };
 
   const loadDashboard = React.useCallback((range, date) => {
     fetch(`/api/admin/dashboard?range=${range}&date=${date}`).then((r) => r.json()).then(setDashboard).catch(() => {});
@@ -643,28 +576,6 @@ export default function AdminDashboard() {
         {/* META SERVER EVENTS — whether Meta is actually accepting the
             Conversions API sends (lib/metaCapi.js). */}
         {dashboard?.capi && <CapiStatus capi={dashboard.capi} />}
-
-        {/* NOTIFICATIONS */}
-        <Section title="Order notifications">
-          {notifStatus === 'unsupported' && (
-            <p style={{ color: T.soft, fontSize: 14 }}>Push notifications aren't supported in this browser. On iPhone, add this page to your Home Screen first (Share → Add to Home Screen), then open it from there — iOS only allows push notifications for installed home-screen apps.</p>
-          )}
-          {notifStatus === 'denied' && (
-            <p style={{ color: T.soft, fontSize: 14 }}>Notifications are blocked for this site — enable them in your browser/device settings, then reload this page.</p>
-          )}
-          {(notifStatus === 'off' || notifStatus === 'busy') && (
-            <button onClick={handleEnableNotifications} disabled={notifStatus === 'busy'} style={{ ...S.btnFill, opacity: notifStatus === 'busy' ? 0.6 : 1 }}>
-              {notifStatus === 'busy' ? 'Working…' : 'Enable notifications on this device'}
-            </button>
-          )}
-          {notifStatus === 'on' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <span style={{ fontSize: 14 }}>Notifications are on for this device.</span>
-              <button onClick={handleDisableNotifications} style={S.btnOutline}>Turn off</button>
-            </div>
-          )}
-          {notifMessage && <p style={{ fontSize: 12, color: T.soft, marginTop: 12 }}>{notifMessage}</p>}
-        </Section>
 
         {/* TOP STATS */}
         <div style={revenueDateRow}>
