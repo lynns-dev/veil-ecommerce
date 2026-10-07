@@ -6,6 +6,7 @@ import { loadClarity } from '../lib/clarity';
 import { captureAttribution, getStoredAttribution, describeTrafficSource } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { getCheckoutStage } from '../lib/checkoutStage';
+import AdminFonts from '../components/AdminFonts';
 import { ensureVisitorCookie, getVisitSource } from '../lib/visitTracking';
 import SignupPopup from '../components/SignupPopup';
 import ShopAssistant from '../components/ShopAssistant';
@@ -195,6 +196,7 @@ export default function App({ Component, pageProps }) {
   return (
     <CartProvider>
       <Tracking />
+      {router.pathname.startsWith('/admin') && <AdminFonts />}
       {showAnnouncement && <AnnouncementBar />}
       <div key={router.asPath} className="page-fade">
         <Component {...pageProps} />
