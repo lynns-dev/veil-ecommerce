@@ -12,6 +12,7 @@ import { refundCharge as refundBankfulCharge } from '../../../../lib/bankfulServ
 import { refundCharge as refundSquareCharge } from '../../../../lib/squareServer';
 import { refundShopifyOrder } from '../../../../lib/shopPayServer';
 import { refundCharge as refundAmazonPayCharge } from '../../../../lib/amazonPay';
+import { refundPayment as refundAfterpayPayment } from '../../../../lib/afterpay';
 import { updateOrderStatus } from '../../../../lib/analyticsStore';
 
 export default async function handler(req, res) {
@@ -45,6 +46,9 @@ export default async function handler(req, res) {
     } else if (processor === 'amazon_pay') {
       if (!amount) return res.status(400).json({ error: 'Missing order amount — Amazon Pay refunds require the amount to refund.' });
       await refundAmazonPayCharge(orderId, amount);
+    } else if (processor === 'afterpay') {
+      if (!amount) return res.status(400).json({ error: 'Missing order amount — Afterpay refunds require the amount to refund.' });
+      await refundAfterpayPayment(orderId, amount);
     } else {
       return res.status(400).json({ error: `Don't know how to refund a "${processor}" order.` });
     }
