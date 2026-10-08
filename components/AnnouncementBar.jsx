@@ -9,10 +9,10 @@ import { T } from '../lib/theme';
 // Keep these to claims the store actually honors. The free gift is
 // unconditional: checkout adds the Tassel to every order regardless of cart
 // value (see pages/checkout.jsx), so this promises nothing the cart won't
-// deliver. Free shipping genuinely starts at $50 (components/CartDrawer.jsx).
+// deliver. Free shipping genuinely starts at $45 (lib/shipping.js).
 const DEFAULT_MESSAGES = [
   'Free gift with every order',
-  'Free shipping $50+',
+  'Free shipping $45+',
   '15% off with code VEIL15',
 ];
 

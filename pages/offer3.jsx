@@ -17,6 +17,7 @@ import { T, S } from '../lib/theme';
 import { renderAmazonPayButton } from '../lib/amazonPayClient';
 import AfterpayButton from '../components/AfterpayButton';
 import CashAppPayButton from '../components/CashAppPayButton';
+import { shippingFor } from '../lib/shipping';
 
 // Third and final step of the ad funnel — a single-page "order form" style
 // checkout (product + quantity, shipping, payment all on one page), the
@@ -210,7 +211,7 @@ export default function Offer3Page({ qbEnvironment }) {
     : 0;
   const discountedSubtotal = subtotal - discountAmount;
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
-  const shippingCost = !addressEntered ? 0 : (subtotal >= 50 ? 0 : 5);
+  const shippingCost = !addressEntered ? 0 : shippingFor(subtotal);
   const shippingProtectionCost = shippingProtection ? SHIPPING_PROTECTION_PRICE : 0;
   const grandTotal = discountedSubtotal + shippingCost + shippingProtectionCost;
 

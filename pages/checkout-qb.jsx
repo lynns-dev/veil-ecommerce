@@ -19,6 +19,7 @@ import { T, S } from '../lib/theme';
 import { renderAmazonPayButton } from '../lib/amazonPayClient';
 import AfterpayButton from '../components/AfterpayButton';
 import CashAppPayButton from '../components/CashAppPayButton';
+import { shippingFor, FREE_SHIPPING_THRESHOLD } from '../lib/shipping';
 
 // QuickBooks Payments checkout at a stable URL — identical twin of the live
 // /checkout (pages/checkout.jsx, on QuickBooks now; the Square version is
@@ -436,7 +437,7 @@ export default function CheckoutPage({ qbEnvironment }) {
 
   const addressEntered = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
 
-  const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
+  const shippingCost = !addressEntered || cart.length === 0 ? 0 : shippingFor(total);
   // Subtotal covers the paid items only, with the free Tassel broken out
   // as its own $0.00 "Gift" row (its $15 value struck through). Its value
   // is deliberately NOT counted in "Savings" — see lib/cartTotals.js.
@@ -993,7 +994,7 @@ export default function CheckoutPage({ qbEnvironment }) {
       <div style={reassuranceWrap}>
         <div className="reassurance-grid" style={reassuranceGrid}>
           {[
-            [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
+            [ShipIcon, `Free shipping over $${FREE_SHIPPING_THRESHOLD}`, 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
             [LockIcon, 'Secure checkout', 'Payments encrypted and processed by QuickBooks.'],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],

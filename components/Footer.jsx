@@ -19,7 +19,7 @@ export default function Footer() {
           <Link href="/shipping">Shipping Policy</Link>
         </div>
         <small style={{ width: '100%', color: T.soft, fontSize: 11 }}>
-          Poudre de corps parfumée · Concept build — product visuals are illustrative.
+          Poudre de corps parfumée
         </small>
       </div>
     </footer>
