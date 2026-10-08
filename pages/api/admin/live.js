@@ -1,11 +1,15 @@
 // Live visitor count + funnel-stage breakdown, plus a Shopify-Live-View-style
 // last-5-minutes activity summary: per-minute bucketed counts and a recent
-// event feed. Visitor presence reads whatever visitor:* keys currently exist
-// in KV — each one naturally expires ~25s after a browser stops sending
-// heartbeats (see pages/api/track/heartbeat.js), so no cleanup job is needed.
+// event feed. Visitor presence reads the visitor:* keys in KV — each one
+// expires ~25s after a browser stops sending heartbeats, and the heartbeat
+// endpoint stops refreshing it once a visitor has gone idle (see
+// pages/api/track/heartbeat.js, lib/presence.js) — and counts only the ones
+// whose own timestamp is recent, so an entry that never expires for any
+// reason can't sit here as a live visitor.
 // Activity data comes from the timestamped event log in lib/analyticsStore.js.
 
 import { getRecentEvents, getRecentVisitors, getLastTouched } from '../../../lib/analyticsStore';
+import { isFreshPresence } from '../../../lib/presence';
 
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
@@ -18,22 +22,39 @@ function parseVisitorValue(raw) {
   try {
     return JSON.parse(raw);
   } catch {
-    // Brief transition window right after deploy — old entries were a
-    // plain stage string, not JSON. They expire within 25s on their own.
-    return { stage: raw, city: null, country: 'XX' };
+    return null;
   }
 }
 
+// Sent as a JSON array rather than spelled into the URL: session ids are
+// part of these key names, and one containing a `/` or `?` would have been
+// read as part of the request path.
+async function kv(command) {
+  const res = await fetch(KV_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(command),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'KV command failed.');
+  return data.result;
+}
+
 async function getLiveVisitors() {
-  const keysRes = await fetch(`${KV_URL}/keys/visitor:*`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
-  const keysData = await keysRes.json();
-  const keys = keysData.result || [];
+  const keys = (await kv(['KEYS', 'visitor:*'])) || [];
+  const empty = { count: 0, byStage: {}, byCountry: {}, visitors: [] };
+  if (keys.length === 0) return empty;
 
-  if (keys.length === 0) return { count: 0, byStage: {}, byCountry: {}, visitors: [] };
-
-  const mgetRes = await fetch(`${KV_URL}/mget/${keys.join('/')}`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
-  const mgetData = await mgetRes.json();
-  const visitors = (mgetData.result || []).map(parseVisitorValue).filter(Boolean);
+  const values = (await kv(['MGET', ...keys])) || [];
+  const now = Date.now();
+  // Each value stays paired with its own key: a key that expired between the
+  // two reads comes back empty, and dropping it from a separate list used to
+  // shift every later visitor onto the wrong session id.
+  const live = keys
+    .map((key, i) => ({ sessionId: key.slice('visitor:'.length), v: parseVisitorValue(values[i]) }))
+    .filter(({ v }) => isFreshPresence(v, now));
+  if (live.length === 0) return empty;
+  const visitors = live.map(({ v }) => v);
 
   const byStage = {};
   // Keyed by country code; each entry tracks its own count plus a per-city
@@ -55,8 +76,8 @@ async function getLiveVisitors() {
   // Per-visitor detail (source/page/scroll depth) for the admin "who's here
   // right now" list — keys.map so each row still has a stable id (the
   // session id) even though it's stripped out of the stored JSON blob itself.
-  const detailed = visitors.map((v, i) => ({
-    sessionId: keys[i].slice('visitor:'.length),
+  const detailed = live.map(({ sessionId, v }) => ({
+    sessionId,
     stage: v.stage || 'browsing',
     path: v.path || null,
     source: v.source || null,
@@ -67,7 +88,7 @@ async function getLiveVisitors() {
     activeField: v.activeField || null,
   }));
 
-  return { count: keys.length, byStage, byCountry, visitors: detailed };
+  return { count: live.length, byStage, byCountry, visitors: detailed };
 }
 
 function buildActivity(events) {
