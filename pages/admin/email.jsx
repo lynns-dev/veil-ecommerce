@@ -59,6 +59,23 @@ export default function EmailAdmin() {
   const [addSubscriberMessage, setAddSubscriberMessage] = React.useState('');
   const [emailAnalytics, setEmailAnalytics] = React.useState({ campaigns: {}, automations: {}, aggregate: null });
 
+  // New subscribers over the last 7 / 30 days, by where they came from —
+  // the quickest way to see the popup, checkout and orders feeding the list.
+  const growth = React.useMemo(() => {
+    const now = Date.now();
+    const windows = { week: 7, month: 30 };
+    const out = {};
+    for (const [key, days] of Object.entries(windows)) {
+      const since = now - days * 24 * 60 * 60 * 1000;
+      const added = subscribers.filter((s) => (s.createdAt || 0) >= since);
+      const bySource = {};
+      for (const s of added) bySource[s.source || 'unknown'] = (bySource[s.source || 'unknown'] || 0) + 1;
+      out[key] = { total: added.length, bySource: Object.entries(bySource).sort((a, b) => b[1] - a[1]) };
+    }
+    const newest = subscribers.reduce((max, s) => Math.max(max, s.createdAt || 0), 0);
+    return { ...out, newest };
+  }, [subscribers]);
+
   const analytics = React.useMemo(() => {
     const totals = campaigns.reduce(
       (acc, c) => {
@@ -552,6 +569,25 @@ export default function EmailAdmin() {
               <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>Complaint rate</div>
             </div>
           </div>
+        </Section>
+
+        <Section title="New subscribers">
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {[['week', 'Last 7 days'], ['month', 'Last 30 days']].map(([key, label]) => (
+              <div key={key} style={{ ...gradeTile, minWidth: 200 }}>
+                <div style={{ fontSize: 22, fontWeight: 700 }}>{growth[key].total}</div>
+                <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>{label}</div>
+                {growth[key].bySource.length > 0 && (
+                  <div style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
+                    {growth[key].bySource.map(([source, n]) => <div key={source}>{source}: {n}</div>)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: T.soft, margin: '12px 0 0' }}>
+            Most recent signup: {growth.newest ? new Date(growth.newest).toLocaleString() : 'none yet'}. Sources: popup, newsletter (site form), checkout (email typed at checkout), order (completed purchase), lead (synced checkout lead), import.
+          </p>
         </Section>
 
         {gradeSummary && gradeSummary.total > 0 && (

@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     if (status !== 200) return res.status(status).json(body);
     result.emailSubscribed = true;
     result.alreadySubscribed = body.alreadySubscribed === true;
-    if (phone) await addSubscriberManually(email, 'popup', { phone }).catch(() => {});
+    if (phone) await addSubscriberManually(email, 'popup', { phone }).catch((err) => console.error('Subscriber phone update failed (popup):', err.message));
   }
   if (phone) {
     try {
