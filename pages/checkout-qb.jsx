@@ -21,9 +21,9 @@ import AfterpayButton from '../components/AfterpayButton';
 import CashAppPayButton from '../components/CashAppPayButton';
 import { shippingFor, FREE_SHIPPING_THRESHOLD } from '../lib/shipping';
 
-// QuickBooks Payments checkout at a stable URL — identical twin of the live
-// /checkout (pages/checkout.jsx, on QuickBooks now; the Square version is
-// kept at pages/checkout-square.jsx). Not linked from anywhere on the
+// Backup checkout page on QuickBooks Payments, at a stable URL separate
+// from the live /checkout (pages/checkout.jsx, on Square now — see that
+// file and pages/checkout-square.jsx) — not linked from anywhere on the
 // site, kept in sync with the other two checkout pages' non-payment
 // sections by hand. Reads QB_ENVIRONMENT straight from the
 // server via getServerSideProps below rather than the separately-

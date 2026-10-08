@@ -6,6 +6,7 @@
 
 import { chargeCard } from '../../lib/squareServer';
 import { fulfillOrder } from '../../lib/orderFulfillment';
+import { sendPushToAdmins } from '../../lib/webPush';
 
 // Same flat shape used by every other checkout path on this site and
 // rendered in the admin Orders tab ({ name, address, apt, city, state,
@@ -41,7 +42,10 @@ export default async function handler(req, res) {
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
     if (!items || items.length === 0) return res.status(400).json({ error: 'No items in cart' });
 
-    const charge = await chargeCard(token, amount, { buyerEmail: email || undefined });
+    const charge = await chargeCard(token, amount, { buyerEmail: email || undefined }).catch((error) => {
+      error.fromCharge = true;
+      throw error;
+    });
 
     await fulfillOrder({
       id: charge.id,
@@ -62,6 +66,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ id: charge.id, status: charge.status });
   } catch (error) {
     console.error('Square Payments error:', error);
+    // A declined or mistyped card is the shopper's to fix and is just shown
+    // to them. Anything else — Square refusing the charge for a reason on
+    // the store's side (credentials revoked, account or location not able
+    // to take payments, Square itself failing) — means every shopper is
+    // being turned away, so the store's admins are told straight away
+    // instead of finding out from a day with no orders. Best-effort: the
+    // alert can never change what the shopper is told.
+    if (error.fromCharge && error.squareCategory !== 'PAYMENT_METHOD_ERROR') {
+      await sendPushToAdmins({
+        title: 'Square could not take a payment',
+        body: `${String(error.message || 'Unknown error').slice(0, 140)} — card checkout may be down.`,
+        url: '/admin',
+      }).catch((err) => console.error('Square failure alert not sent:', err.message));
+    }
     return res.status(500).json({ error: error.message });
   }
 }
