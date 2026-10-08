@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   if (!consent) return res.status(200).json({ ok: true, skipped: 'no consent' });
 
   try {
-    await addSubscriberManually(email, 'checkout').catch(() => {});
+    await addSubscriberManually(email, 'checkout').catch((err) => console.error('Subscriber add failed (checkout):', err.message));
     await recordCheckoutStarted(email, Number(cartValue) || 0, sanitizeItems(items));
     return res.status(200).json({ ok: true });
   } catch (err) {
