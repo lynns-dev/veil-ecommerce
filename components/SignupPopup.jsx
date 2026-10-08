@@ -1,12 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { T } from '../lib/theme';
-import { rememberIdentity } from '../lib/identity';
-import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
+import { useSignup, SIGNED_UP_KEY } from '../lib/useSignup';
+import SignupCode from './SignupCode';
 
-// Site signup popup: email and/or mobile, posting to /api/email/signup
-// (email -> the marketing list with the WELCOME10 welcome email; mobile ->
-// an SMS opt-in with its consent record, lib/email/smsStore.js).
+// Site signup popup: email AND mobile, both required, posting to
+// /api/email/signup through lib/useSignup.js (email -> the marketing list
+// with the WELCOME10 welcome email; mobile -> an SMS opt-in with its consent
+// record, lib/email/smsStore.js). Once they submit, the code is shown right
+// here (components/SignupCode.jsx) and applied to their cart.
 //
 // Trigger: a dwell timer or exit intent (cursor leaving toward the top of
 // the viewport), whichever comes first — never on load. Once someone signs
@@ -14,7 +16,6 @@ import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
 // DISMISS_DAYS. Both are best-effort localStorage — blocked storage just
 // means it can show again next visit.
 
-const SIGNED_UP_KEY = 'veil-signup-done';
 const DISMISSED_KEY = 'veil-signup-dismissed-at';
 const DISMISS_DAYS = 7;
 const DWELL_MS = 10000;
@@ -42,17 +43,15 @@ function shouldShow() {
 
 export default function SignupPopup({ enabled = true }) {
   const [open, setOpen] = React.useState(false);
-  const [email, setEmail] = React.useState('');
-  const [phone, setPhone] = React.useState('');
-  const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState('');
-  const [done, setDone] = React.useState(null);
+  const { email, setEmail, phone, setPhone, submitting, error, done, submit } = useSignup({ source: 'popup', leadName: 'Signup popup' });
 
   React.useEffect(() => {
     if (!enabled || !shouldShow()) return undefined;
     let fired = false;
     const show = () => {
-      if (fired) return;
+      // Re-checked here, not just on mount: they may have signed up through
+      // the on-page newsletter form while the dwell timer was running.
+      if (fired || !shouldShow()) return;
       fired = true;
       setOpen(true);
     };
@@ -78,34 +77,6 @@ export default function SignupPopup({ enabled = true }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, done]);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!email.trim() && !phone.trim()) {
-      setError('Enter your email and/or mobile number.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/email/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), phone: phone.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
-      storageSet(SIGNED_UP_KEY, '1');
-      rememberIdentity({ email, phone });
-      refreshPixelIdentity(process.env.NEXT_PUBLIC_META_PIXEL_ID);
-      fbTrack('Lead', { content_name: 'Signup popup' }, generateEventId());
-      setDone({ email: Boolean(data.emailSubscribed), sms: Boolean(data.smsSubscribed), already: data.alreadySubscribed });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (!open) return null;
 
   return (
@@ -122,37 +93,35 @@ export default function SignupPopup({ enabled = true }) {
 
           {done ? (
             <div style={{ marginTop: 28 }}>
-              <p className="signup-lede">{done.already ? "You're already on the list." : "You're in."}</p>
-              <p style={{ fontSize: 15, lineHeight: 1.7, color: T.soft, marginTop: 14 }}>
-                {done.email && !done.already && 'Check your inbox — your 10% off code is on its way. '}
-                {done.sms && "You're signed up for text alerts."}
-              </p>
+              <p className="signup-lede" style={{ marginBottom: 14 }}>{done.already ? 'Welcome back.' : "You're in."}</p>
+              <SignupCode done={done} />
               <button type="button" onClick={close} className="signup-submit" style={{ marginTop: 28 }}>Keep shopping</button>
             </div>
           ) : (
             <form onSubmit={submit} noValidate>
-              <p className="signup-lede">Join the VEIL list. You&rsquo;ll get 10% off your first order.</p>
+              <p className="signup-lede">Join the VEIL list. Enter your email and mobile number to reveal your 10% off code.</p>
 
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email Address"
+                aria-label="Email address"
                 autoComplete="email"
+                required
                 className="signup-input"
                 style={{ marginTop: 28 }}
               />
 
-              <div className="signup-or"><span>and/or</span></div>
-
-              <p className="signup-sms-label">Sign up for text alerts + mobile-only offers</p>
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                 <div className="signup-input signup-cc" aria-label="Country code">+1</div>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Mobile Number"
+                  aria-label="Mobile number"
+                  required
                   autoComplete="tel-national"
                   inputMode="tel"
                   className="signup-input"
@@ -160,10 +129,10 @@ export default function SignupPopup({ enabled = true }) {
                 />
               </div>
 
-              {error && <p style={{ color: '#a13d2b', fontSize: 13, marginTop: 12 }}>{error}</p>}
+              {error && <p role="alert" style={{ color: '#a13d2b', fontSize: 13, marginTop: 12 }}>{error}</p>}
 
               <button type="submit" disabled={submitting} className="signup-submit" style={{ marginTop: 22, opacity: submitting ? 0.6 : 1 }}>
-                {submitting ? 'Signing up…' : 'Sign Up'}
+                {submitting ? 'Signing up…' : 'Reveal My Code'}
               </button>
 
               <p className="signup-legal">
@@ -199,9 +168,6 @@ export default function SignupPopup({ enabled = true }) {
         }
         .signup-input:focus { border-color: ${T.ink}; }
         .signup-cc { width: 84px; flex-shrink: 0; display: flex; align-items: center; font-size: 17px; }
-        .signup-or { display: flex; align-items: center; gap: 14px; margin: 22px 0; font-size: 16px; }
-        .signup-or::before, .signup-or::after { content: ''; flex: 1; height: 1px; background: ${T.line}; }
-        .signup-sms-label { font-family: ${T.serif}; font-weight: 300; font-size: 19px; margin: 0 0 14px; }
         .signup-submit {
           width: 100%; height: 56px; border: none; background: ${T.ink}; color: ${T.white};
           font-family: ${T.sans}; font-size: 17px; cursor: pointer;
@@ -215,8 +181,6 @@ export default function SignupPopup({ enabled = true }) {
           .signup-body { padding: 22px 22px 20px; }
           .signup-lede { font-size: 20px; margin-top: 20px; }
           .signup-input, .signup-submit { height: 50px; }
-          .signup-or { margin: 16px 0; }
-          .signup-sms-label { font-size: 16px; }
         }
       `}</style>
     </div>

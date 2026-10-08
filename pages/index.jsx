@@ -6,6 +6,7 @@ import CartDrawer from '../components/CartDrawer';
 import ProductVisual from '../components/ProductVisual';
 import Marquee from '../components/Marquee';
 import Footer from '../components/Footer';
+import NewsletterSignup from '../components/NewsletterSignup';
 import { getFeaturedProducts, getProductById } from '../lib/products';
 import { useCart } from '../lib/useCart';
 import { useAllReviews } from '../lib/useReviews';
@@ -24,40 +25,6 @@ export default function HomePage() {
     return { all, count, average, recommendPct };
   }, [reviewsByProduct]);
   const [scrolled, setScrolled] = React.useState(false);
-  const [newsletterEmail, setNewsletterEmail] = React.useState('');
-  const [newsletterBusy, setNewsletterBusy] = React.useState(false);
-  const [newsletterMessage, setNewsletterMessage] = React.useState('');
-  const [newsletterError, setNewsletterError] = React.useState(false);
-  const newsletterSubmitting = React.useRef(false);
-
-  const subscribeToNewsletter = async (e) => {
-    e.preventDefault();
-    if (newsletterSubmitting.current) return;
-    newsletterSubmitting.current = true;
-    setNewsletterBusy(true);
-    setNewsletterMessage('');
-    setNewsletterError(false);
-    try {
-      const res = await fetch('/api/newsletter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newsletterEmail.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Please try again.');
-      setNewsletterMessage(data.alreadySubscribed
-        ? 'You are already on the list.'
-        : 'You are on the list. Your welcome email is on its way.');
-      setNewsletterEmail('');
-    } catch (err) {
-      setNewsletterError(true);
-      setNewsletterMessage(err.message || 'We could not send your welcome email. Please try again.');
-    } finally {
-      newsletterSubmitting.current = false;
-      setNewsletterBusy(false);
-    }
-  };
-
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
     onScroll();
@@ -275,12 +242,8 @@ export default function HomePage() {
       <section style={{ ...band, textAlign: 'center', borderTop: `1px solid ${T.line}` }}>
         <p style={S.label}>The list</p>
         <h2 style={{ ...S.h2, marginTop: 12 }}>A language of scent, <span style={S.it}>told softly.</span></h2>
-        <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 15% off your first order.</p>
-        <form style={newsForm} onSubmit={subscribeToNewsletter} aria-busy={newsletterBusy}>
-          <input type="email" placeholder="Email address" aria-label="email" style={newsInput} value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} autoComplete="email" required maxLength={254} disabled={newsletterBusy} />
-          <button type="submit" disabled={newsletterBusy} style={{ background: 'none', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: newsletterBusy ? 'wait' : 'pointer', fontFamily: T.sans }}>{newsletterBusy ? 'Sending…' : 'Subscribe'}</button>
-        </form>
-        <p role={newsletterError ? 'alert' : 'status'} aria-live="polite" style={{ color: newsletterError ? '#a13d2b' : T.soft, fontSize: 13, margin: '14px auto 0', maxWidth: '40ch' }}>{newsletterMessage}</p>
+        <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 10% off your first order.</p>
+        <NewsletterSignup />
       </section>
 
       <Marquee />
@@ -354,5 +317,3 @@ const rev = { padding: '34px 30px', textAlign: 'left' };
 const ncols = { display: 'grid', maxWidth: 820, margin: '48px auto 0', border: `1px solid ${T.dline}` };
 const ncol = { padding: '38px 14px' };
 const ritGrid = { display: 'grid', gap: 44, marginTop: 54 };
-const newsForm = { display: 'flex', maxWidth: 420, margin: '0 auto', borderBottom: `1px solid ${T.ink}` };
-const newsInput = { flex: 1, height: 48, border: 'none', background: 'transparent', color: T.ink, padding: '0 4px', fontSize: 14, fontFamily: T.sans, outline: 'none' };
