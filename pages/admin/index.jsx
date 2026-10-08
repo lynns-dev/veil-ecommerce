@@ -580,6 +580,9 @@ export default function AdminDashboard() {
           <a href="/admin/email" style={{ ...tabBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
             Email
           </a>
+          <a href="/admin/ad-comments" style={{ ...tabBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            Ad comments
+          </a>
         </div>
 
         {activeTab === 'dashboard' && (

@@ -123,6 +123,19 @@ Without this token set, admin behaves exactly as before — a numeric id is show
 
 ---
 
+## Step 3 (optional): Moderate comments on your Meta ads
+
+Admin → **Ad comments** (`/admin/ad-comments`) collects comments on every active Facebook and Instagram ad. Every 15 minutes the `/api/cron/ad-comments` cron pulls new ones, and you can also click **Sync now**. Comments that break your rules (links, phone numbers or emails, or words you've blocked) are hidden automatically. Everything else waits under **Needs review**, where you can hide, unhide, reply or delete. Edit the rules from the same page. All the code is in `lib/adComments.js`.
+
+1. **Ad account.** Set `META_AD_ACCOUNT_ID` to the ad account the ads run under. It's the number in Ads Manager's URL (`act_` is optional).
+2. **Marketing token.** `META_MARKETING_ACCESS_TOKEN` (the `ads_read` token from the step above) lists the active ads and their posts.
+3. **Page token.** In Meta Business Settings → System Users, give the system user the Facebook Page the ads run as, plus its connected Instagram account. Generate a **Page** access token with `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`, `instagram_basic` and `instagram_manage_comments`. Set it as `META_PAGE_ACCESS_TOKEN`.
+4. Redeploy, open Admin → Ad comments, and click **Sync now**.
+
+Hiding is the default because a hidden Facebook comment stays visible to the person who wrote it and their friends, so they rarely notice or re-post. Deleting is only ever a manual action. The cron is a no-op until all three variables are set. Each sync checks up to 80 ad posts, newest comments first.
+
+---
+
 ## Step 3: Connect Your Domain (Squarespace)
 
 1. In Vercel, go to "Settings" → "Domains"
