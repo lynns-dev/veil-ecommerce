@@ -16,8 +16,9 @@ import AnnouncementBar from '../components/AnnouncementBar';
 // checkout/admin/the ad-funnel pages — those already have their own
 // single-minded call to action (place the order, review analytics), and a
 // popup mid-checkout or mid-funnel would just compete with it. Its 10% off
-// arrives as WELCOME10 in the welcome email, so that code needs to exist in
-// /admin's Discounts tab.
+// is WELCOME10 — shown on screen the moment they sign up
+// (pages/api/email/signup.js) and sent again in the welcome email — so that
+// code needs to exist in /admin's Discounts tab.
 const SIGNUP_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success', '/amazon-pay', '/unsubscribe'];
 
 // The browsing assistant (components/ShopAssistant.jsx) is kept off the same
