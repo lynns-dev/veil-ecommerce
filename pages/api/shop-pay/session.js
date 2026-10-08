@@ -11,6 +11,7 @@ import { createShopPaySession } from '../../../lib/shopPayServer';
 import { mapCartToShopifyLineItems } from '../../../lib/shopifyProductMap';
 import { recordPendingShopPaySession } from '../../../lib/shopPayPendingOrders';
 import crypto from 'crypto';
+import { getBrowserContext } from '../../../lib/metaCapi';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -59,6 +60,7 @@ export default async function handler(req, res) {
       sessionId,
       attribution,
       url,
+      browser: getBrowserContext(req),
     });
 
     return res.status(200).json({ session, sourceIdentifier });
