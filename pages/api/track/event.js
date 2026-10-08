@@ -6,6 +6,7 @@ import { incrementEvent, logEvent, logVisitor } from '../../../lib/analyticsStor
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
 import { isExcludedTraffic } from '../../../lib/ipFilter';
 import { recordJourneyStep, pageLabel, EVENT_LABELS } from '../../../lib/journeys';
+import { fbcSetCookieHeader } from '../../../lib/metaClickId';
 
 const ALLOWED = ['pageview', 'addtocart', 'checkout_start', 'checkout_payment'];
 // Logged to the timestamped recent-events feed for the live-activity view.
@@ -33,7 +34,20 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path, visitSource } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path, visitSource, fbc } = req.body || {};
+
+  // Re-issue the Meta click ID cookie from the server. The browser sends its
+  // click ID on the first page view of a visit (pages/_app.jsx); setting the
+  // same value back in a response header is what lets it outlive Safari's
+  // 24-hour/7-day cap on cookies written by JavaScript, so it is still there
+  // when the shopper comes back to buy — see lib/metaClickId.js.
+  if (fbc) {
+    const cookie = fbcSetCookieHeader(fbc, {
+      hostname: req.headers.host,
+      secure: String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() !== 'http',
+    });
+    if (cookie) res.setHeader('Set-Cookie', cookie);
+  }
   if (ALLOWED.includes(event) && !isExcludedTraffic(req)) {
     try {
       await incrementEvent(event, sessionId);

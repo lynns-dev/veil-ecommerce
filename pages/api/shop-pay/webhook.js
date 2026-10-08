@@ -134,6 +134,7 @@ export default async function handler(req, res) {
       eventId: pending?.eventId,
       url: pending?.url,
       req,
+      browser: pending?.browser,
       paymentMethod: 'Shop Pay',
       attribution: pending?.attribution,
       email: order.email || order.contact_email || pending?.email || '',
