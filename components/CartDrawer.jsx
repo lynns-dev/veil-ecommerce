@@ -11,10 +11,11 @@ import { fbTrack, generateEventId } from '../lib/fbPixel';
 import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { getIdentity } from '../lib/identity';
+import { shippingFor, FREE_SHIPPING_THRESHOLD } from '../lib/shipping';
 
 const SHOP_PAY_CONTAINER_ID = 'cart-shop-pay-button';
 
-const FREE_SHIP_AT = 50;
+const FREE_SHIP_AT = FREE_SHIPPING_THRESHOLD;
 
 export default function CartDrawer({
   cart, open, onClose, remove, setQty, total, add, clear,
@@ -55,8 +56,8 @@ export default function CartDrawer({
   const freeShipping = total >= FREE_SHIP_AT;
   // Shipping is only truly known once there's an address, but Apple Pay
   // from here has to commit to a number before opening its sheet — this
-  // mirrors the checkout pages' own rule (free at $50+, otherwise $5).
-  const shippingCost = cart.length === 0 ? 0 : (freeShipping ? 0 : 5);
+  // mirrors the checkout pages' own rule (lib/shipping.js).
+  const shippingCost = cart.length === 0 ? 0 : shippingFor(total);
   const { subtotal, giftValue, totalSavings, hasGift, grandTotal } = computeCartTotals({
     cart, codeDiscountAmount, shippingCost, discountedTotal,
   });

@@ -19,6 +19,7 @@ import { setCheckoutStep } from '../lib/checkoutStage';
 import { loadCheckoutProgress, saveCheckoutProgress, clearCheckoutProgress } from '../lib/checkoutProgress';
 import { captureCheckoutEmail } from '../lib/emailPlatform';
 import { T, S } from '../lib/theme';
+import { shippingFor, FREE_SHIPPING_THRESHOLD } from '../lib/shipping';
 
 // Backup checkout page on Square (Web Payments SDK), at a stable URL
 // separate from the live /checkout (pages/checkout.jsx) — not linked from
@@ -544,7 +545,7 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squareReady]);
 
-  const shippingCost = !addressEntered || cart.length === 0 ? 0 : (total >= 50 ? 0 : 5);
+  const shippingCost = !addressEntered || cart.length === 0 ? 0 : shippingFor(total);
   // Subtotal covers the paid items only, with the free Tassel broken out
   // as its own $0.00 "Gift" row (its $15 value struck through). Its value
   // is deliberately NOT counted in "Savings" — see lib/cartTotals.js.
@@ -1093,7 +1094,7 @@ export default function CheckoutPage() {
       <div style={reassuranceWrap}>
         <div className="reassurance-grid" style={reassuranceGrid}>
           {[
-            [ShipIcon, 'Free shipping over $50', 'Ships within 1 business day.'],
+            [ShipIcon, `Free shipping over $${FREE_SHIPPING_THRESHOLD}`, 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
             [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Square.'],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
