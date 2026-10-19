@@ -7,6 +7,7 @@ import WorldMap from '../../components/WorldMap';
 import { describeAdPlacement } from '../../lib/attribution';
 import { T, S } from '../../lib/theme';
 import PathsTree from '../../components/PathsTree';
+import AdSpend from '../../components/AdSpend';
 
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
@@ -620,6 +621,11 @@ export default function AdminDashboard() {
           <StatCard label="Revenue" value={dashboard ? `$${dashboard.revenue.toFixed(2)}` : '—'} />
           <StatCard label="Orders" value={dashboard ? dashboard.orderCount : '—'} />
         </div>
+
+        {/* AD SPEND — this store's Meta ad spend vs. revenue (components/AdSpend.jsx). */}
+        <Section title="Ad spend (Meta)">
+          <AdSpend />
+        </Section>
 
         {/* LIVE VIEW — Shopify-style unified live module: big visitor count,
             funnel-stage breakdown as one segmented bar, map + locations,
