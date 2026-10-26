@@ -5,7 +5,7 @@
 import { incrementEvent, logEvent, logVisitor } from '../../../lib/analyticsStore';
 import { sendCapiEvent, getRequestUserData } from '../../../lib/metaCapi';
 import { isExcludedTraffic } from '../../../lib/ipFilter';
-import { recordJourneyStep, pageLabel, EVENT_LABELS } from '../../../lib/journeys';
+import { recordJourneyStep, pageLabel, EVENT_LABELS, visitorIdFrom } from '../../../lib/journeys';
 import { fbcSetCookieHeader } from '../../../lib/metaClickId';
 
 const ALLOWED = ['pageview', 'addtocart', 'checkout_start', 'checkout_payment'];
@@ -22,6 +22,18 @@ function clip(value, maxLength) {
   return trimmed ? trimmed.slice(0, maxLength) : null;
 }
 
+// Only well-formed, bounded URL parameters are stored — public endpoint.
+function cleanParams(raw) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out = {};
+  for (const [key, val] of Object.entries(raw).slice(0, 30)) {
+    const k = clip(String(key), 60);
+    const v = clip(String(val ?? ''), 300);
+    if (k && v) out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 // Maps our internal event names to Meta's standard event names for CAPI,
 // paired with the browser Pixel call sharing the same eventId (see
 // lib/useCart.js, pages/checkout.jsx) so Meta dedupes instead of
@@ -34,7 +46,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path, visitSource, fbc } = req.body || {};
+  const { event, productName, eventId, contentId, contentIds, contents, value, url, sessionId, email, phone, source, campaign, path, visitSource, fbc, params, referrer, device } = req.body || {};
 
   // Re-issue the Meta click ID cookie from the server. The browser sends its
   // click ID on the first page view of a visit (pages/_app.jsx); setting the
@@ -72,9 +84,15 @@ export default async function handler(req, res) {
         const country = req.headers['x-vercel-ip-country'] || 'XX';
         await logVisitor({
           sessionId,
+          vid: visitorIdFrom(req) || undefined,
           source: clip(source, 80) || 'Direct',
           campaign: clip(campaign, 80),
           path: clip(path, 200),
+          // The landing page's URL parameters (utm_*, fbclid, ad names…)
+          // and referring site, for admin → Visitors.
+          params: cleanParams(params),
+          referrer: clip(referrer, 300),
+          device: clip(device, 20),
           city: city ? decodeURIComponent(city) : null,
           country,
         });

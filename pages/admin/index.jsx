@@ -184,6 +184,16 @@ export default function AdminDashboard() {
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('dashboard');
+  // The open section rides in the URL (#orders) so a refresh keeps it.
+  React.useEffect(() => {
+    const fromHash = window.location.hash.replace('#', '');
+    if (ADMIN_TABS.some(([k]) => k === fromHash)) setActiveTab(fromHash);
+  }, []);
+  const selectTab = (key) => {
+    setActiveTab(key);
+    window.history.replaceState(null, '', `#${key}`);
+    window.scrollTo(0, 0);
+  };
   const [expandedOrderId, setExpandedOrderId] = React.useState(null);
   const [showArchived, setShowArchived] = React.useState(false);
   const [orderActionBusy, setOrderActionBusy] = React.useState({});
@@ -537,51 +547,30 @@ export default function AdminDashboard() {
         <meta name="apple-mobile-web-app-title" content="VEIL Admin" />
       </Head>
 
-      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
-          <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.2em' }}>VEIL admin</span>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <a href="/" target="_blank" rel="noopener noreferrer" style={S.btnOutline}>View website</a>
-            <button onClick={handleLogout} style={S.btnOutline}>Sign out</button>
+      <div className="admin-shell">
+        {/* Left menu (a scrolling row of tabs on phones), same layout as
+            the ANESE and Smells Iconic admins. The open section is kept in
+            the URL (#orders) so a refresh stays on it. */}
+        <nav className="admin-nav">
+          <div className="admin-nav-logo">
+            <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.2em' }}>VEIL</span>
           </div>
-        </div>
-
-        <div style={tabRow}>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            style={{ ...tabBtn, ...(activeTab === 'dashboard' ? tabBtnActive : {}) }}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('orders')}
-            style={{ ...tabBtn, ...(activeTab === 'orders' ? tabBtnActive : {}) }}
-          >
-            Orders ({orders.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('subscriptions')}
-            style={{ ...tabBtn, ...(activeTab === 'subscriptions' ? tabBtnActive : {}) }}
-          >
-            Subscriptions ({subscriptions.filter((s) => s.status === 'ACTIVE').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('visitors')}
-            style={{ ...tabBtn, ...(activeTab === 'visitors' ? tabBtnActive : {}) }}
-          >
-            Visitors
-          </button>
-          <button
-            onClick={() => setActiveTab('paths')}
-            style={{ ...tabBtn, ...(activeTab === 'paths' ? tabBtnActive : {}) }}
-          >
-            Paths
-          </button>
+          {ADMIN_TABS.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => selectTab(key)} className={`admin-nav-item${activeTab === key ? ' active' : ''}`}>
+              {label}
+              {key === 'orders' && orders.length > 0 && <span className="admin-nav-count">{orders.length}</span>}
+              {key === 'reviews' && pendingReviews.length > 0 && <span className="admin-nav-badge">{pendingReviews.length}</span>}
+              {key === 'subscriptions' && subscriptions.some((x) => x.status === 'ACTIVE') && <span className="admin-nav-count">{subscriptions.filter((x) => x.status === 'ACTIVE').length}</span>}
+            </button>
+          ))}
           {/* Email marketing lives on its own page (pages/admin/email.jsx). */}
-          <a href="/admin/email" style={{ ...tabBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
-            Email
-          </a>
-        </div>
+          <a href="/admin/email" className="admin-nav-item">Email</a>
+          <a href="/" target="_blank" rel="noopener noreferrer" className="admin-nav-item admin-nav-gap">View website</a>
+          <button type="button" onClick={handleLogout} className="admin-nav-item">Sign out</button>
+        </nav>
+
+        <main className="admin-main">
+        <h1 style={{ fontFamily: T.sans, fontWeight: 600, fontSize: 26, margin: '0 0 24px', color: T.ink }}>{ADMIN_TABS.find(([k]) => k === activeTab)?.[1]}</h1>
 
         {activeTab === 'dashboard' && (
         <>
@@ -850,8 +839,11 @@ export default function AdminDashboard() {
             </div>
           )}
         </Section>
+        </>
+        )}
 
-
+        {activeTab === 'reviews' && (
+        <>
         {/* PENDING REVIEWS */}
         <Section title={`Pending approval (${pendingReviews.length})`}>
           {reviewsLoading ? (
@@ -955,7 +947,11 @@ export default function AdminDashboard() {
             </div>
           )}
         </Section>
+        </>
+        )}
 
+        {activeTab === 'discounts' && (
+        <>
         {/* DISCOUNT CODES */}
         <Section title={`Discount codes (${discounts.length})`}>
           {discounts.length === 0 ? (
@@ -1257,54 +1253,29 @@ export default function AdminDashboard() {
           </Section>
         )}
 
-        {activeTab === 'visitors' && (
-        <>
-        {/* PAST TRAFFIC — last 10 visitors and where each came from, distinct
-            from the Dashboard tab's "Who's here right now" (which only shows
-            who's currently on the site — those entries disappear ~25s after
-            a visitor leaves). Sourced from lib/analyticsStore.js's
-            visitors:recent list, one entry per visitor per day. */}
-        <Section title="Past traffic — last 10 visitors">
-          {live.pastVisitors.length === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No visitors logged yet today.</p>
-          ) : (
-            <div>
-              <div className="visitor-head-row" style={visitorHeadRow}>
-                <span className="visitor-col-source">Source</span>
-                <span className="visitor-col-page">Landed on</span>
-                <span className="visitor-col-page">Last page</span>
-                <span className="visitor-col-field">Last field</span>
-                <span className="visitor-col-location">Location</span>
-                <span className="visitor-col-when">When</span>
-              </div>
-              {live.pastVisitors.map((v) => (
-                <div key={v.sessionId} className="visitor-row" style={visitorRow}>
-                  <span className="visitor-col-source" style={{ color: T.soft }} title={v.campaign || undefined}>
-                    {v.source || 'Direct'}{v.campaign && ` · ${v.campaign}`}
-                  </span>
-                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.path || undefined}>
-                    {pageLabel(v.path)}
-                  </span>
-                  <span className="visitor-col-page" style={{ fontFamily: 'monospace', fontSize: 12 }} title={v.lastPath || undefined}>
-                    {v.lastPath ? pageLabel(v.lastPath) : '—'}
-                  </span>
-                  <span className="visitor-col-field" style={{ color: v.lastActiveField ? T.ink : T.soft, fontStyle: v.lastActiveField ? 'normal' : 'italic' }}>
-                    {v.lastActiveField || '—'}
-                  </span>
-                  <span className="visitor-col-location" style={{ color: T.soft }}>
-                    {countryFlag(v.country)} {v.city ? `${v.city}, ${v.country}` : countryName(v.country)}
-                  </span>
-                  <span className="visitor-col-when" style={{ color: T.soft, fontSize: 13 }}>{timeAgo(v.ts)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
-        </>
-        )}
+        {activeTab === 'visitors' && <VisitorsTab />}
+        {activeTab === 'subscribers' && <SubscribersTab />}
+        </main>
       </div>
 
       <style jsx>{`
+        .admin-shell { display: flex; gap: 32px; max-width: 1240px; margin: 0 auto; align-items: flex-start; }
+        .admin-nav { position: sticky; top: 24px; width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
+        .admin-nav-logo { padding: 0 12px 18px; }
+        .admin-nav-item { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 10px 12px; border: none; border-radius: 8px; background: none; font-size: 15px; color: ${T.ink}; opacity: 0.7; cursor: pointer; text-decoration: none; font-family: inherit; }
+        .admin-nav-item:hover { background: rgba(0, 0, 0, 0.04); opacity: 1; }
+        .admin-nav-item.active { background: ${T.white}; opacity: 1; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+        .admin-nav-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: ${T.ink}; color: ${T.white}; font-size: 11px; text-align: center; }
+        .admin-nav-count { font-size: 12px; opacity: 0.6; }
+        .admin-nav-gap { margin-top: 16px; }
+        .admin-main { flex: 1; min-width: 0; }
+        @media (max-width: 760px) {
+          .admin-shell { flex-direction: column; gap: 16px; }
+          .admin-nav { position: sticky; top: 0; z-index: 5; width: 100%; flex-direction: row; overflow-x: auto; background: ${T.paper}; padding: 8px 0; }
+          .admin-nav-logo { display: none; }
+          .admin-nav-item { white-space: nowrap; flex-shrink: 0; gap: 6px; }
+          .admin-nav-gap { margin-top: 0; }
+        }
         .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
         .funnel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 640px) {
@@ -1407,6 +1378,361 @@ function CapiStatus({ capi }) {
   );
 }
 
+// Admin → Visitors (same as the Smells Iconic admin): everyone who visited,
+// newest first, with where they came from, their URL parameters, what they
+// did, and — for those who didn't buy — where they stopped
+// (pages/api/admin/visitors.js).
+function checkoutStepFor(label) {
+  const l = String(label || '').toLowerCase();
+  if (!l) return null;
+  if (l.includes('email')) return 'Contact';
+  if (/card|expir|security|cvc|cvv/.test(l)) return 'Payment';
+  if (l.includes('discount')) return 'Discount code';
+  if (/name|address|apartment|city|state|zip|phone|country/.test(l)) return 'Shipping';
+  return null;
+}
+
+// One-line outcome for a visitor: bought, where they left checkout, added
+// to cart only, or just browsed — with "now" for recent activity.
+function visitorStatus(j) {
+  if (!j) return { kind: 'browse', text: 'Browsed only' };
+  if (j.purchased) return { kind: 'purchase', text: `Purchased${j.purchased.amount ? ` · $${Number(j.purchased.amount).toFixed(2)}` : ''}` };
+  const active = j.lastSeen && Date.now() - j.lastSeen < 2 * 60 * 1000;
+  if (j.checkoutAt) {
+    const field = j.lastField && (String(j.lastField.path || '').startsWith('/checkout') || checkoutStepFor(j.lastField.label)) ? j.lastField.label : null;
+    const step = checkoutStepFor(field);
+    if (active) return { kind: 'checkout', text: `At checkout now${field ? ` · typing in “${field}”` : ''}` };
+    return {
+      kind: 'checkout',
+      text: field
+        ? `Abandoned checkout at ${step || 'checkout'} — last typed in “${field}”`
+        : 'Abandoned checkout before typing anything',
+    };
+  }
+  if (j.cart?.length) return { kind: 'cart', text: `${active ? 'Has items in cart' : 'Abandoned cart'} — added ${j.cart.join(', ')}` };
+  return { kind: 'browse', text: active ? 'Browsing now' : 'Browsed only' };
+}
+
+const STATUS_COLORS = { purchase: '#1a7a3c', checkout: '#a13d2b', cart: '#9a6a12', browse: T.ink };
+const STATUS_FILTERS = [['all', 'All'], ['cart', 'Added to cart'], ['checkout', 'Reached checkout'], ['purchase', 'Purchased']];
+
+// Subscribers tab: everyone who has given an email or phone — email signups,
+// text-alert opt-ins, checkouts (paid or abandoned) and customers — with
+// whether they bought, what was left in an abandoned cart, and whether
+// they're on the email list (pages/api/admin/subscribers.js). Adding,
+// suppressing and sending emails stay on the Email page.
+const SUB_FILTERS = [['all', 'All'], ['abandoned', 'Abandoned checkout'], ['customers', 'Customers'], ['signups', 'Signups'], ['optedin', 'Emails OK'], ['texts', 'Texts OK'], ['automated', 'Sent an automation'], ['noautomation', 'No automation yet']];
+const SUB_SOURCE_LABELS = { checkout: 'checkout', order: 'order', texts: 'text alerts', shopify: 'Shopify', manual: 'added by hand', lead: 'checkout', newsletter: 'signup' };
+
+function subscriberStatus(s) {
+  if (s.orders?.count) return { kind: 'customer', label: `Customer · ${s.orders.count} order${s.orders.count === 1 ? '' : 's'} · $${s.orders.spent.toFixed(2)}`, color: '#1a7a3c' };
+  if (s.lastCheckoutAt) return { kind: 'abandoned', label: 'Abandoned checkout', color: '#a13d2b' };
+  if (s.sources?.includes('order')) return { kind: 'customer', label: 'Customer', color: '#1a7a3c' };
+  return { kind: 'signup', label: s.sources?.includes('texts') && !s.email ? 'Text alerts signup' : 'Signup', color: T.soft };
+}
+
+function subscriberCart(s) {
+  const items = s.cart || [];
+  const total = s.cartValue || items.reduce((t, i) => t + (Number(i.price) || 0) * (i.quantity || 1), 0);
+  return `${items.map((i) => `${i.name} ×${i.quantity || 1}`).join(', ')}${total ? ` ($${total.toFixed(2)})` : ''}`;
+}
+
+function subscriberCsvCell(v) {
+  const t = v == null ? '' : String(v);
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+
+const shortDate = (v) => (v ? new Date(v).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
+
+function SubscribersTab() {
+  const [list, setList] = React.useState(null);
+  const [error, setError] = React.useState('');
+  const [filter, setFilter] = React.useState('all');
+  const [query, setQuery] = React.useState('');
+
+  const load = React.useCallback(() => {
+    setError('');
+    fetch('/api/admin/subscribers')
+      .then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || 'Could not load subscribers.')))))
+      .then((d) => setList(d.subscribers || []))
+      .catch((err) => setError(err.message));
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const matches = (s, f) => {
+    const st = subscriberStatus(s).kind;
+    if (f === 'abandoned') return st === 'abandoned';
+    if (f === 'customers') return st === 'customer';
+    if (f === 'signups') return st === 'signup';
+    if (f === 'optedin') return Boolean(s.consent);
+    if (f === 'texts') return Boolean(s.textsOk);
+    if (f === 'automated') return s.automations?.length > 0;
+    if (f === 'noautomation') return Boolean(s.email) && !s.automations?.length;
+    return true;
+  };
+  const counts = React.useMemo(() => Object.fromEntries(SUB_FILTERS.map(([k]) => [k, (list || []).filter((s) => matches(s, k)).length])), [list]);
+  const rows = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (list || []).filter((s) => matches(s, filter) && (!q || [s.email, s.phone, s.name, s.city, s.state, ...(s.cart || []).map((i) => i.name)].filter(Boolean).join(' ').toLowerCase().includes(q)));
+  }, [list, filter, query]);
+
+  const exportCsv = () => {
+    const header = ['Email', 'Phone', 'Name', 'City', 'State', 'Status', 'Email list', 'Texts OK', 'Sources', 'Abandoned cart', 'Automations sent', 'First seen', 'Last seen'];
+    const lines = rows.map((s) => [s.email, s.phone, s.name, s.city, s.state, subscriberStatus(s).label, s.status || '', s.textsOk ? 'yes' : 'no', (s.sources || []).join(' '),
+      subscriberStatus(s).kind === 'abandoned' ? subscriberCart(s) : '',
+      (s.automations || []).map((a) => `${a.flow} email ${a.step} (${a.sentAt ? new Date(a.sentAt).toLocaleString() : '?'})`).join('; '),
+      s.firstSeen ? new Date(s.firstSeen).toLocaleString() : '', s.lastSeen ? new Date(s.lastSeen).toLocaleString() : ''].map(subscriberCsvCell).join(','));
+    const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `veil-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  return (
+    <Section
+      title={list ? `${rows.length} ${rows.length === 1 ? 'person' : 'people'}` : 'Subscribers'}
+      action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <a href="/admin/email" style={S.btnOutline}>Email tools</a>
+        <button type="button" onClick={exportCsv} disabled={!rows.length} style={S.btnOutline}>Export CSV</button>
+        <button type="button" onClick={load} style={S.btnOutline}>Refresh</button>
+      </div>}
+    >
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {SUB_FILTERS.map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setFilter(key)} style={{ ...chip, cursor: 'pointer', background: filter === key ? T.ink : T.white, color: filter === key ? T.white : T.ink }}>{label} · {counts[key] ?? 0}</button>
+        ))}
+      </div>
+      <input placeholder="Search email, phone, name, city, product…" value={query} onChange={(e) => setQuery(e.target.value)}
+        style={{ width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14, marginBottom: 16 }} />
+
+      {list === null && !error && <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>}
+      {error && <p style={{ color: '#a13d2b', fontSize: 14 }}>{error}</p>}
+      {list && rows.length === 0 && <p style={{ color: T.soft, fontSize: 14 }}>No one here yet. People appear as soon as they sign up or type their email at checkout.</p>}
+
+      {rows.map((s) => {
+        const st = subscriberStatus(s);
+        return (
+          <div key={s.key} style={{ padding: '14px 0', borderTop: `1px solid ${T.line}`, fontSize: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ wordBreak: 'break-word' }}>
+                <span style={{ fontWeight: 600 }}>{s.name || s.email || s.phone}</span>
+                {s.name && s.email && <span style={{ color: T.soft }}> · {s.email}</span>}
+                {s.phone && (s.name || s.email) && <span style={{ color: T.soft }}> · {s.phone}</span>}
+              </span>
+              <span style={{ color: T.soft, fontSize: 13 }}>
+                {[s.city, s.state].filter(Boolean).join(', ')}{(s.city || s.state) ? ' · ' : ''}last seen {shortDate(s.lastSeen)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+              <span style={{ fontWeight: 600, color: st.color }}>{st.label}</span>
+              {st.kind === 'abandoned' && s.cart?.length > 0 && <span style={{ color: T.soft }}>left {subscriberCart(s)}</span>}
+              <span style={{ color: T.soft, fontSize: 13 }}>via {(s.sources || []).map((x) => SUB_SOURCE_LABELS[x] || x).filter((x, i, a) => a.indexOf(x) === i).join(', ')}</span>
+              {s.email && (
+                <span title="Whether they're on the email list (manage on the Email page)"
+                  style={{ ...chip, background: s.consent ? '#e7f4ea' : T.white, color: s.consent ? '#1a7a3c' : T.soft }}>
+                  {s.consent ? 'Emails OK' : s.status ? `Email: ${s.status}` : 'Not on email list'}
+                </span>
+              )}
+              {s.textsOk && <span style={{ ...chip, background: '#e7f4ea', color: '#1a7a3c' }}>Texts OK</span>}
+            </div>
+            {s.email && (
+              <div style={{ marginTop: 6, fontSize: 13, color: T.soft }}>
+                {s.automations?.length ? (
+                  <>
+                    <span>Automations sent:</span>
+                    {s.automations.map((a) => (
+                      <div key={`${a.flowId}:${a.step}:${a.sentAt}`} style={{ paddingLeft: 12 }}>
+                        <span style={{ color: T.ink }}>{a.flow}</span> · email {a.step}{a.steps > 1 ? ` of ${a.steps}` : ''}
+                        {a.subject && <> · &ldquo;{a.subject}&rdquo;</>} · {shortDate(a.sentAt)}
+                      </div>
+                    ))}
+                  </>
+                ) : 'No automation emails sent yet'}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </Section>
+  );
+}
+
+// "New" or "3rd visit": how many days this device has visited, this one
+// included (lib/analyticsStore.js countVisit). Nothing for visits logged
+// before counting began.
+function ordinal(n) {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${{ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`;
+}
+
+function VisitTag({ n }) {
+  if (!n) return null;
+  const returning = n > 1;
+  return (
+    <span style={{
+      marginLeft: 8, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, verticalAlign: 'middle',
+      background: returning ? '#E3F1E4' : '#F1EEEA', color: returning ? '#1F6B2E' : '#6B625A',
+    }}
+    >
+      {returning ? `${ordinal(n)} visit` : 'New'}
+    </span>
+  );
+}
+
+function VisitorsTab() {
+  const [visitors, setVisitors] = React.useState(null);
+  const [error, setError] = React.useState('');
+  const [query, setQuery] = React.useState('');
+  const [onlyTagged, setOnlyTagged] = React.useState(false);
+  const [onlyReturning, setOnlyReturning] = React.useState(false);
+  const [statusFilter, setStatusFilter] = React.useState('all');
+
+  const load = React.useCallback(() => {
+    setError('');
+    fetch('/api/admin/visitors', { cache: 'no-store' })
+      .then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || 'Could not load visitors.')))))
+      .then((d) => setVisitors(d.visitors || []))
+      .catch((err) => setError(err.message));
+  }, []);
+  React.useEffect(() => {
+    load();
+    const id = setInterval(load, 60 * 1000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const rows = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (visitors || []).filter((v) => {
+      const params = v.params || {};
+      if (onlyTagged && Object.keys(params).length === 0) return false;
+      if (onlyReturning && !(v.visitNumber > 1)) return false;
+      const j = v.journey;
+      if (statusFilter === 'purchase' && !j?.purchased) return false;
+      if (statusFilter === 'checkout' && !j?.checkoutAt) return false;
+      if (statusFilter === 'cart' && !j?.cart?.length) return false;
+      if (!q) return true;
+      const hay = [v.source, v.campaign, v.landing, v.referrer, v.city, v.country, v.device, ...Object.entries(params).map(([k, val]) => `${k}=${val}`)]
+        .filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [visitors, query, onlyTagged, onlyReturning, statusFilter]);
+
+  const statusCounts = React.useMemo(() => {
+    const list = visitors || [];
+    return {
+      all: list.length,
+      cart: list.filter((v) => v.journey?.cart?.length).length,
+      checkout: list.filter((v) => v.journey?.checkoutAt).length,
+      purchase: list.filter((v) => v.journey?.purchased).length,
+    };
+  }, [visitors]);
+
+  const topSources = React.useMemo(() => {
+    const counts = new Map();
+    for (const v of rows) counts.set(v.source || 'Direct', (counts.get(v.source || 'Direct') || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [rows]);
+
+  const chipBtn = (on) => ({ ...chip, cursor: 'pointer', background: on ? T.ink : T.white, color: on ? T.white : T.ink });
+
+  return (
+    <>
+      <Section title="Visitors by source" action={<button type="button" onClick={load} style={S.btnOutline}>Refresh</button>}>
+        {visitors === null && !error && <p style={{ fontSize: 14 }}>Loading…</p>}
+        {error && <p style={{ color: '#a13d2b', fontSize: 14 }}>{error}</p>}
+        {visitors && topSources.length === 0 && <p style={{ fontSize: 14, opacity: 0.7 }}>No visitors recorded yet. New visits show up here from now on.</p>}
+        {topSources.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {topSources.map(([source, count]) => (
+              <button key={source} type="button" onClick={() => setQuery(source === query ? '' : source)} style={chipBtn(query === source)}>
+                {source} · {count}
+              </button>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title={`Recent visitors (${rows.length}${visitors && rows.length !== visitors.length ? ` of ${visitors.length}` : ''})`}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {STATUS_FILTERS.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setStatusFilter(key)} style={chipBtn(statusFilter === key)}>
+              {label} · {statusCounts[key]}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+          <input
+            placeholder="Search source, page, city, utm_campaign=…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{ flex: 1, minWidth: 220, height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14 }}
+          />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={onlyTagged} onChange={(e) => setOnlyTagged(e.target.checked)} />
+            Only visits with URL parameters
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={onlyReturning} onChange={(e) => setOnlyReturning(e.target.checked)} />
+            Only returning visitors
+          </label>
+        </div>
+        <div style={{ maxHeight: 720, overflowY: 'auto' }}>
+          {rows.map((v) => {
+            const params = Object.entries(v.params || {});
+            const place = [v.city, v.country].filter(Boolean).join(', ');
+            const j = v.journey;
+            const status = visitorStatus(j);
+            const scrolls = Object.entries(j?.scroll || {});
+            return (
+              <div key={`${v.sessionId}-${v.ts}`} style={visitorListRow}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600 }}>{v.source || 'Direct'}{v.campaign ? ` · ${v.campaign}` : ''}<VisitTag n={v.visitNumber} /></span>
+                  <span style={{ fontSize: 13, opacity: 0.7 }}>
+                    {new Date(v.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {place && ` · ${place}`}{v.device && ` · ${v.device}`}
+                    {v.outsideServiceArea && ' · outside the US'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  <span style={{ opacity: 0.7 }}>Landed on </span>{v.landing || '/'}
+                  {v.referrer && <span style={{ opacity: 0.7 }}> · from <span title={v.referrer}>{v.referrer.length > 70 ? `${v.referrer.slice(0, 70)}…` : v.referrer}</span></span>}
+                </div>
+                <div style={{ fontSize: 14, marginTop: 6, fontWeight: 600, color: STATUS_COLORS[status.kind] }}>{status.text}</div>
+                {j?.pages?.length > 0 && (
+                  <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>Viewed {j.pages.join(' · ')}</div>
+                )}
+                {j?.cartSteps?.length > 0 && (
+                  <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>Cart trail: {j.cartSteps.join(' → ')}</div>
+                )}
+                {scrolls.length > 0 && (
+                  <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>
+                    Scrolled {scrolls.map(([path, pct]) => `${path} ${pct}%`).join(' · ')}
+                  </div>
+                )}
+                {params.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {params.map(([k, val]) => (
+                      <span key={k} style={chip} title={`${k}=${val}`}>
+                        <span style={{ opacity: 0.6 }}>{k}</span>=<span>{val.length > 60 ? `${val.slice(0, 60)}…` : val}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+    </>
+  );
+}
+
+const visitorListRow = { padding: '14px 0', borderTop: `1px solid ${T.line}`, fontSize: 14 };
+const chip = { display: 'inline-block', border: `1px solid ${T.line}`, background: T.white, padding: '3px 8px', fontSize: 12, borderRadius: 999, wordBreak: 'break-all' };
+
 function Section({ title, action, children }) {
   return (
     <div style={{ background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: 24, marginBottom: 24 }}>
@@ -1475,12 +1801,17 @@ const orderRow = {
   fontSize: 13, alignItems: 'center',
 };
 const orderDetail = { padding: '4px 0 20px', borderBottom: `1px solid ${T.line}` };
-const tabRow = { display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${T.line}` };
-const tabBtn = {
-  fontFamily: T.sans, fontSize: 13, background: 'none', border: 'none', borderBottom: '2px solid transparent',
-  padding: '10px 4px', marginBottom: -1, cursor: 'pointer', color: T.soft,
-};
-const tabBtnActive = { color: T.ink, borderBottomColor: T.ink, fontWeight: 600 };
+const ADMIN_TABS = [
+  ['dashboard', 'Dashboard'],
+  ['orders', 'Orders'],
+  ['visitors', 'Visitors'],
+  ['subscribers', 'Subscribers'],
+  ['subscriptions', 'Subscriptions'],
+  ['reviews', 'Reviews'],
+  ['discounts', 'Discounts'],
+  ['paths', 'Paths'],
+];
+
 const reviewRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {
   fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', border: `1px solid ${T.line}`,

@@ -110,9 +110,15 @@ export default async function handler(req, res) {
         // entry whose own timestamp is recent.
         ts: now,
       });
+      // Deepest scroll reached on each page this session, for admin →
+      // Visitors (kept to the last 12 pages).
+      const scroll = { ...(previous?.scroll || {}) };
+      if (seen.path && seen.scrollPct != null) scroll[seen.path] = Math.max(scroll[seen.path] || 0, seen.scrollPct);
+      const scrollTrimmed = Object.fromEntries(Object.entries(scroll).slice(-12));
       const lastTouch = JSON.stringify({
         path: seen.path,
         activeField: seen.activeField,
+        scroll: scrollTrimmed,
         ts: now,
         sig,
         changedAt,
