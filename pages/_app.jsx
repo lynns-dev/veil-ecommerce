@@ -126,6 +126,11 @@ function Tracking() {
       body: JSON.stringify({
         event: 'pageview', sessionId: getSessionId(),
         source, campaign, path: window.location.pathname,
+        // For admin → Visitors: this page's URL parameters, where they came
+        // from, and phone vs desktop.
+        params: Object.fromEntries(new URLSearchParams(window.location.search)),
+        referrer: document.referrer || undefined,
+        device: window.matchMedia('(max-width: 760px)').matches ? 'Phone' : 'Desktop',
         // Where *this* visit came from (not the stored first ad click), for
         // admin's Paths tab — lib/visitTracking.js.
         visitSource: getVisitSource(),
