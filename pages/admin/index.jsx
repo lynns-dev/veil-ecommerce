@@ -3,11 +3,11 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { PRODUCTS } from '../../lib/products';
 import { parseCsv } from '../../lib/csv';
-import WorldMap from '../../components/WorldMap';
 import { describeAdPlacement } from '../../lib/attribution';
-import { T, S } from '../../lib/theme';
+import { T, S } from '../../lib/adminTheme';
+import { orderLabel } from '../../lib/orderNumbers';
+import AdminNavIcon from '../../components/AdminNavIcon';
 import PathsTree from '../../components/PathsTree';
-import AdSpend from '../../components/AdSpend';
 
 // Flexible header matching — review export files from different platforms
 // (Judge.me, Loox, Yotpo, Stamped, ...) all name these columns differently.
@@ -150,17 +150,24 @@ function attributionSource(order) {
 }
 
 const ORDER_STATUS_COLORS = {
-  paid: { color: '#1a7a3c', background: 'rgba(26,122,60,0.1)' },
+  paid: { color: T.ink, background: T.blush },
+  fulfilled: { color: T.white, background: T.ink },
   refunded: { color: '#a13d2b', background: 'rgba(161,61,43,0.1)' },
   cancelled: { color: T.soft, background: T.paper },
   archived: { color: T.soft, background: T.paper },
 };
 
+// A paid order counts as fulfilled once a tracking number has been saved.
+function displayStatus(o) {
+  const status = o.status || 'paid';
+  return status === 'paid' && o.trackingNumber ? 'fulfilled' : status;
+}
+
 function orderStatusBadge(status) {
   const colors = ORDER_STATUS_COLORS[status] || ORDER_STATUS_COLORS.paid;
   return {
-    display: 'inline-block', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
-    padding: '3px 8px', borderRadius: 3, ...colors,
+    display: 'inline-block', fontSize: 12, fontWeight: 600,
+    padding: '3px 10px', borderRadius: 999, ...colors,
   };
 }
 
@@ -180,7 +187,6 @@ export default function AdminDashboard() {
   const [discounts, setDiscounts] = React.useState([]);
   const [discountForm, setDiscountForm] = React.useState({ code: '', type: 'percent', value: 10 });
   const [discountFormMessage, setDiscountFormMessage] = React.useState('');
-  const [hoveredCountry, setHoveredCountry] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('dashboard');
@@ -252,31 +258,40 @@ export default function AdminDashboard() {
     }
   };
 
-  const visibleOrders = React.useMemo(
-    () => (showArchived ? orders : orders.filter((o) => o.status !== 'archived')),
-    [orders, showArchived]
-  );
+  // Orders ticked in the list, for "Export selected".
+  const [selectedOrders, setSelectedOrders] = React.useState([]);
+  const toggleSelected = (id) => setSelectedOrders((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  // Per-order "Send to Meta" (pages/api/admin/orders/meta.js).
-  const handleSendToMeta = async (order) => {
-    const key = `meta:${order.id}`;
-    setOrderActionBusy((prev) => ({ ...prev, [key]: true }));
-    setOrderActionError((prev) => ({ ...prev, [key]: '' }));
-    try {
-      const res = await fetch('/api/admin/orders/meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id }),
-      });
-      const data = await res.json();
-      if (data.order) setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
-      if (!res.ok) throw new Error(data.error || 'Meta did not accept it.');
-    } catch (err) {
-      setOrderActionError((prev) => ({ ...prev, [key]: err.message }));
-    } finally {
-      setOrderActionBusy((prev) => ({ ...prev, [key]: false }));
-    }
+  // Just the ticked orders: who, where to ship, and what's in the order.
+  const handleExportSelected = () => {
+    const header = ['Order #', 'Order ID', 'Date', 'Name', 'Email', 'Phone', 'Address', 'Apt', 'City', 'State', 'ZIP', 'Items', 'Total qty'];
+    const lines = orders.filter((o) => selectedOrders.includes(o.id)).map((o) => {
+      const s = o.shipping || {};
+      const items = o.items || [];
+      return [o.orderNumber || '', o.id, new Date(o.createdAt).toLocaleString(), s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim(), o.email, s.phone,
+        s.address, s.apt, s.city, s.state, s.zip, items.map((i) => `${i.name} x${i.quantity || 1}`).join('; '), items.reduce((n, i) => n + Number(i.quantity || 1), 0)];
+    });
+    const blob = new Blob([[header, ...lines].map((l) => l.map(subscriberCsvCell).join(',')).join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `veil-selected-orders-${lines.length}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
+
+  // Search box: matches name, email, phone, address, items, order number/id,
+  // tracking number, amount, payment method or status. A search also looks
+  // through archived orders, so an old order can always be found.
+  const [orderQuery, setOrderQuery] = React.useState('');
+  const visibleOrders = React.useMemo(() => {
+    const q = orderQuery.trim().toLowerCase();
+    if (!q) return showArchived ? orders : orders.filter((o) => o.status !== 'archived');
+    const words = q.split(/\s+/);
+    return orders.filter((o) => {
+      const text = orderSearchText(o);
+      return words.every((w) => text.includes(w) || (/^[\d\s().+-]+$/.test(w) && w.replace(/\D/g, '').length >= 3 && text.includes(w.replace(/\D/g, ''))));
+    });
+  }, [orders, showArchived, orderQuery]);
 
   const handleRefundOrder = async (order) => {
     if (!confirm(`Refund $${Number(order.amount).toFixed(2)} for this order? This can't be undone.`)) return;
@@ -359,11 +374,6 @@ export default function AdminDashboard() {
       setTrackingBusy((prev) => ({ ...prev, [order.id]: false }));
     }
   };
-
-  const mapCounts = React.useMemo(
-    () => Object.fromEntries(Object.entries(live.byCountry).map(([code, data]) => [code.toLowerCase(), data.count])),
-    [live.byCountry]
-  );
 
   const loadDashboard = React.useCallback((range, date) => {
     fetch(`/api/admin/dashboard?range=${range}&date=${date}`).then((r) => r.json()).then(setDashboard).catch(() => {});
@@ -556,28 +566,25 @@ export default function AdminDashboard() {
             <span style={{ fontFamily: T.serif, fontWeight: 400, fontSize: 22, letterSpacing: '0.2em' }}>VEIL</span>
           </div>
           {ADMIN_TABS.map(([key, label]) => (
-            <button key={key} type="button" onClick={() => selectTab(key)} className={`admin-nav-item${activeTab === key ? ' active' : ''}`}>
-              {label}
+            <button key={key} type="button" onClick={() => selectTab(key)} className={`admin-nav-item${activeTab === key ? ' active' : ''}`} aria-current={activeTab === key ? 'page' : undefined}>
+              <AdminNavIcon name={key} />
+              <span className="admin-nav-label">{label}</span>
               {key === 'orders' && orders.length > 0 && <span className="admin-nav-count">{orders.length}</span>}
               {key === 'reviews' && pendingReviews.length > 0 && <span className="admin-nav-badge">{pendingReviews.length}</span>}
               {key === 'subscriptions' && subscriptions.some((x) => x.status === 'ACTIVE') && <span className="admin-nav-count">{subscriptions.filter((x) => x.status === 'ACTIVE').length}</span>}
             </button>
           ))}
           {/* Email marketing lives on its own page (pages/admin/email.jsx). */}
-          <a href="/admin/email" className="admin-nav-item">Email</a>
-          <a href="/" target="_blank" rel="noopener noreferrer" className="admin-nav-item admin-nav-gap">View website</a>
-          <button type="button" onClick={handleLogout} className="admin-nav-item">Sign out</button>
+          <a href="/admin/email" className="admin-nav-item"><AdminNavIcon name="email" /><span className="admin-nav-label">Email</span></a>
+          <a href="/" target="_blank" rel="noopener noreferrer" className="admin-nav-item admin-nav-gap"><AdminNavIcon name="website" /><span className="admin-nav-label">Website</span></a>
+          <button type="button" onClick={handleLogout} className="admin-nav-item admin-nav-quiet"><AdminNavIcon name="signout" /><span className="admin-nav-label">Sign out</span></button>
         </nav>
 
         <main className="admin-main">
-        <h1 style={{ fontFamily: T.sans, fontWeight: 600, fontSize: 26, margin: '0 0 24px', color: T.ink }}>{ADMIN_TABS.find(([k]) => k === activeTab)?.[1]}</h1>
+        <h1 className="admin-serif" style={{ fontWeight: 400, fontSize: 36, lineHeight: 1.1, margin: '4px 0 24px', color: T.ink }}>{ADMIN_TABS.find(([k]) => k === activeTab)?.[1]}</h1>
 
         {activeTab === 'dashboard' && (
         <>
-        {/* META SERVER EVENTS — whether Meta is actually accepting the
-            Conversions API sends (lib/metaCapi.js). */}
-        {dashboard?.capi && <CapiStatus capi={dashboard.capi} />}
-
         {/* TOP STATS */}
         <div style={revenueDateRow}>
           <p style={{ ...S.label, margin: 0 }}>{revenueDateLabel(revenueDate)}</p>
@@ -611,13 +618,8 @@ export default function AdminDashboard() {
           <StatCard label="Orders" value={dashboard ? dashboard.orderCount : '—'} />
         </div>
 
-        {/* AD SPEND — this store's Meta ad spend vs. revenue (components/AdSpend.jsx). */}
-        <Section title="Ad spend (Meta)">
-          <AdSpend />
-        </Section>
-
         {/* LIVE VIEW — Shopify-style unified live module: big visitor count,
-            funnel-stage breakdown as one segmented bar, map + locations,
+            funnel-stage breakdown as one segmented bar, locations,
             all in one card instead of split across several boxed sections. */}
         <div style={liveViewCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20, marginBottom: 28 }}>
@@ -626,7 +628,7 @@ export default function AdminDashboard() {
                 <span className={live.count > 0 ? 'live-dot' : 'live-dot live-dot-idle'} />
                 <span style={{ ...S.label, margin: 0 }}>Live view</span>
               </div>
-              <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 56, lineHeight: 1 }}>{live.count}</div>
+              <div style={{ fontWeight: 700, fontSize: 56, letterSpacing: '-0.03em', lineHeight: 1 }}>{live.count}</div>
               <div style={{ fontSize: 13, color: T.soft, marginTop: 8 }}>
                 {live.count === 0 ? 'No one on the site right now' : `visitor${live.count === 1 ? '' : 's'} on your site right now`}
               </div>
@@ -635,8 +637,8 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
                 {Object.entries(STAGE_LABELS).map(([key, label]) => (
                   <div key={key} style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: T.serif, fontSize: 26 }}>{live.byStage[key] || 0}</div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>{live.byStage[key] || 0}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: T.soft }}>{label}</div>
                   </div>
                 ))}
               </div>
@@ -655,17 +657,7 @@ export default function AdminDashboard() {
                 })}
               </div>
 
-              <div style={{ position: 'relative', marginTop: 28, marginBottom: 24 }}>
-                <WorldMap counts={mapCounts} onHoverCountry={setHoveredCountry} />
-                <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 12, color: T.soft, background: T.paper, padding: hoveredCountry ? '4px 8px' : 0 }}>
-                  {hoveredCountry && (
-                    <span>
-                      {countryFlag(hoveredCountry.toUpperCase())} {countryName(hoveredCountry.toUpperCase())} — {live.byCountry[hoveredCountry.toUpperCase()]?.count ?? mapCounts[hoveredCountry]}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 28 }}>
               {Object.entries(live.byCountry)
                 .sort((a, b) => b[1].count - a[1].count)
                 .map(([code, data]) => (
@@ -673,8 +665,8 @@ export default function AdminDashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ fontSize: 18, width: 24, flexShrink: 0 }}>{countryFlag(code)}</span>
                       <span style={{ fontSize: 13, width: 140, flexShrink: 0 }}>{countryName(code)}</span>
-                      <div style={{ flex: 1, height: 8, background: T.paper }}>
-                        <div style={{ height: '100%', width: `${(data.count / live.count) * 100}%`, background: T.ink }} />
+                      <div style={{ flex: 1, height: 8, background: T.paper, borderRadius: 999 }}>
+                        <div style={{ height: '100%', width: `${(data.count / live.count) * 100}%`, background: T.accent, borderRadius: 999 }} />
                       </div>
                       <span style={{ fontSize: 13, color: T.soft, width: 20, textAlign: 'right', flexShrink: 0 }}>{data.count}</span>
                     </div>
@@ -718,8 +710,8 @@ export default function AdminDashboard() {
                           {v.activeField || '—'}
                         </span>
                         <span className="visitor-col-scroll" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ flex: 1, height: 6, background: T.paper, maxWidth: 60 }}>
-                            <div style={{ height: '100%', width: `${v.scrollPct ?? 0}%`, background: T.ink }} />
+                          <div style={{ flex: 1, height: 6, background: T.paper, maxWidth: 60, borderRadius: 999 }}>
+                            <div style={{ height: '100%', width: `${v.scrollPct ?? 0}%`, background: T.accent, borderRadius: 999 }} />
                           </div>
                           <span style={{ color: T.soft, fontSize: 12, flexShrink: 0 }}>{v.scrollPct != null ? `${v.scrollPct}%` : '—'}</span>
                         </span>
@@ -756,7 +748,7 @@ export default function AdminDashboard() {
                     <div style={{ height: barHeight, display: 'flex', flexDirection: 'column-reverse' }}>
                       {bucket.addtocart > 0 && <div style={{ flex: bucket.addtocart, background: 'rgba(22,20,15,0.25)' }} />}
                       {bucket.checkout_start > 0 && <div style={{ flex: bucket.checkout_start, background: 'rgba(22,20,15,0.55)' }} />}
-                      {bucket.purchase > 0 && <div style={{ flex: bucket.purchase, background: T.ink }} />}
+                      {bucket.purchase > 0 && <div style={{ flex: bucket.purchase, background: T.accent }} />}
                     </div>
                   ) : (
                     <div style={{ height: 2, background: T.line }} />
@@ -772,7 +764,7 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', gap: 16, fontSize: 11, color: T.soft, marginBottom: 24 }}>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(22,20,15,0.25)', marginRight: 6 }} />Added to cart</span>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(22,20,15,0.55)', marginRight: 6 }} />Checkout started</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: T.ink, marginRight: 6 }} />Purchased</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: T.accent, borderRadius: 2, marginRight: 6 }} />Purchased</span>
           </div>
 
           {live.activity.recent.length === 0 ? (
@@ -804,8 +796,8 @@ export default function AdminDashboard() {
                 return (
                   <div key={method} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontSize: 13, width: 110, flexShrink: 0 }}>{method}</span>
-                    <div style={{ flex: 1, height: 8, background: T.paper }}>
-                      <div style={{ height: '100%', width: `${(count / maxCount) * 100}%`, background: T.ink }} />
+                    <div style={{ flex: 1, height: 8, background: T.paper, borderRadius: 999 }}>
+                      <div style={{ height: '100%', width: `${(count / maxCount) * 100}%`, background: T.accent, borderRadius: 999 }} />
                     </div>
                     <span style={{ fontSize: 13, color: T.soft, width: 90, textAlign: 'right', flexShrink: 0 }}>
                       {count} order{count === 1 ? '' : 's'} · ${revenue.toFixed(2)}
@@ -1006,21 +998,60 @@ export default function AdminDashboard() {
 
         {activeTab === 'orders' && (
         <Section
-          title={`Orders (${visibleOrders.length})`}
+          title={`Orders (${visibleOrders.length}${orderQuery.trim() ? ` matching “${orderQuery.trim()}”` : ''})`}
           action={
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.soft }}>
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-              Show archived
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <input
+                type="search"
+                value={orderQuery}
+                onChange={(e) => setOrderQuery(e.target.value)}
+                placeholder="Search name, email, phone, item, order #, tracking…"
+                aria-label="Search orders"
+                style={orderSearchInput}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.soft }}>
+                <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} disabled={Boolean(orderQuery.trim())} />
+                Show archived
+              </label>
+            </div>
           }
         >
+          {selectedOrders.length > 0 && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '0 0 12px', fontSize: 13 }}>
+              <button type="button" onClick={handleExportSelected} style={{ ...S.btnFill, height: 36, padding: '0 16px', fontSize: 13 }}>
+                Export {selectedOrders.length} selected to CSV
+              </button>
+              <button type="button" onClick={() => setSelectedOrders([])} style={{ ...S.btnOutline, height: 36, padding: '0 14px', fontSize: 12 }}>Clear</button>
+            </div>
+          )}
           {ordersLoading ? (
             <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>
           ) : visibleOrders.length === 0 ? (
-            <p style={{ color: T.soft, fontSize: 14 }}>No orders to show.</p>
+            <p style={{ color: T.soft, fontSize: 14 }}>
+              {orderQuery.trim() ? 'No orders match that search (searches the last 30 days).' : 'No orders to show.'}
+            </p>
           ) : (
-            <div>
+            // Scrolls sideways on phones instead of squeezing the columns.
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <div style={{ minWidth: 760 }}>
               <div style={orderHeadRow}>
+                <span style={{ flex: '0 0 22px' }}>
+                  {(() => {
+                    const shown = visibleOrders.map((o) => o.id);
+                    const all = shown.length > 0 && shown.every((id) => selectedOrders.includes(id));
+                    return (
+                      <input
+                        type="checkbox"
+                        aria-label="Select all shown orders"
+                        title="Select all shown orders"
+                        checked={all}
+                        disabled={shown.length === 0}
+                        onChange={() => setSelectedOrders(all ? selectedOrders.filter((id) => !shown.includes(id)) : [...new Set([...selectedOrders, ...shown])])}
+                      />
+                    );
+                  })()}
+                </span>
+                <span style={{ flex: '0 0 64px' }}>Order</span>
                 <span style={{ flex: '0 0 130px' }}>Date</span>
                 <span style={{ flex: 1 }}>Items</span>
                 <span style={{ flex: '0 0 90px' }}>Amount</span>
@@ -1038,6 +1069,10 @@ export default function AdminDashboard() {
                       style={{ ...orderRow, borderBottom: 'none', cursor: 'pointer' }}
                       onClick={() => setExpandedOrderId(expanded ? null : o.id)}
                     >
+                      <span style={{ flex: '0 0 22px' }} onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" aria-label="Select order" checked={selectedOrders.includes(o.id)} onChange={() => toggleSelected(o.id)} />
+                      </span>
+                      <span style={{ flex: '0 0 64px', fontWeight: 600 }}>{orderLabel(o)}</span>
                       <span style={{ flex: '0 0 130px', color: T.soft }}>
                         {new Date(o.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </span>
@@ -1045,16 +1080,23 @@ export default function AdminDashboard() {
                       <span style={{ flex: '0 0 90px' }}>${Number(o.amount).toFixed(2)}</span>
                       <span style={{ flex: '0 0 100px', color: T.soft }}>{o.paymentMethod || 'Unknown'}</span>
                       <span style={{ flex: '0 0 90px' }}>
-                        <span style={orderStatusBadge(o.status)}>{o.status || 'paid'}</span>
-                        {o.trackingNumber && (
-                          <span style={{ ...orderStatusBadge('paid'), marginLeft: 6 }}>shipped</span>
-                        )}
+                        <span
+                          style={orderStatusBadge(displayStatus(o))}
+                          title={o.trackingNumber ? `${o.carrier ? `${o.carrier} ` : ''}${o.trackingNumber}` : undefined}
+                        >
+                          {displayStatus(o) === 'fulfilled' ? '✓ fulfilled' : displayStatus(o)}
+                        </span>
                       </span>
                     </div>
 
                     {expanded && (
                       <div style={orderDetail}>
                         <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap', marginBottom: 16 }}>
+                          <div>
+                            <div style={formLabel}>Order</div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{orderLabel(o)}</div>
+                            <div style={{ fontSize: 11, color: T.soft, marginTop: 2, wordBreak: 'break-all' }} title="The payment company's id for this order">{o.id}</div>
+                          </div>
                           <div>
                             <div style={formLabel}>Contact</div>
                             <div style={{ fontSize: 13 }}>{o.email || 'Not provided'}</div>
@@ -1077,27 +1119,6 @@ export default function AdminDashboard() {
                             <div style={{ fontSize: 13 }}>{source}{campaign && ` · ${campaign}`}</div>
                             {adset && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Ad set: {adset}</div>}
                             {ad && <div style={{ fontSize: 13, color: T.soft, marginTop: 2 }}>Creative: {ad}</div>}
-                          </div>
-                          {/* Whether Meta has this order's Purchase (lib/metaPurchase.js),
-                              with a button to send it now if not. New orders are sent
-                              automatically at checkout and retried hourly. */}
-                          <div>
-                            <div style={formLabel}>Meta</div>
-                            {o.meta?.sent ? (
-                              <div style={{ fontSize: 13, fontWeight: 700 }}>Sent</div>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={Boolean(orderActionBusy[`meta:${o.id}`])}
-                                onClick={() => handleSendToMeta(o)}
-                                style={{ ...S.btnOutline, height: 34, padding: '0 14px', opacity: orderActionBusy[`meta:${o.id}`] ? 0.5 : 1 }}
-                              >
-                                {orderActionBusy[`meta:${o.id}`] ? 'Sending…' : 'Send to Meta'}
-                              </button>
-                            )}
-                            {!o.meta?.sent && (orderActionError[`meta:${o.id}`] || o.meta?.lastError) && (
-                              <div style={{ fontSize: 12, color: '#a13d2b', marginTop: 4 }}>{orderActionError[`meta:${o.id}`] || o.meta.lastError}</div>
-                            )}
                           </div>
                           {o.shippingProtection > 0 && (
                             <div>
@@ -1190,6 +1211,7 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </Section>
@@ -1259,24 +1281,7 @@ export default function AdminDashboard() {
       </div>
 
       <style jsx>{`
-        .admin-shell { display: flex; gap: 32px; max-width: 1240px; margin: 0 auto; align-items: flex-start; }
-        .admin-nav { position: sticky; top: 24px; width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
-        .admin-nav-logo { padding: 0 12px 18px; }
-        .admin-nav-item { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 10px 12px; border: none; border-radius: 8px; background: none; font-size: 15px; color: ${T.ink}; opacity: 0.7; cursor: pointer; text-decoration: none; font-family: inherit; }
-        .admin-nav-item:hover { background: rgba(0, 0, 0, 0.04); opacity: 1; }
-        .admin-nav-item.active { background: ${T.white}; opacity: 1; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
-        .admin-nav-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: ${T.ink}; color: ${T.white}; font-size: 11px; text-align: center; }
-        .admin-nav-count { font-size: 12px; opacity: 0.6; }
-        .admin-nav-gap { margin-top: 16px; }
-        .admin-main { flex: 1; min-width: 0; }
-        @media (max-width: 760px) {
-          .admin-shell { flex-direction: column; gap: 16px; }
-          .admin-nav { position: sticky; top: 0; z-index: 5; width: 100%; flex-direction: row; overflow-x: auto; background: ${T.paper}; padding: 8px 0; }
-          .admin-nav-logo { display: none; }
-          .admin-nav-item { white-space: nowrap; flex-shrink: 0; gap: 6px; }
-          .admin-nav-gap { margin-top: 0; }
-        }
-        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
         .funnel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 640px) {
           .stat-grid { grid-template-columns: 1fr; }
@@ -1324,9 +1329,9 @@ export default function AdminDashboard() {
 
 function StatCard({ label, value, highlight }) {
   return (
-    <div style={{ ...statCard, ...(highlight ? { borderColor: T.ink } : {}) }}>
-      <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 34 }}>{value}</div>
-      <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.soft, marginTop: 4 }}>{label}</div>
+    <div style={{ ...statCard, ...(highlight ? { boxShadow: `inset 0 0 0 2px ${T.accent}, ${T.shadow}` } : {}) }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: T.soft, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontWeight: 600, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{value}</div>
     </div>
   );
 }
@@ -1334,49 +1339,14 @@ function StatCard({ label, value, highlight }) {
 function FunnelStep({ label, value, rate }) {
   return (
     <div>
-      <div style={{ fontFamily: T.serif, fontSize: 28 }}>{value ?? 0}</div>
-      <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft }}>{label}</div>
-      {rate && <div style={{ fontSize: 12, color: T.ink, marginTop: 2 }}>{rate}</div>}
+      <div style={{ fontSize: 13, fontWeight: 500, color: T.soft }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em' }}>{value ?? 0}</div>
+      {rate && <div style={{ fontSize: 12, color: T.accent, fontWeight: 500, marginTop: 2 }}>{rate}</div>}
     </div>
   );
 }
 
-function sinceIso(iso) {
-  if (!iso) return null;
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 48) return `${hrs} hr ago`;
-  return `${Math.round(hrs / 24)} days ago`;
-}
 
-function CapiStatus({ capi }) {
-  const okAt = capi.lastOk?.at ? new Date(capi.lastOk.at).getTime() : 0;
-  const errAt = capi.lastError?.at ? new Date(capi.lastError.at).getTime() : 0;
-  const failing = !capi.configured || errAt > okAt;
-  const color = failing ? '#a13d2b' : '#1a7a3c';
-  return (
-    <Section title="Meta server events (Conversions API)">
-      <p style={{ fontSize: 14, margin: '0 0 6px', color, fontWeight: 600 }}>
-        {!capi.configured
-          ? 'Not configured — set META_CAPI_ACCESS_TOKEN and NEXT_PUBLIC_META_PIXEL_ID in Vercel.'
-          : failing
-            ? 'Meta rejected the most recent event.'
-            : capi.lastOk
-              ? 'Meta is receiving server events.'
-              : 'No server events sent yet since this check was added.'}
-      </p>
-      <div style={{ fontSize: 13, color: T.soft, lineHeight: 1.7 }}>
-        {capi.lastOk && <div>Last accepted: {capi.lastOk.eventName} · {sinceIso(capi.lastOk.at)}</div>}
-        {capi.lastError && (
-          <div>Last error: {capi.lastError.eventName || 'event'} · {sinceIso(capi.lastError.at)} — {capi.lastError.error}</div>
-        )}
-        <div>API version {capi.graphVersion}{capi.testMode ? ' · test mode on (META_CAPI_TEST_EVENT_CODE is set — events only show in Test Events)' : ''}</div>
-      </div>
-    </Section>
-  );
-}
 
 // Admin → Visitors (same as the Smells Iconic admin): everyone who visited,
 // newest first, with where they came from, their URL parameters, what they
@@ -1413,7 +1383,7 @@ function visitorStatus(j) {
   return { kind: 'browse', text: active ? 'Browsing now' : 'Browsed only' };
 }
 
-const STATUS_COLORS = { purchase: '#1a7a3c', checkout: '#a13d2b', cart: '#9a6a12', browse: T.ink };
+const STATUS_COLORS = { purchase: T.ink, checkout: T.ink, cart: T.soft, browse: T.soft };
 const STATUS_FILTERS = [['all', 'All'], ['cart', 'Added to cart'], ['checkout', 'Reached checkout'], ['purchase', 'Purchased']];
 
 // Subscribers tab: everyone who has given an email or phone — email signups,
@@ -1425,9 +1395,9 @@ const SUB_FILTERS = [['all', 'All'], ['abandoned', 'Abandoned checkout'], ['cust
 const SUB_SOURCE_LABELS = { checkout: 'checkout', order: 'order', texts: 'text alerts', shopify: 'Shopify', manual: 'added by hand', lead: 'checkout', newsletter: 'signup' };
 
 function subscriberStatus(s) {
-  if (s.orders?.count) return { kind: 'customer', label: `Customer · ${s.orders.count} order${s.orders.count === 1 ? '' : 's'} · $${s.orders.spent.toFixed(2)}`, color: '#1a7a3c' };
+  if (s.orders?.count) return { kind: 'customer', label: `Customer · ${s.orders.count} order${s.orders.count === 1 ? '' : 's'} · $${s.orders.spent.toFixed(2)}`, color: T.ink };
   if (s.lastCheckoutAt) return { kind: 'abandoned', label: 'Abandoned checkout', color: '#a13d2b' };
-  if (s.sources?.includes('order')) return { kind: 'customer', label: 'Customer', color: '#1a7a3c' };
+  if (s.sources?.includes('order')) return { kind: 'customer', label: 'Customer', color: T.ink };
   return { kind: 'signup', label: s.sources?.includes('texts') && !s.email ? 'Text alerts signup' : 'Signup', color: T.soft };
 }
 
@@ -1501,11 +1471,11 @@ function SubscribersTab() {
     >
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {SUB_FILTERS.map(([key, label]) => (
-          <button key={key} type="button" onClick={() => setFilter(key)} style={{ ...chip, cursor: 'pointer', background: filter === key ? T.ink : T.white, color: filter === key ? T.white : T.ink }}>{label} · {counts[key] ?? 0}</button>
+          <button key={key} type="button" onClick={() => setFilter(key)} style={{ ...chip, cursor: 'pointer', background: filter === key ? T.ink : 'rgba(0,0,0,0.05)', color: filter === key ? T.white : T.ink }}>{label} · {counts[key] ?? 0}</button>
         ))}
       </div>
       <input placeholder="Search email, phone, name, city, product…" value={query} onChange={(e) => setQuery(e.target.value)}
-        style={{ width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14, marginBottom: 16 }} />
+        style={{ width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px', border: '1px solid rgba(0,0,0,0.12)', background: T.white, fontSize: 14, marginBottom: 16 }} />
 
       {list === null && !error && <p style={{ color: T.soft, fontSize: 14 }}>Loading…</p>}
       {error && <p style={{ color: '#a13d2b', fontSize: 14 }}>{error}</p>}
@@ -1531,11 +1501,11 @@ function SubscribersTab() {
               <span style={{ color: T.soft, fontSize: 13 }}>via {(s.sources || []).map((x) => SUB_SOURCE_LABELS[x] || x).filter((x, i, a) => a.indexOf(x) === i).join(', ')}</span>
               {s.email && (
                 <span title="Whether they're on the email list (manage on the Email page)"
-                  style={{ ...chip, background: s.consent ? '#e7f4ea' : T.white, color: s.consent ? '#1a7a3c' : T.soft }}>
+                  style={{ ...chip, background: s.consent ? T.blush : T.white, color: s.consent ? T.ink : T.soft }}>
                   {s.consent ? 'Emails OK' : s.status ? `Email: ${s.status}` : 'Not on email list'}
                 </span>
               )}
-              {s.textsOk && <span style={{ ...chip, background: '#e7f4ea', color: '#1a7a3c' }}>Texts OK</span>}
+              {s.textsOk && <span style={{ ...chip, background: T.blush, color: T.ink }}>Texts OK</span>}
             </div>
             {s.email && (
               <div style={{ marginTop: 6, fontSize: 13, color: T.soft }}>
@@ -1636,7 +1606,7 @@ function VisitorsTab() {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [rows]);
 
-  const chipBtn = (on) => ({ ...chip, cursor: 'pointer', background: on ? T.ink : T.white, color: on ? T.white : T.ink });
+  const chipBtn = (on) => ({ ...chip, cursor: 'pointer', background: on ? T.ink : 'rgba(0,0,0,0.05)', color: on ? T.white : T.ink });
 
   return (
     <>
@@ -1668,7 +1638,7 @@ function VisitorsTab() {
             placeholder="Search source, page, city, utm_campaign=…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: 1, minWidth: 220, height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14 }}
+            style={{ flex: 1, minWidth: 220, height: 40, padding: '0 12px', border: '1px solid rgba(0,0,0,0.12)', background: T.white, fontSize: 14 }}
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
             <input type="checkbox" checked={onlyTagged} onChange={(e) => setOnlyTagged(e.target.checked)} />
@@ -1731,13 +1701,25 @@ function VisitorsTab() {
 }
 
 const visitorListRow = { padding: '14px 0', borderTop: `1px solid ${T.line}`, fontSize: 14 };
-const chip = { display: 'inline-block', border: `1px solid ${T.line}`, background: T.white, padding: '3px 8px', fontSize: 12, borderRadius: 999, wordBreak: 'break-all' };
+const chip = { display: 'inline-block', border: 'none', background: 'rgba(0,0,0,0.05)', padding: '5px 12px', fontSize: 13, fontWeight: 500, borderRadius: 999, wordBreak: 'break-all' };
+
+// Everything the Orders search box matches against, lowercased. Phone
+// numbers are added as bare digits too, so "555-0100" finds "(555) 010-0100".
+function orderSearchText(o) {
+  const sh = o.shipping || {};
+  return [
+    o.id, o.orderNumber, o.orderNumber && `#${o.orderNumber}`, o.email, displayStatus(o), o.paymentMethod, o.trackingNumber, o.carrier,
+    sh.name, sh.address, sh.apt, sh.city, sh.state, sh.zip, sh.phone, String(sh.phone || '').replace(/\D/g, ''),
+    ...(o.items || []).map((i) => i.name),
+    Number.isFinite(Number(o.amount)) ? Number(o.amount).toFixed(2) : '',
+  ].filter(Boolean).join(' ').toLowerCase();
+}
 
 function Section({ title, action, children }) {
   return (
-    <div style={{ background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: 24, marginBottom: 24 }}>
+    <div style={{ background: T.white, borderRadius: T.radius, boxShadow: cardShadow, padding: 24, marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
-        <p style={{ ...S.label, margin: 0 }}>{title}</p>
+        <p style={{ margin: 0, fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', color: T.ink }}>{title}</p>
         {action}
       </div>
       {children}
@@ -1747,54 +1729,60 @@ function Section({ title, action, children }) {
 
 // Same white/border palette as before — this just lifts each card off the
 // paper background a little instead of leaving them perfectly flat.
-const cardShadow = '0 1px 2px rgba(22,20,15,0.04), 0 4px 12px rgba(22,20,15,0.06)';
-const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 };
-const statCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '24px 20px', textAlign: 'center' };
+const cardShadow = T.shadow;
+// gridTemplateColumns comes from the .stat-grid class, so phones can change it.
+const statGrid = { display: 'grid', gap: 16, marginBottom: 24 };
+const statCard = { background: T.white, borderRadius: T.radius, boxShadow: cardShadow, padding: '20px 22px' };
 // gridTemplateColumns is deliberately left out and set by the .funnel-grid
 // CSS class instead (see <style jsx> below) — an inline value here would
 // always beat that class's mobile media-query override, regardless of
 // specificity, the same footgun already documented on mobileTopbar in
 // pages/checkout.jsx.
 const funnelGrid = { display: 'grid', gap: 16 };
-const liveViewCard = { background: T.white, border: `1px solid ${T.line}`, boxShadow: cardShadow, padding: '28px 24px', marginBottom: 24 };
-const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: T.paper, overflow: 'hidden' };
+const liveViewCard = { background: T.white, borderRadius: T.radius, boxShadow: cardShadow, padding: '24px', marginBottom: 20 };
+const stageBarTrack = { display: 'flex', height: 10, width: '100%', background: T.paper, overflow: 'hidden', borderRadius: 999 };
 const stageBarSeg = { height: '100%', transition: 'width .3s ease' };
 // Lightest (browsing) to darkest (just purchased), same "further down the
 // funnel = more solid" convention as the live-activity sparkline below.
 // One entry per STAGE_LABELS key, in order.
 const STAGE_BAR_COLORS = [
-  'rgba(22,20,15,0.2)', 'rgba(22,20,15,0.4)',
-  'rgba(22,20,15,0.65)', 'rgba(22,20,15,0.85)',
-  T.ink,
+  'rgba(20,20,20,0.2)', 'rgba(20,20,20,0.4)',
+  'rgba(20,20,20,0.65)', 'rgba(20,20,20,0.85)',
+  T.accent,
 ];
 // display is intentionally left out of these two and set in CSS instead
 // (.visitor-head-row/.visitor-row below) — an inline `display` would always
 // beat the mobile media query's `display: none` / `flex-wrap`, regardless
 // of specificity.
 const visitorHeadRow = {
-  gap: 12, padding: '0 0 8px', borderBottom: `1px solid ${T.ink}`,
-  fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
+  gap: 12, padding: '0 0 8px', borderBottom: `1px solid ${T.line}`,
+  fontSize: 12, fontWeight: 500, color: T.soft,
 };
 const visitorRow = {
   gap: 12, padding: '10px 0', borderBottom: `1px solid ${T.line}`,
   fontSize: 13, alignItems: 'center',
 };
+const orderSearchInput = {
+  height: 36, width: 300, maxWidth: '100%', padding: '0 14px', fontSize: 14,
+  border: '1px solid rgba(0,0,0,0.12)', borderRadius: 980, background: T.white, color: T.ink, fontFamily: 'inherit',
+};
+
 const funnelRangeSelect = {
-  height: 34, padding: '0 10px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 12, color: T.ink, outline: 'none',
+  height: 34, padding: '0 10px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 8, background: T.white,
+  fontFamily: T.sans, fontSize: 13, color: T.ink, outline: 'none',
 };
 const revenueDateRow = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   flexWrap: 'wrap', gap: 12, marginBottom: 12,
 };
 const dateQuickBtn = {
-  height: 34, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white,
-  fontFamily: T.sans, fontSize: 12, color: T.soft, cursor: 'pointer',
+  height: 32, padding: '0 14px', border: 'none', borderRadius: 980, background: 'rgba(0,0,0,0.05)',
+  fontFamily: T.sans, fontSize: 13, fontWeight: 500, color: T.ink, cursor: 'pointer',
 };
-const dateQuickBtnActive = { color: T.ink, borderColor: T.ink, fontWeight: 600 };
+const dateQuickBtnActive = { background: T.ink, color: T.white, fontWeight: 600 };
 const orderHeadRow = {
-  display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.ink}`,
-  fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft,
+  display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.line}`,
+  fontSize: 12, fontWeight: 500, color: T.soft,
 };
 const orderRow = {
   display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.line}`,
@@ -1814,13 +1802,13 @@ const ADMIN_TABS = [
 
 const reviewRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {
-  fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', border: `1px solid ${T.line}`,
-  background: 'none', padding: '8px 12px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0, color: '#a13d2b',
+  fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 980,
+  background: 'rgba(255,59,48,0.1)', padding: '7px 14px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0, color: '#D70015',
 };
 const formInput = {
-  width: '100%', height: 44, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white,
+  width: '100%', height: 40, padding: '0 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 10, background: T.white,
   fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box',
 };
 const formLabel = {
-  display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft, marginBottom: 6,
+  display: 'block', fontSize: 12, fontWeight: 500, color: T.soft, marginBottom: 6,
 };

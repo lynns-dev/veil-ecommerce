@@ -1,5 +1,4 @@
 import { getOrders, getEventCounts, dateKeysForRange, todayKey } from '../../../lib/analyticsStore';
-import { getCapiStatus } from '../../../lib/metaCapi';
 
 const VALID_FUNNEL_RANGES = new Set(['today', 'yesterday', '7d', '30d']);
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -18,7 +17,7 @@ export default async function handler(req, res) {
   const revenueDate = DATE_KEY_RE.test(req.query.date || '') ? req.query.date : todayKey();
 
   try {
-    const [orders, events, capi] = await Promise.all([getOrders(revenueDate), getEventCounts(dateKeysForRange(funnelRange)), getCapiStatus()]);
+    const [orders, events] = await Promise.all([getOrders(revenueDate), getEventCounts(dateKeysForRange(funnelRange))]);
     // Cancelled/refunded orders didn't keep the money — exclude them from
     // revenue and the order/payment-method breakdowns. Archived orders are
     // just hidden from the default admin view, not reversed, so they still count.
@@ -40,7 +39,6 @@ export default async function handler(req, res) {
       .sort((a, b) => b.count - a.count);
 
     return res.status(200).json({
-      capi,
       revenue,
       orderCount: revenueOrders.length,
       revenueDate,

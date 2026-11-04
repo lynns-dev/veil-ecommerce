@@ -1,7 +1,7 @@
 import React from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { T, S } from '../../lib/theme';
+import { T, S } from '../../lib/adminTheme';
 import Link from 'next/link';
 import { renderEmailHtml, EMAIL_FONTS } from '../../lib/email/emailBlocks';
 import { BRAND } from '../../lib/email/brand';
@@ -479,12 +479,13 @@ export default function EmailAdmin() {
         @media (min-width: 768px) {
           .admin-shell { flex-direction: row; align-items: flex-start; }
         }
-        .admin-sidebar { padding: 16px; border-bottom: 1px solid ${T.line}; box-sizing: border-box; }
+        .admin-sidebar { padding: 16px; border-bottom: 1px solid ${T.line}; box-sizing: border-box; background: rgba(255,255,255,0.72); }
         @media (min-width: 768px) {
           .admin-sidebar {
-            width: 200px; flex-shrink: 0; padding: 32px 16px;
-            border-right: 1px solid ${T.line}; border-bottom: none;
-            position: sticky; top: 0; height: 100vh;
+            width: 228px; flex-shrink: 0; padding: 18px 10px; margin: 24px 0 0 24px;
+            border-bottom: none; border-radius: 18px; box-shadow: ${T.shadow};
+            -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+            position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto;
           }
         }
         .admin-main { flex: 1; min-width: 0; padding: 20px 16px 60px; box-sizing: border-box; }
@@ -521,10 +522,10 @@ export default function EmailAdmin() {
         <aside className="admin-sidebar">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <div>
-              <Link href="/admin" style={{ fontSize: 11, color: T.soft, textDecoration: 'none' }}>&larr; Store admin</Link>
-              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{BRAND.name} email</div>
+              <Link href="/admin" style={{ fontSize: 13, color: T.accent, textDecoration: 'none' }}>&lsaquo; Store admin</Link>
+              <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 4 }}>{BRAND.name} email</div>
             </div>
-            <button onClick={handleLogout} style={{ ...S.btnOutline, height: 32, padding: '0 12px', fontSize: 11 }}>Sign out</button>
+            <button onClick={handleLogout} style={{ ...S.btnOutline, height: 30, padding: '0 12px', fontSize: 13 }}>Sign out</button>
           </div>
           <nav className="pill-nav">
             {TABS.map((tab) => (
@@ -1103,9 +1104,9 @@ function ChecklistRow({ ok, label, busy }) {
 
 function Section({ title, action, children }) {
   return (
-    <div className="admin-section" style={{ background: T.white, border: `1px solid ${T.line}`, marginBottom: 24 }}>
+    <div className="admin-section" style={{ background: T.white, borderRadius: T.radius, boxShadow: T.shadow, marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
-        <p style={{ ...S.label, margin: 0 }}>{title}</p>
+        <p style={{ margin: 0, fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', color: T.ink }}>{title}</p>
         {action}
       </div>
       {children}
@@ -1114,31 +1115,31 @@ function Section({ title, action, children }) {
 }
 
 const headRow = {
-  display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.ink}`,
-  fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
+  display: 'flex', gap: 12, padding: '0 0 10px', borderBottom: `1px solid ${T.line}`,
+  fontSize: 12, fontWeight: 500, color: T.soft,
 };
 const row = { display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.line}`, fontSize: 13, alignItems: 'center' };
 const listRow = { display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 0', borderBottom: `1px solid ${T.line}` };
 const deleteBtn = {
-  fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', border: `1px solid ${T.line}`,
-  background: 'none', padding: '8px 12px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0, color: '#b3261e',
+  fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 980,
+  background: 'rgba(255,59,48,0.1)', padding: '7px 14px', cursor: 'pointer', fontFamily: T.sans, flexShrink: 0, color: '#D70015',
 };
 const formInput = {
-  width: '100%', height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white,
+  width: '100%', height: 40, padding: '0 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 10, background: T.white,
   fontFamily: T.sans, fontSize: 14, color: T.ink, outline: 'none', boxSizing: 'border-box',
 };
-const formLabel = { display: 'block', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.soft, marginBottom: 6 };
-const gradeTile = { background: T.paper, border: `1px solid ${T.line}`, padding: '14px 18px', minWidth: 90, textAlign: 'center' };
-const stepCard = { background: T.paper, border: `1px solid ${T.line}`, padding: 14, marginBottom: 10 };
+const formLabel = { display: 'block', fontSize: 12, fontWeight: 500, color: T.soft, marginBottom: 6 };
+const gradeTile = { background: T.paper, borderRadius: 14, padding: '14px 18px', minWidth: 90, textAlign: 'center' };
+const stepCard = { background: T.paper, borderRadius: 14, padding: 14, marginBottom: 10 };
 // Layout (width/display/scroll behavior) lives in the .pill-nav CSS class
 // (horizontal scrolling pills on mobile, a vertical block list on desktop)
 // so this only needs to carry the non-responsive visual styling.
 const sidebarLink = {
   textAlign: 'left', padding: '10px 12px', marginBottom: 2,
-  background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer',
-  fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.soft,
+  background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer',
+  fontFamily: T.sans, fontSize: 14, fontWeight: 500, color: T.ink,
 };
-const sidebarLinkActive = { background: T.ink, color: T.white };
+const sidebarLinkActive = { background: T.accent, color: '#FFFFFF', fontWeight: 600 };
 
 // One-time move from the separate email app (lib/email/importFromEmailApp.js).
 function ImportFromEmailApp({ onImported }) {
@@ -1218,7 +1219,7 @@ function ImportFromEmailApp({ onImported }) {
   );
 }
 
-const importInput = { height: 40, padding: '0 12px', border: `1px solid ${T.line}`, background: T.white, fontSize: 14, boxSizing: 'border-box', width: '100%' };
+const importInput = { height: 40, padding: '0 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 10, background: T.white, fontSize: 14, boxSizing: 'border-box', width: '100%' };
 
 // Text-alert opt-ins from the signup popup (lib/email/smsStore.js). Nothing
 // here sends texts — export the CSV into an SMS provider to message them.

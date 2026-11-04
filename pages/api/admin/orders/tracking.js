@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     try {
       await notifyOrderShipped({
         email: updated.email,
-        orderId: updated.id,
+        orderId: updated.orderNumber ? `#${updated.orderNumber}` : updated.id,
         carrier: updated.carrier,
         trackingNumber: updated.trackingNumber,
         trackingUrl: updated.trackingUrl,
