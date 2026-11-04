@@ -1,4 +1,4 @@
-import { getRecentOrders } from '../../../lib/analyticsStore';
+import { getOrdersNumbered } from '../../../lib/analyticsStore';
 import { describeAdPlacement } from '../../../lib/attribution';
 import { resolveAdObjectNames } from '../../../lib/metaAdsResolver';
 
@@ -9,7 +9,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const orders = await getRecentOrders(30, 200);
+    // Last 30 days, newest first. Any order still without a short number
+    // (lib/orderNumbers.js) gets one here.
+    const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const orders = (await getOrdersNumbered())
+      .flatMap((d) => d.orders)
+      .filter((o) => new Date(o.createdAt).getTime() >= since)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 200);
 
     // Some ads' URL tags carry Meta's id-based macro ({{adset.id}}/
     // {{ad.id}}) instead of the name-based one, so what actually got
