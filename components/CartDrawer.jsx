@@ -12,6 +12,8 @@ import { getStoredAttribution } from '../lib/attribution';
 import { getSessionId } from '../lib/session';
 import { getIdentity } from '../lib/identity';
 import { shippingFor, FREE_SHIPPING_THRESHOLD } from '../lib/shipping';
+import { useVariant, exposeExperiment } from '../lib/experiments';
+import { useAllReviews } from '../lib/useReviews';
 
 const SHOP_PAY_CONTAINER_ID = 'cart-shop-pay-button';
 
@@ -32,6 +34,15 @@ export default function CartDrawer({
   const applePayRef = React.useRef(null);
   const shopPayEventIdRef = React.useRef(null);
   const puff = getProductById('puff');
+  // Split test cart_trust: star rating across all products + guarantee.
+  const trustVariant = useVariant('cart_trust');
+  const allReviews = useAllReviews();
+  const reviewTotals = React.useMemo(() => {
+    let count = 0, sum = 0;
+    Object.values(allReviews || {}).forEach((r) => { const n = Number(r?.count) || 0; count += n; sum += (Number(r?.average) || 0) * n; });
+    return { count, average: count ? sum / count : 0 };
+  }, [allReviews]);
+  React.useEffect(() => { if (open && cart.length > 0) exposeExperiment('cart_trust'); }, [open, cart.length > 0]);
   const hasPuff = cart.some((i) => i.id === 'puff');
 
   React.useEffect(() => {
@@ -355,6 +366,14 @@ export default function CartDrawer({
             <span style={S.label}>Total</span>
             <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${discountedTotal.toFixed(2)}</span>
           </div>
+          {trustVariant === 'trust' && cart.length > 0 && (
+            <div style={trustBox}>
+              {reviewTotals.count > 0 && (
+                <div><span style={{ letterSpacing: '1px' }}>★★★★★</span> {reviewTotals.average.toFixed(1)} from {reviewTotals.count}+ reviews</div>
+              )}
+              <div>30-day guarantee · Ships in 2–4 days</div>
+            </div>
+          )}
           <Link
             href="/checkout"
             onClick={(e) => cart.length === 0 && e.preventDefault()}
@@ -450,3 +469,4 @@ const orDivider = { display: 'flex', alignItems: 'center', gap: 12, margin: '14p
 const orDividerLine = { flex: 1, height: 1, background: T.line };
 const orDividerText = { fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft };
 const shippingNote = { fontSize: 11, color: T.soft, marginTop: 8, letterSpacing: '0.02em' };
+const trustBox = { border: `1px solid ${T.line}`, padding: '10px 12px', margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: T.ink, textAlign: 'center' };

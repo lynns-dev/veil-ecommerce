@@ -138,6 +138,12 @@ function countryName(code) {
 // was a name — so this never shows blank where the old behavior showed
 // something.
 function attributionSource(order) {
+  const out = trackedSource(order);
+  const said = order.attribution?.heardFrom;
+  return said ? { ...out, campaign: [out.campaign, `said: ${said}`].filter(Boolean).join(' · ') } : out;
+}
+
+function trackedSource(order) {
   const attr = order.attribution;
   if (!attr) return { source: 'Direct / organic', campaign: null, adset: null, ad: null };
   const raw = describeAdPlacement(attr);
