@@ -6,6 +6,7 @@ import Footer from '../components/Footer';
 import { useCart } from '../lib/useCart';
 import { fbTrack } from '../lib/fbPixel';
 import { T, S } from '../lib/theme';
+import { trackExpStep } from '../lib/experiments';
 
 export default function SuccessPage() {
   const { clear } = useCart();
@@ -20,6 +21,7 @@ export default function SuccessPage() {
     clear();
     try {
       const purchase = JSON.parse(raw);
+      trackExpStep('purchased', { subtotal: Number(purchase.amount) || 0 });
       fbTrack('Purchase', {
         content_ids: purchase.contentIds,
         content_type: 'product',

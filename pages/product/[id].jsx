@@ -12,6 +12,7 @@ import { PRODUCTS, getProductById } from '../../lib/products';
 import { useCart } from '../../lib/useCart';
 import { fbTrack } from '../../lib/fbPixel';
 import { T, S } from '../../lib/theme';
+import { useVariant, exposeExperiment } from '../../lib/experiments';
 
 const INGREDIENTS = 'Arrowroot powder, kaolin clay, rice bran powder, skin-safe mica, clean fragrance.';
 
@@ -89,6 +90,15 @@ export default function ProductPage({ product }) {
   }, [images, product]);
   const [activeAsset, setActiveAsset] = React.useState(galleryAssets[0] || null);
   const [reviewData, setReviewData] = React.useState({ reviews: [], average: 0, count: 0 });
+  // Split tests on this page (lib/experiments.js).
+  const proofVariant = useVariant('pdp_proof');
+  const setVariant = useVariant('set_offer');
+  const inProofTest = Boolean(product && product.category === 'fragrance');
+  const inSetTest = Boolean(product && product.category === 'fragrance' && product.id !== 'scent-trio');
+  React.useEffect(() => {
+    if (inProofTest) exposeExperiment('pdp_proof');
+    if (inSetTest) exposeExperiment('set_offer');
+  }, [inProofTest, inSetTest, product?.id]);
   const [reviewForm, setReviewForm] = React.useState({ rating: 5, text: '', author: '' });
   const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
   const [reviewError, setReviewError] = React.useState('');
@@ -293,6 +303,43 @@ export default function ProductPage({ product }) {
               ${unitPrice.toFixed(2)} <span style={{ fontSize: 14, color: T.soft }}>· {product.size}</span>
             </div>
 
+            {inProofTest && proofVariant === 'proof' && (() => {
+              const top = reviewData.reviews.find((r) => (r.rating || 5) >= 5 && String(r.text || '').length > 20) || reviewData.reviews[0];
+              const notes = product.notes ? Object.values(product.notes).flatMap((v) => String(v).split(/[·,]/)).map((n) => n.trim()).filter(Boolean).slice(0, 6) : [];
+              if (!top && !notes.length) return null;
+              return (
+                <div style={proofBox}>
+                  {notes.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: top ? 10 : 0 }}>
+                      {notes.map((n) => <span key={n} style={noteChip}>{n}</span>)}
+                    </div>
+                  )}
+                  {top && (
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45 }}>
+                      <span style={{ letterSpacing: '1px' }}>{'★'.repeat(Math.round(top.rating || 5))}</span>{' '}
+                      “{String(top.text).slice(0, 150)}{String(top.text).length > 150 ? '…' : ''}”
+                      {top.author && <span style={{ color: T.soft }}> — {top.author}</span>}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {inSetTest && setVariant === 'set' && trio && !c.cart.some((i) => i.id === trio.id) && (
+              <div style={{ ...trioCard, marginTop: 0, marginBottom: 16, borderColor: T.ink }}>
+                <div style={trioVisual}><ProductVisual id="scent-trio" images={trio.images} alt={trio.name} width={54} /></div>
+                <div style={{ flex: 1 }}>
+                  <div style={S.label}>Try all three{trio.price < 3 * product.price ? ` · save $${(3 * product.price - trio.price).toFixed(0)}` : ''}</div>
+                  <div style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 18, marginTop: 4 }}>{trio.name}</div>
+                  <div style={{ fontSize: 12, color: T.soft, marginTop: 2, textTransform: 'capitalize' }}>{trio.tagline}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: T.serif, fontSize: 17, marginBottom: 8 }}>${trio.price.toFixed(2)}</div>
+                  <button onClick={handleAddTrio} style={trioAddBtn}>Add trio</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap', marginBottom: 20 }}>
               <div style={qtyWrap}>
                 <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} style={qtyBtn} aria-label="Decrease quantity">−</button>
@@ -313,7 +360,7 @@ export default function ProductPage({ product }) {
               <p style={puffIncludedNote}>Comes with the Veil Luxury Puff for effortless, everyday application.</p>
             )}
 
-            {trio && product.id !== 'scent-trio' && (
+            {trio && product.id !== 'scent-trio' && !(inSetTest && setVariant === 'set') && (
               <Link href={`/product/${trio.id}`} style={trioCard}>
                 <div style={trioVisual}><ProductVisual id="scent-trio" images={trio.images} alt={trio.name} width={54} /></div>
                 <div style={{ flex: 1 }}>
@@ -634,6 +681,8 @@ const pdpPrice = { fontFamily: T.serif, fontWeight: 300, fontSize: 28 };
 const qtyWrap = { display: 'flex', alignItems: 'center', border: `1px solid ${T.line}`, height: 48 };
 const qtyBtn = { width: 40, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: T.ink };
 const qtyValue = { width: 30, textAlign: 'center', fontSize: 13 };
+const proofBox = { border: `1px solid ${T.line}`, padding: '12px 14px', marginBottom: 16 };
+const noteChip = { fontSize: 11, letterSpacing: '0.06em', border: `1px solid ${T.line}`, padding: '3px 9px', borderRadius: 999 };
 const badgeRow = { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.soft, marginTop: 4 };
 const puffIncludedNote = { fontSize: 13, color: T.soft, marginTop: 10 };
 
