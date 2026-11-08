@@ -36,6 +36,9 @@ export default function CartDrawer({
   const puff = getProductById('puff');
   // Split test cart_trust: star rating across all products + guarantee.
   const trustVariant = useVariant('cart_trust');
+  const ctaVariant = useVariant('cart_checkout_cta_v1');
+  const shippingVariant = useVariant('cart_shipping_clarity_v1');
+  const discountVariant = useVariant('cart_discount_confirmation_v1');
   const allReviews = useAllReviews();
   const reviewTotals = React.useMemo(() => {
     let count = 0, sum = 0;
@@ -43,6 +46,13 @@ export default function CartDrawer({
     return { count, average: count ? sum / count : 0 };
   }, [allReviews]);
   React.useEffect(() => { if (open && cart.length > 0) exposeExperiment('cart_trust'); }, [open, cart.length > 0]);
+  React.useEffect(() => {
+    if (!open || cart.length === 0) return;
+    exposeExperiment('cart_checkout_cta_v1');
+    exposeExperiment('cart_shipping_clarity_v1');
+    // Both arms require a successfully applied code: measure only eligible carts.
+    if (appliedDiscount && codeDiscountAmount > 0) exposeExperiment('cart_discount_confirmation_v1');
+  }, [open, cart.length, appliedDiscount, codeDiscountAmount]);
   const hasPuff = cart.some((i) => i.id === 'puff');
 
   React.useEffect(() => {
@@ -361,10 +371,15 @@ export default function CartDrawer({
               <span style={{ color: T.green, fontWeight: 700 }}>−${totalSavings.toFixed(2)}</span>
             </div>
           )}
-          <p style={shippingNote}>{freeShipping ? 'Free shipping' : 'Shipping and taxes calculated at checkout'}</p>
+          {shippingVariant === 'shipping' && cart.length > 0 ? (
+            <>
+              <div style={summaryRow}><span style={{ color: T.soft }}>Shipping</span><span>{shippingCost === 0 ? 'FREE' : `$${shippingCost.toFixed(2)}`}</span></div>
+              <p style={shippingNote}>Taxes, if applicable, shown at checkout.</p>
+            </>
+          ) : <p style={shippingNote}>{freeShipping ? 'Free shipping' : 'Shipping and taxes calculated at checkout'}</p>}
           <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0 18px' }}>
-            <span style={S.label}>Total</span>
-            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${discountedTotal.toFixed(2)}</span>
+            <span style={S.label}>{shippingVariant === 'shipping' && cart.length > 0 ? 'Estimated total' : 'Total'}</span>
+            <span style={{ fontFamily: T.serif, fontWeight: 300, fontSize: 24 }}>${(shippingVariant === 'shipping' && cart.length > 0 ? grandTotal : discountedTotal).toFixed(2)}</span>
           </div>
           {trustVariant === 'trust' && cart.length > 0 && (
             <div style={trustBox}>
@@ -374,12 +389,17 @@ export default function CartDrawer({
               <div>30-day guarantee · Ships in 2–4 days</div>
             </div>
           )}
+          {discountVariant === 'confirmation' && appliedDiscount && codeDiscountAmount > 0 && cart.length > 0 && (
+            <p role="status" style={{ ...trustBox, color: T.green }}>
+              {appliedDiscount.code} applied · You save ${codeDiscountAmount.toFixed(2)}
+            </p>
+          )}
           <Link
             href="/checkout"
             onClick={(e) => cart.length === 0 && e.preventDefault()}
             style={{ ...S.btnFill, width: '100%', justifyContent: 'center', opacity: cart.length === 0 ? 0.4 : 1, textAlign: 'center' }}
           >
-            Checkout
+            {ctaVariant === 'secure' ? 'Continue to secure checkout' : 'Checkout'}
           </Link>
 
           {/* Apple Pay, under the main Checkout button and split off by an

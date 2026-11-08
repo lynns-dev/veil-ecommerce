@@ -40,13 +40,13 @@ export default function Tests() {
       <Link href="/admin" style={{ fontSize: 13, color: '#5f6368' }}>← Admin</Link>
       <h1 style={{ fontSize: 26, margin: '8px 0 4px' }}>Split tests</h1>
       <p style={{ fontSize: 13, color: '#5f6368', margin: '0 0 20px' }}>
-        Each visitor sees one version of each test, 50/50. A result is worth acting on once each version has 100+ visitors and confidence is 90%+.
+        Running tests assign visitors 50/50. Drafts are inactive and available only through explicit preview URLs. Plan sample size and duration before evaluating results; confidence alone does not establish a winner.
       </p>
       {error && <p style={{ color: '#d93025' }}>{error}</p>}
       {!data && !error && <p>Loading…</p>}
       {data && data.map((t) => {
         const [a, b] = t.variants;
-        const key = (a.purchased || 0) + (b?.purchased || 0) >= 20 ? 'purchased' : 'added';
+        const key = t.primaryMetric === 'checkout_view' ? 'checkout_view' : (a.purchased || 0) + (b?.purchased || 0) >= 20 ? 'purchased' : 'added';
         const conf = b ? confidence(a, b, key) : null;
         const leader = b && a.visitors && b.visitors ? ((b[key] || 0) / b.visitors > (a[key] || 0) / a.visitors ? b.variant : a.variant) : null;
         return (
@@ -54,9 +54,10 @@ export default function Tests() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline', justifyContent: 'space-between' }}>
               <h2 style={{ fontSize: 16, margin: 0 }}>{t.name}</h2>
               <span style={{ fontSize: 12, color: '#5f6368' }}>
-                {t.winner ? `Ended: "${t.winner}" for everyone` : `Running since ${t.started}`}
+                {t.status === 'draft' ? 'Draft · inactive' : t.winner ? `Ended: "${t.winner}" for everyone` : `Running since ${t.started}`}
               </span>
             </div>
+            {t.hypothesis && <p style={{ fontSize: 13, color: '#5f6368' }}>{t.hypothesis}</p>}
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10, minWidth: 560 }}>
               <thead>
                 <tr style={{ textAlign: 'right', color: '#5f6368' }}>
@@ -68,7 +69,7 @@ export default function Tests() {
               <tbody>
                 {t.variants.map((v) => (
                   <tr key={v.variant} style={{ borderTop: '1px solid #e1e3e1', textAlign: 'right' }}>
-                    <td style={{ padding: '6px 8px', textAlign: 'left' }}>{v.variant}{leader === v.variant && conf >= 90 ? ' ★' : ''}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'left' }}>{v.variant}</td>
                     <td style={{ padding: '6px 8px' }}>{v.visitors || 0}</td>
                     <td style={{ padding: '6px 8px' }}>{v.added || 0} ({pct(v.added || 0, v.visitors)})</td>
                     <td style={{ padding: '6px 8px' }}>{v.checkout_view || 0} ({pct(v.checkout_view || 0, v.visitors)})</td>
@@ -81,9 +82,9 @@ export default function Tests() {
               </tbody>
             </table>
             <p style={{ fontSize: 12, color: '#5f6368', margin: '8px 0 0' }}>
-              {conf == null
+              {t.status === 'draft' ? 'Inactive. Query-string preview only; no visitors assigned and no results recorded.' : conf == null
                 ? 'Not enough visitors yet to call it.'
-                : `Leading: ${leader} · ${conf}% confidence on ${key === 'purchased' ? 'buy rate' : 'add-to-cart rate'}${conf >= 90 ? ' (ready to call)' : ''}`}
+                : `Leading: ${leader} · ${conf}% confidence on ${key === 'checkout_view' ? 'checkout-reach rate' : key === 'purchased' ? 'buy rate' : 'add-to-cart rate'} · directional estimate; review the planned sample size before deciding`}
             </p>
           </section>
         );
