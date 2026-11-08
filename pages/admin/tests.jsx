@@ -46,7 +46,7 @@ export default function Tests() {
       {!data && !error && <p>Loading…</p>}
       {data && data.map((t) => {
         const [a, b] = t.variants;
-        const key = t.primaryMetric === 'checkout_view' ? 'checkout_view' : (a.purchased || 0) + (b?.purchased || 0) >= 20 ? 'purchased' : 'added';
+        const key = t.id === 'shop_pay_checkout_v1' ? 'purchased' : t.primaryMetric === 'checkout_view' ? 'checkout_view' : (a.purchased || 0) + (b?.purchased || 0) >= 20 ? 'purchased' : 'added';
         const conf = b ? confidence(a, b, key) : null;
         const leader = b && a.visitors && b.visitors ? ((b[key] || 0) / b.visitors > (a[key] || 0) / a.visitors ? b.variant : a.variant) : null;
         return (
@@ -58,6 +58,10 @@ export default function Tests() {
               </span>
             </div>
             {t.hypothesis && <p style={{ fontSize: 13, color: '#5f6368' }}>{t.hypothesis}</p>}
+            {t.id === 'shop_pay_checkout_v1' && <p style={{ fontSize: 12 }}>
+              Mobile: {t.variants.map(v => `${v.variant} ${v.purchased_mobile || 0}/${v.visitors_mobile || 0}`).join(' · ')}
+              {' | '}Desktop: {t.variants.map(v => `${v.variant} ${v.purchased_desktop || 0}/${v.visitors_desktop || 0}`).join(' · ')}
+            </p>}
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10, minWidth: 560 }}>
               <thead>
                 <tr style={{ textAlign: 'right', color: '#5f6368' }}>

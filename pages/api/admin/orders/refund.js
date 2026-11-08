@@ -10,7 +10,7 @@ import { refundCapture } from '../../../../lib/paypal';
 import { refundCharge as refundQuickBooksCharge } from '../../../../lib/qbPaymentsServer';
 import { refundCharge as refundBankfulCharge } from '../../../../lib/bankfulServer';
 import { refundCharge as refundSquareCharge } from '../../../../lib/squareServer';
-import { refundShopifyOrder } from '../../../../lib/shopPayServer';
+import { refundWalletOrder as refundShopifyOrder } from '../../../../lib/shopPayWallet';
 import { refundCharge as refundAmazonPayCharge } from '../../../../lib/amazonPay';
 import { refundPayment as refundAfterpayPayment } from '../../../../lib/afterpay';
 import { updateOrderStatus } from '../../../../lib/analyticsStore';

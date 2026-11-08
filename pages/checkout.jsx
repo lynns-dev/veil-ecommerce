@@ -1,3 +1,4 @@
+import ShopPayWallet from '../components/ShopPayWallet';
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -978,6 +979,8 @@ export default function CheckoutPage() {
                     container once it's configured; until then it stays
                     empty and takes no space. */}
                 <div style={{ marginTop: 20 }}>
+                  <ShopPayWallet email={email} shippingCost={shippingCost} grandTotal={grandTotal}
+                    purchaseKey="veil-purchase" onBusy={setSubmitting} onError={setError} />
                   <div style={{ display: (appleAvailable !== false || googleAvailable !== false) ? 'block' : 'none', marginBottom: 10 }}>
                     <div style={{ display: 'grid', gap: 10 }}>
                       <div style={{ display: appleAvailable !== false ? 'block' : 'none' }}>
