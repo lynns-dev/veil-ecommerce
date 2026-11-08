@@ -11,7 +11,15 @@ const context = vm.createContext({
 function source(path) { return fs.readFileSync(path, 'utf8').replace(/^import .*;\n/gm, '').replace(/export /g, ''); }
 vm.runInContext(source('lib/experiments.js') + '\nthis.api = { EXPERIMENTS, getVariant, exposeExperiment, exposedExperiments, trackExpStep };', context);
 const { api } = context;
-const drafts = Object.keys(api.EXPERIMENTS).filter(id => api.EXPERIMENTS[id].status === 'draft');
+const drafts = ['cart_checkout_cta_v1', 'cart_shipping_clarity_v1', 'cart_discount_confirmation_v1'];
+for (const id of drafts) {
+  assert.equal(api.EXPERIMENTS[id].status, 'running');
+  assert.equal(api.EXPERIMENTS[id].started, '2026-11-07');
+  const variant = api.getVariant(id);
+  assert.ok(api.EXPERIMENTS[id].variants.includes(variant));
+  assert.equal(api.getVariant(id), variant, 'Running tests retain assignments');
+  api.EXPERIMENTS[id].status = 'draft';
+}
 assert.equal(drafts.length, 3);
 for (const id of drafts) {
   const treatment = api.EXPERIMENTS[id].variants[1];
