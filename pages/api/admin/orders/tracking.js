@@ -1,3 +1,4 @@
+import { syncWalletTracking } from '../../../../lib/shopPayWallet';
 // Saves a tracking number for an order and emails the customer, in one
 // admin action. The email send (lib/email/orderHooks.js's notifyOrderShipped)
 // is best-effort from this route's point of view — a failure there
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
     });
     if (!updated) return res.status(404).json({ error: 'Order not found.' });
 
+    await syncWalletTracking(updated);
     let emailSent = false;
     let emailError = null;
     try {
