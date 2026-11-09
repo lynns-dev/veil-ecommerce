@@ -44,7 +44,7 @@ export default function Tests() {
       </p>
       {error && <p style={{ color: '#d93025' }}>{error}</p>}
       {!data && !error && <p>Loading…</p>}
-      {data && data.map((t) => {
+      {data && data.filter((t) => !t.winner && t.status !== 'completed' && t.status !== 'ended').map((t) => {
         const [a, b] = t.variants;
         const key = t.id === 'shop_pay_checkout_v1' ? 'purchased' : t.primaryMetric === 'checkout_view' ? 'checkout_view' : (a.purchased || 0) + (b?.purchased || 0) >= 20 ? 'purchased' : 'added';
         const conf = b ? confidence(a, b, key) : null;
