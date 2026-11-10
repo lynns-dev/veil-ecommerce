@@ -18,7 +18,13 @@ const DEFAULT_MESSAGES = [
 
 const ROTATE_MS = 3500;
 
-export default function AnnouncementBar({ messages = DEFAULT_MESSAGES }) {
+export default function AnnouncementBar({ messages }) {
+  const [saleActive, setSaleActive] = React.useState(false);
+  React.useEffect(() => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+    setSaleActive(today >= '2026-11-10' && today <= '2026-11-12');
+  }, []);
+  messages = messages || (saleActive ? ['Veterans Day Sale — 15% off with code VETERANS15', ...DEFAULT_MESSAGES.filter(m => !m.includes('VEIL15'))] : DEFAULT_MESSAGES);
   const [index, setIndex] = React.useState(0);
 
   React.useEffect(() => {
