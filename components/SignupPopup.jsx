@@ -1,3 +1,4 @@
+import { useActivePromo } from './SaleCallout';
 import React from 'react';
 import Link from 'next/link';
 import { T } from '../lib/theme';
@@ -42,6 +43,7 @@ function shouldShow() {
 }
 
 export default function SignupPopup({ enabled = true }) {
+  const promo = useActivePromo();
   const [open, setOpen] = React.useState(false);
   const { email, setEmail, phone, setPhone, submitting, error, done, submit } = useSignup({ source: 'popup', leadName: 'Signup popup' });
 
@@ -99,7 +101,7 @@ export default function SignupPopup({ enabled = true }) {
             </div>
           ) : (
             <form onSubmit={submit} noValidate>
-              <p className="signup-lede">Join the VEIL list. Enter your email and mobile number to reveal your 10% off code.</p>
+              <p className="signup-lede">Join the VEIL list. Enter your email and mobile number to reveal your {promo?.value || 10}% off code.</p>
 
               <input
                 type="email"

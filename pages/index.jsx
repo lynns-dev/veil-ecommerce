@@ -1,3 +1,4 @@
+import { useActivePromo } from '../components/SaleCallout';
 import React from 'react';
 import Link from 'next/link';
 import Seo, { SITE_URL, SITE_NAME } from '../components/Seo';
@@ -13,6 +14,7 @@ import { useAllReviews } from '../lib/useReviews';
 import { T, S } from '../lib/theme';
 
 export default function HomePage() {
+  const promo = useActivePromo();
   const c = useCart();
   const featured = getFeaturedProducts();
   const violette = getProductById('violette');
@@ -242,7 +244,7 @@ export default function HomePage() {
       <section style={{ ...band, textAlign: 'center', borderTop: `1px solid ${T.line}` }}>
         <p style={S.label}>The list</p>
         <h2 style={{ ...S.h2, marginTop: 12 }}>A language of scent, <span style={S.it}>told softly.</span></h2>
-        <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, 10% off your first order.</p>
+        <p style={{ color: T.soft, fontSize: 15, margin: '16px auto 28px', maxWidth: '40ch' }}>Early access, the occasional letter, {promo?.value || 10}% off your first order.</p>
         <NewsletterSignup />
       </section>
 

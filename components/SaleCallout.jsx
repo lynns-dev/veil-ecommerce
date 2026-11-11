@@ -7,7 +7,7 @@ import { activePromo } from '../lib/promos';
 // since storefront pages are statically built.
 export function useActivePromo() {
   const [promo, setPromo] = useState(null);
-  useEffect(() => { setPromo(activePromo() || { code: 'VEIL15', type: 'percent', value: 15, banner: '15% OFF — USE CODE VEIL15' }); }, []);
+  useEffect(() => { setPromo(activePromo()); }, []);
   return promo;
 }
 
