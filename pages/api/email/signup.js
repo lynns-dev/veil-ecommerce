@@ -1,3 +1,4 @@
+import { activePromo } from '../../../lib/promos';
 // The site's signup forms (components/SignupPopup.jsx and
 // components/NewsletterSignup.jsx, both through lib/useSignup.js): email AND
 // mobile, both required. The email joins the marketing list with the welcome
@@ -19,6 +20,8 @@ const WELCOME_CODE = 'WELCOME10';
 const SOURCES = new Set(['popup', 'newsletter']);
 
 async function welcomeDiscount() {
+  const promo = activePromo();
+  if (promo) return { code: promo.code, type: promo.type, value: promo.value };
   try {
     const match = (await getDiscounts()).find((d) => d.code.toLowerCase() === WELCOME_CODE.toLowerCase());
     return match ? { code: match.code, type: match.type, value: match.value } : null;

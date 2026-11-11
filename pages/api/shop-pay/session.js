@@ -1,3 +1,4 @@
+import { validateCheckout } from '../../../lib/validateCheckout';
 // Creates a Shop Pay Wallet session for the current cart — called right
 // before the modal opens (lib/shopPayClient.js). Trusts the client-supplied
 // amount/shipping breakdown the same way every other checkout path here
@@ -20,6 +21,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    let checked;
+    try { checked = await validateCheckout(req.body); }
+    catch (error) { return res.status(400).json({ error: error.message }); }
+    const lines = req.body.items || req.body.cart;
+    const canonical = lines.map((line, index) => ({ ...line, ...checked.items[index] }));
+    req.body = { ...req.body, amount: checked.total, ...(req.body.items ? { items: canonical } : { cart: canonical }) };
     const { cart, amount, shippingCost, eventId, email, sessionId, attribution, url, discountCode } = req.body || {};
     if (!cart || cart.length === 0) return res.status(400).json({ error: 'No items in cart' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invalid amount' });
@@ -33,8 +40,8 @@ export default async function handler(req, res) {
       return res.status(422).json({ error: 'Shop Pay is not available for this cart.' });
     }
 
-    const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const shipping = Number(shippingCost) || 0;
+    const subtotal = checked.subtotal;
+    const shipping = checked.shipping;
 
     // Generated here (not trusted from the client) — this is what
     // correlates the resulting Shopify order, once its webhook arrives,

@@ -1,3 +1,5 @@
+import SaleCallout from '../components/SaleCallout';
+import { paymentFetch } from '../lib/paymentFetch';
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -190,6 +192,7 @@ function OrderItemsPanel({
       </div>
 
       <div style={{ marginTop: 6 }}>
+        <SaleCallout style={{ marginBottom: 10 }} />
         <div style={{ display: 'flex', gap: 10 }}>
           <input
             placeholder="Discount code"
@@ -585,7 +588,7 @@ export default function CheckoutPage({ qbEnvironment }) {
       // funds synchronously within that one call — no redirect, no
       // webhook, so fulfillment and the success-page navigation both
       // happen right here.
-      const res = await fetch('/api/qb-checkout', {
+      const res = await paymentFetch('/api/qb-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

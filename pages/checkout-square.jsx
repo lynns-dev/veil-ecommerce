@@ -1,3 +1,5 @@
+import SaleCallout from '../components/SaleCallout';
+import { paymentFetch } from '../lib/paymentFetch';
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -146,6 +148,7 @@ function OrderItemsPanel({
       </div>
 
       <div style={{ marginTop: 6 }}>
+        <SaleCallout style={{ marginBottom: 10 }} />
         <div style={{ display: 'flex', gap: 10 }}>
           <input
             placeholder="Discount code"
@@ -621,7 +624,7 @@ export default function CheckoutPage() {
     const { email, shipping, cart, grandTotal } = latestRef.current;
     const purchaseEventId = generateEventId();
 
-    const res = await fetch('/api/square-checkout', {
+    const res = await paymentFetch('/api/square-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
