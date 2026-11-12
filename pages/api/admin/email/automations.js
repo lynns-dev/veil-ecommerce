@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const automations = await getAutomations();
-      return res.status(200).json({ automations });
+      return res.status(200).json({ automations, sendingReady: { cronSecret: Boolean(process.env.CRON_SECRET), resendKey: Boolean(process.env.RESEND_API_KEY) } });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
