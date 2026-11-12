@@ -1,4 +1,4 @@
-import MessagingWorkspace, { MessagingOverview, SmsSetupPanel, EmailMessageEditor, SmsAudience } from '../../components/MessagingWorkspace';
+import MessagingWorkspace, { MessagingOverview, SmsSetupPanel, TwilioConnectionPanel, EmailMessageEditor, SmsAudience } from '../../components/MessagingWorkspace';
 import React from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -202,6 +202,10 @@ export default function EmailAdmin() {
     loadSettings();
     loadDomainIdentity();
   }, [loadSubscribers, loadCampaigns, loadEmailAnalytics, loadAutomations, loadTemplates, loadSettings, loadDomainIdentity]);
+
+  React.useEffect(() => {
+    fetch('/api/admin/sms/connection').then(async response => { const data = await response.json(); if(!response.ok) throw new Error(data.error || 'Could not check SMS.'); return data; }).then(setSmsOverview).catch(error => setSmsOverview({ error: error.message }));
+  }, []);
 
   const handleSuppressSubscriber = async (email) => {
     if (!confirm(`Suppress ${email}? They will never receive an email again.`)) return;
@@ -562,7 +566,7 @@ export default function EmailAdmin() {
       <MessagingWorkspace brand={BRAND.name} tabs={TABS} activeTab={activeTab} onNavigate={navigateMessaging} onLogout={handleLogout} onCreate={createEmail} errors={loadErrors} onRetry={() => { loadSubscribers(); loadCampaigns(); loadEmailAnalytics(); loadAutomations(); loadTemplates(); loadSettings(); loadDomainIdentity(); }}>
         {activeTab === 'overview' && (
         <>
-        <MessagingOverview subscribers={subscribers} campaigns={campaigns} automations={automations} aggregate={emailAnalytics.aggregate} sendingReady={sendingReady} sms={smsOverview} smsAvailable={false} loaded={{ campaignsError: loadStates['/api/admin/email/campaigns'] === 'error', automationsError: loadStates['/api/admin/email/automations'] === 'error', contacts: loadStates['/api/admin/email/subscribers'] === 'ready', campaigns: loadStates['/api/admin/email/campaigns'] === 'ready', analytics: loadStates['/api/admin/email/analytics'] === 'ready', automations: loadStates['/api/admin/email/automations'] === 'ready' }} onNavigate={navigateMessaging} onCreate={createEmail} />
+        <MessagingOverview subscribers={subscribers} campaigns={campaigns} automations={automations} aggregate={emailAnalytics.aggregate} sendingReady={sendingReady} sms={smsOverview} smsAvailable={true} loaded={{ campaignsError: loadStates['/api/admin/email/campaigns'] === 'error', automationsError: loadStates['/api/admin/email/automations'] === 'error', contacts: loadStates['/api/admin/email/subscribers'] === 'ready', campaigns: loadStates['/api/admin/email/campaigns'] === 'ready', analytics: loadStates['/api/admin/email/analytics'] === 'ready', automations: loadStates['/api/admin/email/automations'] === 'ready' }} onNavigate={navigateMessaging} onCreate={createEmail} />
         <details className="mw-disclosure"><summary>Audience growth & detailed performance</summary><div>
 
         <Section title="Analytics">
