@@ -20,7 +20,7 @@ import AnnouncementBar from '../components/AnnouncementBar';
 // is WELCOME10 — shown on screen the moment they sign up
 // (pages/api/email/signup.js) and sent again in the welcome email — so that
 // code needs to exist in /admin's Discounts tab.
-const SIGNUP_POPUP_EXCLUDED_PREFIXES = ['/admin', '/checkout', '/offer', '/switch-to-veil', '/success', '/amazon-pay', '/unsubscribe'];
+const SIGNUP_POPUP_EXCLUDED_PREFIXES = ['/birthday', '/admin', '/checkout', '/offer', '/switch-to-veil', '/success', '/amazon-pay', '/unsubscribe'];
 
 // The browsing assistant (components/ShopAssistant.jsx) is kept off the same
 // kinds of pages as the popup above, for the same reason. Its own off switch is
@@ -63,7 +63,8 @@ function Tracking() {
   // keypress, mouse movement, coming back to the tab). The Live view counts
   // someone as on the site only while this is recent — lib/presence.js.
   const lastActivityRef = React.useRef(Date.now());
-  const isAdmin = router.pathname.startsWith('/admin');
+  // Birthday inputs stay out of page-view, field-focus and recording setup.
+  const isAdmin = router.pathname.startsWith('/admin') || router.pathname === '/birthday';
 
   React.useEffect(() => {
     const mark = () => { lastActivityRef.current = Date.now(); };
