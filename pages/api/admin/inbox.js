@@ -23,6 +23,7 @@ import {
   updateInboxEntries,
   deleteInboxEntries,
   recordInboxReply,
+  reconcileInbox,
 } from "../../../lib/inboxStore";
 import { sendTransactionalEmail } from "../../../lib/email/resendEmail";
 import { getSettings } from "../../../lib/email/settingsStore";
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {
     if (req.method === "GET") {
-      const entries = await getInbox();
+      const entries = await reconcileInbox();
       return res
         .status(200)
         .json({
@@ -94,6 +95,7 @@ export default async function handler(req, res) {
             inboxConversationKey(e) === inboxConversationKey(entry),
         )
         .map((e) => e.id);
+      replyRecord.coveredIds = coveredIds;
       let snapshot;
       try {
         snapshot = await recordInboxReply(id, replyRecord, coveredIds);
@@ -125,7 +127,7 @@ export default async function handler(req, res) {
         return res
           .status(400)
           .json({ error: "ids and a valid status are required." });
-      const updated = await updateInboxEntries(targets, { status });
+      const updated = await updateInboxEntries(targets, { status, ...(status === "new" ? { reopenedAt: new Date().toISOString() } : {}) });
       if (!updated.length) return res.status(404).json({ error: "Not found." });
       const snapshot = await getInbox();
       return res
