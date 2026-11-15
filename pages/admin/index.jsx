@@ -1,3 +1,4 @@
+import AdminInbox from '../../components/AdminInbox';
 import React from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -195,6 +196,7 @@ export default function AdminDashboard() {
   const [discountFormMessage, setDiscountFormMessage] = React.useState('');
   const [orders, setOrders] = React.useState([]);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
+  const [inboxNew, setInboxNew] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState('dashboard');
   // The open section rides in the URL (#orders) so a refresh keeps it.
   React.useEffect(() => {
@@ -576,6 +578,7 @@ export default function AdminDashboard() {
               <AdminNavIcon name={key} />
               <span className="admin-nav-label">{label}</span>
               {key === 'orders' && orders.length > 0 && <span className="admin-nav-count">{orders.length}</span>}
+              {key === 'inbox' && inboxNew > 0 && <span className="admin-nav-badge">{inboxNew}</span>}
               {key === 'reviews' && pendingReviews.length > 0 && <span className="admin-nav-badge">{pendingReviews.length}</span>}
               {key === 'subscriptions' && subscriptions.some((x) => x.status === 'ACTIVE') && <span className="admin-nav-count">{subscriptions.filter((x) => x.status === 'ACTIVE').length}</span>}
             </button>
@@ -1283,6 +1286,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'visitors' && <VisitorsTab />}
         {activeTab === 'subscribers' && <SubscribersTab />}
+        <div style={{ display: activeTab === 'inbox' ? 'block' : 'none' }}><AdminInbox onCount={setInboxNew} /></div>
         </main>
       </div>
 
@@ -1803,6 +1807,7 @@ const ADMIN_TABS = [
   ['subscriptions', 'Subscriptions'],
   ['reviews', 'Reviews'],
   ['discounts', 'Discounts'],
+  ['inbox', 'Inbox'],
   ['paths', 'Paths'],
 ];
 
