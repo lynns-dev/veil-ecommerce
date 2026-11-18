@@ -9,6 +9,7 @@ const pending = { origin, stripeSessionId: 'cs_test_ok', amount: 42, items: [{ i
 const session = { id: 'cs_test_ok', livemode: false, metadata: { origin }, payment_status: 'paid', client_reference_id: 'ref', currency: 'usd', amount_total: 4200, payment_intent: 'pi_test' };
 const context = vm.createContext({ process: { env: { STRIPE_CHECKOUT_ORIGIN: origin, STRIPE_CHECKOUT_MODE: 'test' } }, URL, Intl, Date, console,
   getCheckoutStripe: () => ({ checkout: { sessions: { retrieve: async () => session } } }),
+  recordStripeExperimentPurchase: async()=>{},
   fulfillOrder: async order => { fulfills++; orders.push(order); }, getOrders: async () => orders,
   fetch: async (_, options) => { const [cmd, key, value, ...args] = JSON.parse(options.body); let result;
     if (cmd === 'GET') result = storage.get(key) || null;

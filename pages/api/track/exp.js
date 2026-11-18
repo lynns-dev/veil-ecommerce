@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   if (!who || isExcludedTraffic(req)) return res.status(204).end();
   try {
     if (typeof step === 'string' && STEPS.includes(step)) {
-      await recordExperimentStep(exps, step, who, { subtotal: Number(subtotal) || 0 });
+      await recordExperimentStep(step === 'purchased' && process.env.STRIPE_ONLY_ENABLED === 'true' ? {} : exps, step, who, { subtotal: Number(subtotal) || 0 });
     } else if (typeof id === 'string' && typeof variant === 'string') {
       await recordExposure(id.slice(0, 40), variant.slice(0, 20), who);
     }
