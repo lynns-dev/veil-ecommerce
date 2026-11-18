@@ -329,6 +329,8 @@ export default function CheckoutPage() {
   const [discountMessage, setDiscountMessage] = React.useState('');
   const [receiptOpen, setReceiptOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [stripeReady, setStripeReady] = React.useState(false);
+  const stripeSubmitRef = React.useRef(null);
   const [error, setError] = React.useState('');
   const clearDiscount = React.useCallback(() => {
     clearCartDiscount();
@@ -713,7 +715,7 @@ export default function CheckoutPage() {
     }
 
     // Step 2 — charge via Square's Card element.
-    if (STRIPE_ONLY) return;
+    if (STRIPE_ONLY) { await stripeSubmitRef.current?.(); return; }
     if (!squareReady || !squareCardRef.current) {
       setError('Payment form is still loading — please wait a moment and try again.');
       return;
@@ -1057,6 +1059,8 @@ export default function CheckoutPage() {
                 </div>
 
                 </>}
+                <StripeCheckoutButton submitRef={stripeSubmitRef} onReady={setStripeReady} onBusy={setSubmitting} disabled={submitting} onError={setError} getPayload={() => ({ items: cart, email, shipping, amount: grandTotal, discountCode: appliedDiscount?.code || '', freeShipping: shippingCost === 0, shippingProtection: 0, eventId: generateEventId(), attribution: getStoredAttribution(), sessionId: getSessionId(), url: window.location.href })} />
+
                 <div style={{ marginTop: 20 }}>
                   <p style={fieldGroupLabel}>Billing address</p>
                   <div style={billingRecap}>
@@ -1078,9 +1082,9 @@ export default function CheckoutPage() {
                   <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary} disabled={submitting}>
                     Back
                   </button>
-                  {STRIPE_ONLY ? <StripeCheckoutButton onBusy={setSubmitting} disabled={submitting} onError={setError} getPayload={() => ({ items: cart, email, shipping, amount: grandTotal, discountCode: appliedDiscount?.code || '', freeShipping: shippingCost === 0, shippingProtection: 0, eventId: generateEventId(), attribution: getStoredAttribution(), sessionId: getSessionId(), url: window.location.href })} /> : (                  <button type="submit" disabled={submitting || !squareReady} style={{ ...bigButton, flex: 1, opacity: submitting || !squareReady ? 0.6 : 1 }}>
+                  <button type="submit" disabled={submitting || !(STRIPE_ONLY ? stripeReady : squareReady)} style={{ ...bigButton, flex: 1, opacity: submitting || !(STRIPE_ONLY ? stripeReady : squareReady) ? 0.6 : 1 }}>
                     {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
-                  </button>)}
+                  </button>
                 </div>
 
                 <div className="mobile-reviews-carousel">

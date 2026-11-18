@@ -34,14 +34,14 @@ assert.equal(fulfills, 1, 'Replay must not fulfill twice');
 console.log('Stripe fulfillment guards and replay tests passed. No external services called.');
 
 const endpoint = fs.readFileSync('pages/api/stripe/session.js', 'utf8');
-assert.ok(endpoint.includes("ui_mode: 'embedded_page'"));
+assert.ok(endpoint.includes("ui_mode: 'elements'"));
 assert.ok(endpoint.includes("apiVersion: '2026-10-28.endive'"));
 assert.ok(endpoint.includes('return_url:'));
 assert.ok(!endpoint.includes('success_url:'));
 assert.ok(!endpoint.includes('cancel_url:'));
 assert.ok(endpoint.includes('clientSecret: session.client_secret'));
-console.log('Embedded session configuration guards passed.');
+console.log('Native Elements session configuration guards passed.');
 
-assert.ok(endpoint.includes("allowed_payment_method_types: ['card']"));
+assert.ok(endpoint.includes("allowed_payment_method_types: ['card', 'link']"));
 assert.ok(!/(?:^|[ ,])payment_method_types:/.test(endpoint));
 console.log('Current API payment method schema passed.');
