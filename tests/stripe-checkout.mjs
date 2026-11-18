@@ -31,3 +31,12 @@ assert.equal(fulfills, 1);
 await context.complete(session, {});
 assert.equal(fulfills, 1, 'Replay must not fulfill twice');
 console.log('Stripe fulfillment guards and replay tests passed. No external services called.');
+
+const endpoint = fs.readFileSync('pages/api/stripe/session.js', 'utf8');
+assert.ok(endpoint.includes("ui_mode: 'embedded_page'"));
+assert.ok(endpoint.includes("apiVersion: '2026-10-28.endive'"));
+assert.ok(endpoint.includes('return_url:'));
+assert.ok(!endpoint.includes('success_url:'));
+assert.ok(!endpoint.includes('cancel_url:'));
+assert.ok(endpoint.includes('clientSecret: session.client_secret'));
+console.log('Embedded session configuration guards passed.');
