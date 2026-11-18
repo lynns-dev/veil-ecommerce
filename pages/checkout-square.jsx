@@ -1307,3 +1307,8 @@ const legalLinks = {
   fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
   borderTop: `1px solid ${T.line}`,
 };
+
+export async function getServerSideProps() {
+ if (process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_ENABLED === 'true') return { redirect: { destination: '/checkout', permanent: false } };
+ return { props: {} };
+}

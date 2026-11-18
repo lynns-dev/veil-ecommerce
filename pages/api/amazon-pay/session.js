@@ -11,6 +11,7 @@ function siteBaseUrl(req) {
 }
 
 export default async function handler(req, res) {
+  if (process.env.STRIPE_ONLY_ENABLED === 'true') return res.status(410).json({ error: 'Please refresh checkout to pay securely with Stripe.' });
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });

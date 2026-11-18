@@ -1,3 +1,4 @@
+const STRIPE_ONLY = process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_ENABLED === 'true';
 import SaleCallout from './SaleCallout';
 import { paymentFetch } from '../lib/paymentFetch';
 import React from 'react';
@@ -94,7 +95,7 @@ export default function CartDrawer({
   latestRef.current = { cart, grandTotal, shippingCost, discountCode: appliedDiscount?.code };
 
   React.useEffect(() => {
-    if (!open || cart.length === 0) return undefined;
+    if (STRIPE_ONLY || !open || cart.length === 0) return undefined;
     let cancelled = false;
     (async () => {
       const apple = await createApplePayButton(grandTotal, null, { requestContact: true });
@@ -171,7 +172,7 @@ export default function CartDrawer({
   // rather than hiding the button pre-emptively, since there's no cheap way
   // to check mapping without asking the server.
   React.useEffect(() => {
-    if (!open || cart.length === 0) return undefined;
+    if (STRIPE_ONLY || !open || cart.length === 0) return undefined;
     let cancelled = false;
     let teardown = null;
     (async () => {

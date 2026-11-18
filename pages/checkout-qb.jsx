@@ -304,6 +304,7 @@ function ReviewsCarousel({ reviews }) {
 }
 
 export async function getServerSideProps() {
+ if (process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_ENABLED === 'true') return { redirect: { destination: '/checkout', permanent: false } };
   return { props: { qbEnvironment: process.env.QB_ENVIRONMENT === 'production' ? 'production' : 'sandbox' } };
 }
 

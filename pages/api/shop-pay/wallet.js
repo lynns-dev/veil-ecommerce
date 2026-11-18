@@ -3,6 +3,7 @@ import { walletConfigured, shopify, SHOP_ID, createCheckout, loadCheckout, payme
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  if (process.env.STRIPE_ONLY_ENABLED === 'true' && req.body?.action !== 'status') return req.method === 'GET' ? res.status(200).json({ enabled: false, ready: false }) : res.status(410).json({ error: 'Please refresh checkout to pay with Stripe.' });
   if (req.method === 'GET') {
     if (req.query?.health === '1') {
       if (!walletConfigured()) return res.status(200).json({ ready: false });

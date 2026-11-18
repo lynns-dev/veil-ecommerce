@@ -1,3 +1,5 @@
+import StripeCheckoutButton from '../components/StripeCheckoutButton';
+const STRIPE_ONLY = process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_ENABLED === 'true';
 import { activePromo } from '../lib/promos';
 import { paymentFetch } from '../lib/paymentFetch';
 import React from 'react';
@@ -161,6 +163,7 @@ export default function Offer3Page() {
   // state to manage here; Square's element owns those fields directly and
   // only ever hands back a token via tokenize().
   React.useEffect(() => {
+    if (STRIPE_ONLY) return;
     let cancelled = false;
     (async () => {
       try {
@@ -260,6 +263,7 @@ export default function Offer3Page() {
   const cashAppEventId = React.useMemo(() => generateEventId(), []);
   const cashAppAddrOk = Boolean(shipping.address.trim() && shipping.city.trim() && shipping.state && shipping.zip.trim());
   React.useEffect(() => {
+    if (STRIPE_ONLY) return;
     let cancelled = false;
     renderAmazonPayButton('amazon-pay-button', {
       getOrder: () => {
@@ -297,7 +301,7 @@ export default function Offer3Page() {
   // lag, not a billing bug. (Afterpay is no longer one of Square's buttons
   // here: it has its own integration, components/AfterpayButton.jsx.)
   React.useEffect(() => {
-    if (!squareReady) return;
+    if (STRIPE_ONLY || !squareReady) return;
     let cancelled = false;
     const cleanupFns = [];
 
@@ -457,6 +461,7 @@ export default function Offer3Page() {
       setError('Enter your email to place your order.');
       return;
     }
+    if (STRIPE_ONLY) return;
     if (!squareReady || !squareCardRef.current) {
       setError('Payment form is still loading — please wait a moment and try again.');
       return;
@@ -595,6 +600,7 @@ export default function Offer3Page() {
             <h2 style={{ ...sectionTitle, marginBottom: 4 }}>3. Payment</h2>
             <p style={{ fontSize: 13, color: T.soft, marginBottom: 14 }}>All transactions are secure and encrypted.</p>
 
+            {!STRIPE_ONLY && <>
             {/* Apple Pay / Google Pay, positioned after shipping is
                 collected — both need email/shipping already filled in before
                 handleWalletPay lets a click through to tokenize() (this
@@ -685,18 +691,19 @@ export default function Offer3Page() {
                 )}
               </div>
             </div>
+            </>}
           </section>
 
           {error && <p ref={errorRef} style={errorText}>{error}</p>}
 
-          <button className="cta-3d" type="submit" disabled={submitting || !squareReady} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting || !squareReady ? 0.6 : 1 }}>
+          {STRIPE_ONLY ? <StripeCheckoutButton onBusy={setSubmitting} disabled={submitting} onError={setError} getPayload={() => ({ items: [{ ...product, quantity }], email, shipping, amount: grandTotal, discountCode: appliedDiscount?.code || '', freeShipping: shippingCost === 0, shippingProtection: shippingProtectionCost, eventId: generateEventId(), attribution: getStoredAttribution(), sessionId: getSessionId(), url: window.location.href })} /> : (          <button className="cta-3d" type="submit" disabled={submitting || !squareReady} style={{ ...ctaBtn, width: '100%', marginTop: 24, height: 58, opacity: submitting || !squareReady ? 0.6 : 1 }}>
             {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
-          </button>
+          </button>)}
           <div style={secureNote}>
             <LockIcon />
             <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
           </div>
-          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>Payments securely processed by Square</p>
+          <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>Payments securely processed by {STRIPE_ONLY ? 'Stripe' : 'Square'}</p>
         </form>
 
         <aside style={summaryCol}>

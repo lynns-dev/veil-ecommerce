@@ -1,3 +1,5 @@
+const STRIPE_ONLY = process.env.NEXT_PUBLIC_STRIPE_CHECKOUT_ENABLED === 'true';
+import StripeCheckoutButton from '../components/StripeCheckoutButton';
 import CheckoutDiscount from '../components/CheckoutDiscount';
 import { paymentFetch } from '../lib/paymentFetch';
 import ShopPayWallet from '../components/ShopPayWallet';
@@ -415,7 +417,7 @@ export default function CheckoutPage() {
   // the rest of that step's JSX, which would otherwise leave the old Card
   // instance attached to a now-detached node.
   React.useEffect(() => {
-    if (step !== 2) return;
+    if (STRIPE_ONLY || step !== 2) return;
     let cancelled = false;
     (async () => {
       try {
@@ -454,7 +456,7 @@ export default function CheckoutPage() {
   // lag, not a billing bug. (Afterpay is no longer one of Square's buttons
   // here: it has its own integration, components/AfterpayButton.jsx.)
   React.useEffect(() => {
-    if (!squareReady) return;
+    if (STRIPE_ONLY || !squareReady) return;
     let cancelled = false;
     const cleanupFns = [];
 
@@ -580,7 +582,7 @@ export default function CheckoutPage() {
   const [cashAppReady, setCashAppReady] = React.useState(false);
   const cashAppEventId = React.useMemo(() => generateEventId(), []);
   React.useEffect(() => {
-    if (step !== 2) return undefined;
+    if (STRIPE_ONLY || step !== 2) return undefined;
     let cancelled = false;
     renderAmazonPayButton('amazon-pay-button', {
       getOrder: () => {
@@ -711,6 +713,7 @@ export default function CheckoutPage() {
     }
 
     // Step 2 — charge via Square's Card element.
+    if (STRIPE_ONLY) return;
     if (!squareReady || !squareCardRef.current) {
       setError('Payment form is still loading — please wait a moment and try again.');
       return;
@@ -948,6 +951,7 @@ export default function CheckoutPage() {
                   </select>
                 </label>
 
+                {!STRIPE_ONLY && <>
                 {/* Every way to pay other than typing a card, stacked above the
                     card form: Square's Apple Pay / Google Pay, then Amazon
                     Pay, Afterpay and Cash App Pay, with one "or pay by card"
@@ -1052,6 +1056,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                </>}
                 <div style={{ marginTop: 20 }}>
                   <p style={fieldGroupLabel}>Billing address</p>
                   <div style={billingRecap}>
@@ -1073,9 +1078,9 @@ export default function CheckoutPage() {
                   <button type="button" onClick={() => goToStep(1)} style={bigButtonSecondary} disabled={submitting}>
                     Back
                   </button>
-                  <button type="submit" disabled={submitting || !squareReady} style={{ ...bigButton, flex: 1, opacity: submitting || !squareReady ? 0.6 : 1 }}>
+                  {STRIPE_ONLY ? <StripeCheckoutButton onBusy={setSubmitting} disabled={submitting} onError={setError} getPayload={() => ({ items: cart, email, shipping, amount: grandTotal, discountCode: appliedDiscount?.code || '', freeShipping: shippingCost === 0, shippingProtection: 0, eventId: generateEventId(), attribution: getStoredAttribution(), sessionId: getSessionId(), url: window.location.href })} /> : (                  <button type="submit" disabled={submitting || !squareReady} style={{ ...bigButton, flex: 1, opacity: submitting || !squareReady ? 0.6 : 1 }}>
                     {submitting ? 'Processing…' : `Complete Order — $${grandTotal.toFixed(2)}`}
-                  </button>
+                  </button>)}
                 </div>
 
                 <div className="mobile-reviews-carousel">
@@ -1087,7 +1092,7 @@ export default function CheckoutPage() {
                   <span>256-bit SSL encrypted &middot; your card details never touch our servers</span>
                 </div>
                 <p style={{ fontSize: 11, color: T.soft, textAlign: 'center', marginTop: 8 }}>
-                  Payments securely processed by Square
+                  Payments securely processed by {STRIPE_ONLY ? 'Stripe' : 'Square'}
                 </p>
               </section>
             )}
