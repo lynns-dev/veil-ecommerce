@@ -40,3 +40,7 @@ assert.ok(!endpoint.includes('success_url:'));
 assert.ok(!endpoint.includes('cancel_url:'));
 assert.ok(endpoint.includes('clientSecret: session.client_secret'));
 console.log('Embedded session configuration guards passed.');
+
+assert.ok(endpoint.includes("allowed_payment_method_types: ['card']"));
+assert.ok(!/(?:^|[ ,])payment_method_types:/.test(endpoint));
+console.log('Current API payment method schema passed.');
