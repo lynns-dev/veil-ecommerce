@@ -1157,7 +1157,7 @@ export default function CheckoutPage() {
           {[
             [ShipIcon, `Free shipping over $${FREE_SHIPPING_THRESHOLD}`, 'Ships within 1 business day.'],
             [ReturnIcon, '30-day returns', 'Not the right fit? Send it back for a full refund.'],
-            [LockIcon, 'Secure checkout', 'Payments encrypted and processed by Square.'],
+            [LockIcon, 'Secure checkout', `Payments encrypted and processed by ${STRIPE_ONLY ? 'Stripe' : 'Square'}.`],
             [LeafIcon, 'Vegan & cruelty-free', 'Every formula, always.'],
           ].map(([Icon, title, copy]) => (
             <div key={title} style={reassuranceItem}>
