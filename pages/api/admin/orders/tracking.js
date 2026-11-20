@@ -1,3 +1,4 @@
+import { withTrackingLock, queueStripeTracking, runStripeTrackingJob } from '../../../../lib/stripeTracking';
 import { syncWalletTracking } from '../../../../lib/shopPayWallet';
 // Saves a tracking number for an order and emails the customer, in one
 // admin action. The email send (lib/email/orderHooks.js's notifyOrderShipped)
@@ -22,7 +23,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const updated = await updateOrderStatus(orderId, {
+    return await withTrackingLock(orderId,async()=>{
+    let updated = await updateOrderStatus(orderId, {
       trackingNumber: trackingNumber.trim(),
       carrier: carrier?.trim() || null,
       trackingUrl: trackingUrl?.trim() || null,
@@ -30,7 +32,8 @@ export default async function handler(req, res) {
     });
     if (!updated) return res.status(404).json({ error: 'Order not found.' });
 
-    await syncWalletTracking(updated);
+    if(updated.processor === 'stripe') {await queueStripeTracking(updated);updated=await runStripeTrackingJob(updated.id) || updated;}
+    else await syncWalletTracking(updated);
     let emailSent = false;
     let emailError = null;
     try {
@@ -47,6 +50,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ order: updated, emailSent, emailError });
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

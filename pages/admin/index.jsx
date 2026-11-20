@@ -1,3 +1,4 @@
+import StripeTrackingSync from '../../components/StripeTrackingSync';
 import AdminInbox from '../../components/AdminInbox';
 import React from 'react';
 import Head from 'next/head';
@@ -374,7 +375,7 @@ export default function AdminDashboard() {
       setOrders((prev) => prev.map((o) => (o.id === order.id ? data.order : o)));
       setTrackingMessage((prev) => ({
         ...prev,
-        [order.id]: data.emailSent ? 'Saved — customer emailed.' : `Saved, but the email didn't send: ${data.emailError}`,
+        [order.id]: (data.emailSent ? 'Saved — customer emailed.' : `Saved, but the email didn't send: ${data.emailError}`) + (data.order?.processor === 'stripe' ? data.order.stripeTrackingSync?.status === 'synced' ? ' Tracking synced to Stripe.' : ' Stripe tracking pending; automatic retry is scheduled.' : ''),
       }));
     } catch (err) {
       setTrackingMessage((prev) => ({ ...prev, [order.id]: err.message }));
@@ -1025,6 +1026,7 @@ export default function AdminDashboard() {
             </div>
           }
         >
+          <StripeTrackingSync />
           {selectedOrders.length > 0 && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '0 0 12px', fontSize: 13 }}>
               <button type="button" onClick={handleExportSelected} style={{ ...S.btnFill, height: 36, padding: '0 16px', fontSize: 13 }}>
@@ -1149,6 +1151,7 @@ export default function AdminDashboard() {
 
                         <div style={formLabel}>Tracking</div>
                         <div style={{ marginBottom: 20 }}>
+                          {o.processor === 'stripe' && o.trackingNumber && <p style={{fontSize:12}}>{o.stripeTrackingSync?.status === 'synced' ? 'Tracking synced to Stripe' : o.stripeTrackingSync?.status === 'pending' ? 'Stripe tracking sync pending — automatic retry scheduled.' : 'Tracking not yet synced to Stripe.'}</p>}
                           {o.trackingNumber && (
                             <div style={{ fontSize: 12, color: T.soft, marginBottom: 10 }}>
                               Shipped {o.shippedAt ? new Date(o.shippedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''} — customer emailed when last saved.
