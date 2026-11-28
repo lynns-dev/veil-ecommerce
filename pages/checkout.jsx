@@ -18,7 +18,6 @@ import { computeCartTotals } from '../lib/cartTotals';
 import { fbTrack, generateEventId, refreshPixelIdentity } from '../lib/fbPixel';
 import { firstTimeThisSession, cartSignature } from '../lib/funnelTracking';
 import { getStoredAttribution } from '../lib/attribution';
-import { HEARD_FROM_OPTIONS, getHeardFrom, saveHeardFrom } from '../lib/heardFrom';
 import { getSessionId } from '../lib/session';
 import { getIdentity, rememberIdentity } from '../lib/identity';
 import { setCheckoutStep } from '../lib/checkoutStage';
@@ -941,18 +940,6 @@ export default function CheckoutPage() {
                 <h1 style={stepTitle}>How do you want to pay?</h1>
                 <p style={{ fontSize: 13, color: T.soft, marginTop: 10 }}>All transactions are secure and encrypted.</p>
 
-                <label style={{ display: 'block', marginTop: 18, fontSize: 13, color: T.ink }}>
-                  How did you hear about us? <span style={{ color: T.soft }}>(optional)</span>
-                  <select
-                    defaultValue={hydrated ? getHeardFrom() : ''}
-                    onChange={(e) => saveHeardFrom(e.target.value)}
-                    style={heardFromSelect}
-                  >
-                    <option value="">Choose one</option>
-                    {HEARD_FROM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </label>
-
                 {!STRIPE_ONLY && <>
                 {/* Every way to pay other than typing a card, stacked above the
                     card form: Square's Apple Pay / Google Pay, then Amazon
@@ -1373,9 +1360,4 @@ const legalLinks = {
   maxWidth: 1280, margin: '0 auto', padding: '24px 40px 36px',
   fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.soft,
   borderTop: `1px solid ${T.line}`,
-};
-
-const heardFromSelect = {
-  display: 'block', width: '100%', marginTop: 6, height: 44, padding: '0 12px',
-  border: `1px solid ${T.line}`, background: T.white, fontFamily: T.sans, fontSize: 13, color: T.ink,
 };
